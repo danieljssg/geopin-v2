@@ -1,7 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import type { Pin } from '@/lib/types'
 import { CATEGORIAS } from '@/lib/categories'
+import ExportModal from './ExportModal'
 
 interface PinsListProps {
   pins: Pin[]
@@ -65,6 +67,12 @@ function formatDate(iso: string) {
 }
 
 export default function PinsList({ pins, onDelete, onExport }: PinsListProps) {
+  const [showExportModal, setShowExportModal] = useState(false)
+
+  const handleOpenExport = () => {
+    setShowExportModal(true)
+  }
+
   return (
     <div className="flex flex-col gap-3">
       {/* Header */}
@@ -74,12 +82,12 @@ export default function PinsList({ pins, onDelete, onExport }: PinsListProps) {
         </h2>
         {pins.length > 0 && (
           <button
-            onClick={onExport}
+            onClick={handleOpenExport}
             className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
-            title="Descargar como JSON"
+            title="Elegir formato de exportación"
           >
             <DownloadIcon />
-            Exportar JSON
+            Exportar
           </button>
         )}
       </div>
@@ -186,6 +194,9 @@ export default function PinsList({ pins, onDelete, onExport }: PinsListProps) {
           })}
         </ul>
       )}
+
+      {/* Export Modal */}
+      <ExportModal isOpen={showExportModal} pins={pins} onClose={() => setShowExportModal(false)} />
     </div>
   )
 }

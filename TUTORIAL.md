@@ -71,6 +71,7 @@ geopin/
 │   ├── layout.tsx
 │   └── page.tsx               # Pagina principal (pantalla dividida)
 ├── components/
+│   ├── ExportModal.tsx        # Modal para elegir formato de exportacion
 │   ├── MapView.tsx            # Mapa Leaflet / OpenStreetMap
 │   ├── PinForm.tsx            # Formulario de captura
 │   └── PinsList.tsx           # Lista de pins guardados
@@ -78,6 +79,7 @@ geopin/
 │   └── pins.json              # Base de datos local (archivo JSON)
 ├── lib/
 │   ├── categories.ts          # Configuracion de categorias (colores, abreviaturas)
+│   ├── export.ts              # Funciones de exportacion (JSON, CSV, Excel)
 │   └── types.ts               # Tipos TypeScript compartidos
 └── TUTORIAL.md
 ```
@@ -127,13 +129,20 @@ Al abrir la aplicacion verás dos paneles:
    Haz clic sobre cualquier marcador del mapa para ver un popup con nombre,
    categoria, descripcion y coordenadas.
 
-6. **Eliminar un pin**  
-   - Desde la lista: icono de papelera al lado derecho del pin.
-   - Desde el mapa: boton "Eliminar" dentro del popup.
+6. **Obtener ubicación actual**  
+   En el formulario hay un botón **Obtener ubicación actual** que solicita
+   permiso de ubicación al navegador y actualiza automáticamente los campos
+   Latitud y Longitud con tus coordenadas GPS precisas.
 
-7. **Exportar a JSON**  
-   En la cabecera de la lista haz clic en **Exportar JSON** para descargar el
-   archivo `geopin-YYYY-MM-DD.json` con todos los pins.
+7. **Eliminar un pin**  
+   - Desde la lista: icono de papelera al lado derecho del pin.
+   - Desde el mapa: botón "Eliminar" dentro del popup.
+
+8. **Exportar datos**  
+   En la cabecera de la lista haz clic en **Exportar** para elegir el formato:
+   - **JSON:** archivo estructurado fácil de importar en otras herramientas.
+   - **CSV:** compatible con Excel y Google Sheets.
+   - **Excel:** archivo XLSX con formato automático y columnas ajustadas.
 
 ---
 
@@ -248,6 +257,43 @@ pnpm build        # Compilar para produccion
 pnpm start        # Arrancar servidor de produccion
 pnpm lint         # Revisar codigo con ESLint
 ```
+
+---
+
+## Formatos de exportación
+
+### JSON
+
+Descarga todos los pins en un archivo JSON estructurado.
+
+**Nombre del archivo:** `pins-YYYY-MM-DD.json`
+
+**Ventajas:**
+- Preserva toda la estructura y tipos de datos.
+- Fácil de importar en aplicaciones web.
+- Formato legible y validable.
+
+### CSV
+
+Descarga los pins en formato CSV (valores separados por comas).
+
+**Nombre del archivo:** `pins-YYYY-MM-DD.csv`
+
+**Ventajas:**
+- Compatible con Excel, Google Sheets y LibreOffice.
+- Fácil de compartir con no técnicos.
+- Ideal para análisis en hoja de cálculo.
+
+### Excel (XLSX)
+
+Descarga los pins en un archivo Excel con formato automático.
+
+**Nombre del archivo:** `pins-YYYY-MM-DD.xlsx`
+
+**Ventajas:**
+- Columnas ajustadas automáticamente.
+- Encabezados y bordes ya formateados.
+- Abre directamente en Excel sin necesidad de configuración.
 
 ---
 
