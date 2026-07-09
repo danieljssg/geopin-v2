@@ -38,6 +38,27 @@ export default function PinForm({ formData, onChange, onSubmit, gpsStatus }: Pin
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [gettingLocation, setGettingLocation] = useState(false)
+
+  const handleGetLocation = async () => {
+    setGettingLocation(true)
+    if (!navigator.geolocation) {
+      setError('Geolocalización no disponible en este navegador.')
+      setGettingLocation(false)
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords
+        onChange({ lat: latitude, lng: longitude })
+        setGettingLocation(false)
+      },
+      () => {
+        setError('No se pudo obtener la ubicación. Verifica los permisos.')
+        setGettingLocation(false)
+      },
+    )
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -138,6 +159,61 @@ export default function PinForm({ formData, onChange, onSubmit, gpsStatus }: Pin
       <p className="text-xs text-slate-400 -mt-2 leading-relaxed">
         Haz clic en el mapa o arrastra el marcador para actualizar las coordenadas.
       </p>
+
+      {/* Get location button */}
+      <button
+        type="button"
+        onClick={handleGetLocation}
+        disabled={gettingLocation}
+        className="w-full py-2 px-4 rounded-lg font-semibold text-sm transition-all flex items-center justify-center gap-2"
+        style={{
+          background: gettingLocation ? '#e2e8f0' : '#0f172a',
+          color: gettingLocation ? '#64748b' : '#f1f5f9',
+          cursor: gettingLocation ? 'not-allowed' : 'pointer',
+        }}
+        onMouseEnter={(e) => {
+          if (!gettingLocation)
+            (e.currentTarget as HTMLButtonElement).style.background = '#1e293b'
+        }}
+        onMouseLeave={(e) => {
+          if (!gettingLocation)
+            (e.currentTarget as HTMLButtonElement).style.background = '#0f172a'
+        }}
+      >
+        {gettingLocation ? (
+          <>
+            <span
+              style={{
+                width: 12,
+                height: 12,
+                border: '2px solid currentColor',
+                borderTopColor: 'transparent',
+                borderRadius: '50%',
+                display: 'inline-block',
+                animation: 'spin 0.8s linear infinite',
+              }}
+            />
+            Obteniendo ubicación...
+          </>
+        ) : (
+          <>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+            Obtener ubicación actual
+          </>
+        )}
+      </button>
 
       {/* Name */}
       <div>
