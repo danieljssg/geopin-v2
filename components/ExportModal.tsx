@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import type { Pin } from '@/lib/types'
 import { exportAsJSON, exportAsCSV, exportAsExcel, type ExportFormat } from '@/lib/export'
 
@@ -75,6 +76,23 @@ function FileIcon({ format }: { format: ExportFormat }) {
 
 export default function ExportModal({ isOpen, pins, onClose }: ExportModalProps) {
   const [exporting, setExporting] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+    return () => setMounted(false)
+  }, [])
+
+  // Lock body scroll while the modal is open
+  useEffect(() => {
+    if (isOpen) {
+      const original = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = original
+      }
+    }
+  }, [isOpen])
 
   const handleExport = async (format: ExportFormat) => {
     setExporting(true)
@@ -91,19 +109,23 @@ export default function ExportModal({ isOpen, pins, onClose }: ExportModalProps)
     }
   }
 
-  if (!isOpen) return null
+  if (!isOpen || !mounted) return null
 
-  return (
+  return createPortal(
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/40 backdrop-blur-sm"
+        style={{ zIndex: 10000 }}
         onClick={onClose}
         aria-hidden="true"
       />
 
       {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="fixed inset-0 flex items-center justify-center p-4"
+        style={{ zIndex: 10001 }}
+      >
         <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full overflow-hidden">
           {/* Header */}
           <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-4">
@@ -170,6 +192,7 @@ export default function ExportModal({ isOpen, pins, onClose }: ExportModalProps)
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   )
 }
