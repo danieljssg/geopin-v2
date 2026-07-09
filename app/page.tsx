@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import type { Pin, PinFormData } from '@/lib/types'
+import { getAllPins, addPin, deletePin } from '@/lib/db'
 import PinForm from '@/components/PinForm'
 import PinsList from '@/components/PinsList'
 import type { MapViewProps } from '@/components/MapView'
@@ -43,11 +44,10 @@ export default function Page() {
   const [savedPins, setSavedPins] = useState<Pin[]>([])
   const [gpsStatus, setGpsStatus] = useState<GPSStatus>('idle')
 
-  // Load existing pins on mount
+  // Load existing pins from IndexedDB (Dexie) on mount
   useEffect(() => {
-    fetch('/api/pins')
-      .then((r) => r.json())
-      .then((data: Pin[]) => setSavedPins(data))
+    getAllPins()
+      .then((data) => setSavedPins(data))
       .catch(() => {})
   }, [])
 
@@ -60,27 +60,15 @@ export default function Page() {
   }, [])
 
   const handleSubmit = useCallback(async (data: PinFormData) => {
-    const res = await fetch('/api/pins', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-    if (!res.ok) throw new Error('Failed to save pin')
-    const newPin: Pin = await res.json()
+    const newPin = await addPin(data)
     setSavedPins((prev) => [...prev, newPin])
     // Keep coordinates and category; reset only text fields
     setFormData((prev) => ({ ...prev, nombre: '', descripcion: '' }))
   }, [])
 
   const handleDeletePin = useCallback(async (id: string) => {
-    const res = await fetch('/api/pins', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    })
-    if (res.ok) {
-      setSavedPins((prev) => prev.filter((p) => p.id !== id))
-    }
+    await deletePin(id)
+    setSavedPins((prev) => prev.filter((p) => p.id !== id))
   }, [])
 
   const handleExport = useCallback(() => {
