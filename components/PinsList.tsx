@@ -9,6 +9,7 @@ interface PinsListProps {
   pins: Pin[]
   onDelete: (id: string) => void
   onExport: () => void
+  onExportStart?: () => void
 }
 
 function TrashIcon() {
@@ -66,10 +67,11 @@ function formatDate(iso: string) {
   }
 }
 
-export default function PinsList({ pins, onDelete, onExport }: PinsListProps) {
+export default function PinsList({ pins, onDelete, onExport, onExportStart }: PinsListProps) {
   const [showExportModal, setShowExportModal] = useState(false)
 
   const handleOpenExport = () => {
+    onExportStart?.()
     setShowExportModal(true)
   }
 

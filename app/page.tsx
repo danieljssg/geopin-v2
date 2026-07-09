@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import type { Pin, PinFormData } from '@/lib/types'
 import { getAllPins, addPin, deletePin } from '@/lib/db'
 import PinForm from '@/components/PinForm'
+import Drawer from '@/components/Drawer'
 import PinsList from '@/components/PinsList'
 import type { MapViewProps } from '@/components/MapView'
 
@@ -43,6 +44,7 @@ export default function Page() {
   const [formData, setFormData] = useState<PinFormData>(DEFAULT_FORM)
   const [savedPins, setSavedPins] = useState<Pin[]>([])
   const [gpsStatus, setGpsStatus] = useState<GPSStatus>('idle')
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   // Load existing pins from IndexedDB (Dexie) on mount
   useEffect(() => {
@@ -111,10 +113,13 @@ export default function Page() {
           </p>
         </div>
 
-        {/* GPS status pill */}
+        {/* Empty placeholder to keep layout on mobile (we use floating button instead) */}
+        <div className="md:hidden ml-auto" />
+
+        {/* GPS status pill (desktop) */}
         {gpsStatus !== 'idle' && (
           <span
-            className="ml-auto flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
+            className="hidden md:flex ml-3 items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
             style={{
               background:
                 gpsStatus === 'found'
@@ -165,9 +170,9 @@ export default function Page() {
 
       {/* ── Split layout ────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left panel — form + list */}
+        {/* Left panel — form + list (desktop) */}
         <aside
-          className="flex flex-col overflow-hidden flex-shrink-0"
+          className="hidden md:flex flex-col overflow-hidden flex-shrink-0"
           style={{ width: 360, borderRight: '1px solid #e2e8f0' }}
         >
           <div className="flex-1 overflow-y-auto">
@@ -204,11 +209,76 @@ export default function Page() {
                   pins={savedPins}
                   onDelete={handleDeletePin}
                   onExport={handleExport}
+                  onExportStart={() => setDrawerOpen(false)}
                 />
               </section>
             </div>
           </div>
         </aside>
+
+        {/* Mobile drawer (bottom) */}
+        <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} height={'84vh'}>
+          <div className="p-4 flex flex-col gap-5">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div
+                  style={{
+                    width: 4,
+                    height: 16,
+                    background: '#1d4ed8',
+                    borderRadius: 2,
+                  }}
+                  aria-hidden="true"
+                />
+                <h2 className="text-xs font-bold text-slate-600 uppercase tracking-widest">Nuevo pin</h2>
+              </div>
+              <div>
+                <button
+                  onClick={() => setDrawerOpen(false)}
+                  aria-label="Cerrar formulario"
+                  className="p-2 rounded-md bg-rose-500"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <section>
+              <PinForm
+                formData={formData}
+                onChange={handleFormChange}
+                onSubmit={async (d) => {
+                  await handleSubmit(d)
+                  setDrawerOpen(false)
+                }}
+                gpsStatus={gpsStatus}
+              />
+            </section>
+
+            <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0' }} />
+
+            <section>
+              <PinsList
+                pins={savedPins}
+                onDelete={handleDeletePin}
+                onExport={handleExport}
+                onExportStart={() => setDrawerOpen(false)}
+              />
+            </section>
+          </div>
+        </Drawer>
+
+        {/* Floating button (mobile) */}
+        {!drawerOpen && (
+          <button
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Abrir formulario"
+            className="fixed md:hidden left-1/2 -translate-x-1/2 bottom-6 bg-indigo-600 text-white rounded-full px-4 py-3 shadow-lg"
+            style={{ zIndex: 1000000 }}
+          >
+            Añadir pin
+          </button>
+        )}
 
         {/* Right panel — map */}
         <div className="flex-1 relative overflow-hidden">
@@ -223,7 +293,7 @@ export default function Page() {
           />
 
           {/* Map hint overlay */}
-          <div
+          {/* <div
             className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full text-xs font-medium pointer-events-none z-[1000]"
             style={{
               background: 'rgba(15,23,42,.72)',
@@ -233,7 +303,7 @@ export default function Page() {
             }}
           >
             Haz clic en el mapa o arrastra el marcador para posicionar el pin
-          </div>
+          </div> */}
         </div>
       </div>
     </main>

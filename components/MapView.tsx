@@ -145,7 +145,13 @@ function MapClickHandler({ onPositionChange }: MapClickHandlerProps) {
   return null
 }
 
-function CustomZoomControl() {
+function MapActionControls({
+  onPositionChange,
+  onGPSStatus,
+}: {
+  onPositionChange: (lat: number, lng: number) => void
+  onGPSStatus: (status: 'searching' | 'found' | 'error' | 'denied') => void
+}) {
   const map = useMap()
 
   const btnStyle: React.CSSProperties = {
@@ -167,6 +173,27 @@ function CustomZoomControl() {
     transition: 'background .15s',
   }
 
+  const handleLocateMe = useCallback(() => {
+    if (!navigator.geolocation) {
+      onGPSStatus('error')
+      return
+    }
+
+    onGPSStatus('searching')
+
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        onGPSStatus('found')
+        map.flyTo([coords.latitude, coords.longitude], 17, { animate: true, duration: 1.2 })
+        onPositionChange(coords.latitude, coords.longitude)
+      },
+      (err) => {
+        onGPSStatus(err.code === err.PERMISSION_DENIED ? 'denied' : 'error')
+      },
+      { enableHighAccuracy: true, timeout: 12000 },
+    )
+  }, [map, onGPSStatus, onPositionChange])
+
   return (
     <div
       style={{
@@ -179,6 +206,19 @@ function CustomZoomControl() {
         gap: 4,
       }}
     >
+      <button
+        style={btnStyle}
+        onClick={handleLocateMe}
+        aria-label="Usar mi ubicación"
+        title="Usar mi ubicación"
+        onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '#f0f4ff')}
+        onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '#fff')}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+          <circle cx="12" cy="10" r="3" />
+        </svg>
+      </button>
       <button
         style={btnStyle}
         onClick={() => map.zoomIn()}
@@ -254,7 +294,7 @@ export default function MapView({
 
       <GPSDetector onPositionChange={onPositionChange} onGPSStatus={onGPSStatus} />
       <MapClickHandler onPositionChange={onPositionChange} />
-      <CustomZoomControl />
+      <MapActionControls onPositionChange={onPositionChange} onGPSStatus={onGPSStatus} />
 
       {/* Active / draggable marker */}
       {hasValidPosition && (
