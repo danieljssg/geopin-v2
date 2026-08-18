@@ -1,18 +1,23 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { createPortal } from 'react-dom'
-import type { Pin } from '@/lib/types'
-import { exportAsJSON, exportAsCSV, exportAsExcel, type ExportFormat } from '@/lib/export'
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import type { Pin } from "@/lib/types";
+import {
+  exportAsJSON,
+  exportAsCSV,
+  exportAsExcel,
+  type ExportFormat,
+} from "@/lib/export";
 
 interface ExportModalProps {
-  isOpen: boolean
-  pins: Pin[]
-  onClose: () => void
+  isOpen: boolean;
+  pins: Pin[];
+  onClose: () => void;
 }
 
 function FileIcon({ format }: { format: ExportFormat }) {
-  if (format === 'json') {
+  if (format === "json") {
     return (
       <svg
         width="20"
@@ -30,10 +35,10 @@ function FileIcon({ format }: { format: ExportFormat }) {
           JSON
         </text>
       </svg>
-    )
+    );
   }
 
-  if (format === 'csv') {
+  if (format === "csv") {
     return (
       <svg
         width="20"
@@ -51,7 +56,7 @@ function FileIcon({ format }: { format: ExportFormat }) {
           CSV
         </text>
       </svg>
-    )
+    );
   }
 
   return (
@@ -71,45 +76,49 @@ function FileIcon({ format }: { format: ExportFormat }) {
         XLSX
       </text>
     </svg>
-  )
+  );
 }
 
-export default function ExportModal({ isOpen, pins, onClose }: ExportModalProps) {
-  const [exporting, setExporting] = useState(false)
-  const [mounted, setMounted] = useState(false)
+export default function ExportModal({
+  isOpen,
+  pins,
+  onClose,
+}: ExportModalProps) {
+  const [exporting, setExporting] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true)
-    return () => setMounted(false)
-  }, [])
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
 
   // Lock body scroll while the modal is open
   useEffect(() => {
     if (isOpen) {
-      const original = document.body.style.overflow
-      document.body.style.overflow = 'hidden'
+      const original = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
       return () => {
-        document.body.style.overflow = original
-      }
+        document.body.style.overflow = original;
+      };
     }
-  }, [isOpen])
+  }, [isOpen]);
 
   const handleExport = async (format: ExportFormat) => {
-    setExporting(true)
+    setExporting(true);
     try {
-      if (format === 'json') exportAsJSON(pins)
-      else if (format === 'csv') exportAsCSV(pins)
-      else if (format === 'excel') exportAsExcel(pins)
+      if (format === "json") exportAsJSON(pins);
+      else if (format === "csv") exportAsCSV(pins);
+      else if (format === "excel") exportAsExcel(pins);
 
       // Small delay for UX feedback
-      await new Promise((resolve) => setTimeout(resolve, 300))
-      onClose()
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      onClose();
     } finally {
-      setExporting(false)
+      setExporting(false);
     }
-  }
+  };
 
-  if (!isOpen || !mounted) return null
+  if (!isOpen || !mounted) return null;
 
   return createPortal(
     <>
@@ -128,54 +137,68 @@ export default function ExportModal({ isOpen, pins, onClose }: ExportModalProps)
       >
         <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-4">
-            <h3 className="text-lg font-bold text-white">Elegir formato de exportación</h3>
+          <div className="bg-linear-to-r from-slate-900 to-slate-800 px-6 py-4">
+            <h3 className="text-lg font-bold text-white">
+              Elegir formato de exportación
+            </h3>
           </div>
 
           {/* Content */}
           <div className="p-6 space-y-3">
             {/* JSON */}
             <button
-              onClick={() => handleExport('json')}
+              onClick={() => handleExport("json")}
               disabled={exporting}
               className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-left group"
             >
-              <div className="flex-shrink-0 text-blue-600 group-hover:text-blue-700">
+              <div className="shrink-0 text-blue-600 group-hover:text-blue-700">
                 <FileIcon format="json" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-slate-900 text-sm">Exportar como JSON</p>
-                <p className="text-xs text-slate-500 mt-0.5">Formato estructurado, fácil de importar</p>
+                <p className="font-semibold text-slate-900 text-sm">
+                  Exportar como JSON
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Formato estructurado, fácil de importar
+                </p>
               </div>
             </button>
 
             {/* CSV */}
             <button
-              onClick={() => handleExport('csv')}
+              onClick={() => handleExport("csv")}
               disabled={exporting}
               className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-200 hover:border-green-400 hover:bg-green-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-left group"
             >
-              <div className="flex-shrink-0 text-green-600 group-hover:text-green-700">
+              <div className="shrink-0 text-green-600 group-hover:text-green-700">
                 <FileIcon format="csv" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-slate-900 text-sm">Exportar como CSV</p>
-                <p className="text-xs text-slate-500 mt-0.5">Compatible con Excel y Sheets</p>
+                <p className="font-semibold text-slate-900 text-sm">
+                  Exportar como CSV
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Compatible con Excel y Sheets
+                </p>
               </div>
             </button>
 
             {/* Excel */}
             <button
-              onClick={() => handleExport('excel')}
+              onClick={() => handleExport("excel")}
               disabled={exporting}
               className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-left group"
             >
-              <div className="flex-shrink-0 text-emerald-600 group-hover:text-emerald-700">
+              <div className="shrink-0 text-emerald-600 group-hover:text-emerald-700">
                 <FileIcon format="excel" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-slate-900 text-sm">Exportar como Excel</p>
-                <p className="text-xs text-slate-500 mt-0.5">Archivo XLSX con formato automático</p>
+                <p className="font-semibold text-slate-900 text-sm">
+                  Exportar como Excel
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Archivo XLSX con formato automático
+                </p>
               </div>
             </button>
           </div>
@@ -194,5 +217,5 @@ export default function ExportModal({ isOpen, pins, onClose }: ExportModalProps)
       </div>
     </>,
     document.body,
-  )
+  );
 }

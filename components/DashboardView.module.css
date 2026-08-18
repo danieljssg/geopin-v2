@@ -1,0 +1,53 @@
+.dashboard {
+  min-height: 100vh;
+  color-scheme: light;
+  background-color: #eef3f8;
+  background-image:
+    linear-gradient(rgba(30, 58, 95, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(30, 58, 95, 0.045) 1px, transparent 1px);
+  background-size: 32px 32px;
+  color: #172033;
+}
+
+.dashboard :global(input:focus-visible),
+.dashboard :global(select:focus-visible),
+.dashboard :global(button:focus-visible),
+.dashboard :global(summary:focus-visible),
+.dashboard :global(a:focus-visible) {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.metricValue {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+}
+
+.barFill {
+  min-width: 3px;
+}
+
+.chartLine {
+  vector-effect: non-scaling-stroke;
+}
+
+.skeleton {
+  background: #dbe4ee;
+}
+
+@media (forced-colors: active) {
+  .barFill {
+    background: Highlight !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard *,
+  .dashboard *::before,
+  .dashboard *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

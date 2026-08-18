@@ -1,17 +1,18 @@
-'use client'
+"use client";
 
-import { useState, useCallback, useEffect, useRef } from 'react'
-import dynamic from 'next/dynamic'
-import type { Pin, PinFormData } from '@/lib/types'
-import { getAllPins, addPin, deletePin, updatePin } from '@/lib/db'
-import { normalizeCategory } from '@/lib/categories'
-import PinForm from '@/components/PinForm'
-import Drawer from '@/components/Drawer'
-import PinsList from '@/components/PinsList'
-import type { MapViewProps } from '@/components/MapView'
+import { useState, useCallback, useEffect, useRef } from "react";
+import dynamic from "next/dynamic";
+import type { Pin, PinFormData } from "@/lib/types";
+import { getAllPins, addPin, deletePin, updatePin } from "@/lib/db";
+import { normalizeCategory } from "@/lib/categories";
+import PinForm from "@/components/PinForm";
+import Drawer from "@/components/Drawer";
+import PinsList from "@/components/PinsList";
+import AppNavigation from "@/components/AppNavigation";
+import type { MapViewProps } from "@/components/MapView";
 
 // Leaflet requires a browser environment — load with ssr:false
-const MapView = dynamic<MapViewProps>(() => import('@/components/MapView'), {
+const MapView = dynamic<MapViewProps>(() => import("@/components/MapView"), {
   ssr: false,
   loading: () => (
     <div className="h-full w-full flex flex-col items-center justify-center bg-slate-100 gap-3">
@@ -19,24 +20,24 @@ const MapView = dynamic<MapViewProps>(() => import('@/components/MapView'), {
         style={{
           width: 32,
           height: 32,
-          border: '3px solid #1d4ed8',
-          borderTopColor: 'transparent',
-          borderRadius: '50%',
-          animation: 'spin 0.8s linear infinite',
+          border: "3px solid #1d4ed8",
+          borderTopColor: "transparent",
+          borderRadius: "50%",
+          animation: "spin 0.8s linear infinite",
         }}
       />
       <p className="text-sm text-slate-500 font-medium">Cargando mapa...</p>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   ),
-})
+});
 
 const DEFAULT_FORM: PinFormData = {
   lat: 0,
   lng: 0,
-  nombre: '',
-  descripcion: '',
-  categoria: 'vivienda',
+  nombre: "",
+  descripcion: "",
+  categoria: "vivienda",
   usoGeneral: undefined,
   usoEspecifico: undefined,
   pisosConstruccion: undefined,
@@ -47,9 +48,9 @@ const DEFAULT_FORM: PinFormData = {
   drenaje: undefined,
   metrosCuadradosParcela: undefined,
   metrosCuadradosManzana: undefined,
-}
+};
 
-type GPSStatus = 'idle' | 'searching' | 'found' | 'error' | 'denied'
+type GPSStatus = "idle" | "searching" | "found" | "error" | "denied";
 
 function pinToFormData(pin: Pin): PinFormData {
   return {
@@ -68,88 +69,105 @@ function pinToFormData(pin: Pin): PinFormData {
     drenaje: pin.drenaje,
     metrosCuadradosParcela: pin.metrosCuadradosParcela,
     metrosCuadradosManzana: pin.metrosCuadradosManzana,
-  }
+  };
 }
 
 export default function Page() {
-  const [formData, setFormData] = useState<PinFormData>(DEFAULT_FORM)
-  const [savedPins, setSavedPins] = useState<Pin[]>([])
-  const [gpsStatus, setGpsStatus] = useState<GPSStatus>('idle')
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const [editingPinId, setEditingPinId] = useState<string | null>(null)
-  const creationDraft = useRef<PinFormData>(DEFAULT_FORM)
+  const [formData, setFormData] = useState<PinFormData>(DEFAULT_FORM);
+  const [savedPins, setSavedPins] = useState<Pin[]>([]);
+  const [gpsStatus, setGpsStatus] = useState<GPSStatus>("idle");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editingPinId, setEditingPinId] = useState<string | null>(null);
+  const creationDraft = useRef<PinFormData>(DEFAULT_FORM);
 
   // Load existing pins from IndexedDB (Dexie) on mount
   useEffect(() => {
     getAllPins()
       .then((data) => setSavedPins(data))
-      .catch(() => {})
-  }, [])
+      .catch(() => {});
+  }, []);
 
   const handlePositionChange = useCallback((lat: number, lng: number) => {
-    setFormData((prev) => ({ ...prev, lat, lng }))
-  }, [])
+    setFormData((prev) => ({ ...prev, lat, lng }));
+  }, []);
 
   const handleFormChange = useCallback((data: Partial<PinFormData>) => {
-    setFormData((prev) => ({ ...prev, ...data }))
-  }, [])
+    setFormData((prev) => ({ ...prev, ...data }));
+  }, []);
 
-  const handleSubmit = useCallback(async (data: PinFormData) => {
-    if (editingPinId) {
-      const updatedPin = await updatePin(editingPinId, data)
-      setSavedPins((prev) => prev.map((pin) => (pin.id === editingPinId ? updatedPin : pin)))
-      setEditingPinId(null)
-      setFormData(creationDraft.current)
-      return
-    }
+  const handleSubmit = useCallback(
+    async (data: PinFormData) => {
+      if (editingPinId) {
+        const updatedPin = await updatePin(editingPinId, data);
+        setSavedPins((prev) =>
+          prev.map((pin) => (pin.id === editingPinId ? updatedPin : pin)),
+        );
+        setEditingPinId(null);
+        setFormData(creationDraft.current);
+        return;
+      }
 
-    const newPin = await addPin(data)
-    setSavedPins((prev) => [...prev, newPin])
-    // Keep the position and icon category ready for the next pin.
-    setFormData((prev) => ({
-      ...DEFAULT_FORM,
-      lat: prev.lat,
-      lng: prev.lng,
-      categoria: prev.categoria,
-    }))
-  }, [editingPinId])
+      const newPin = await addPin(data);
+      setSavedPins((prev) => [...prev, newPin]);
+      // Keep the position and icon category ready for the next pin.
+      setFormData((prev) => ({
+        ...DEFAULT_FORM,
+        lat: prev.lat,
+        lng: prev.lng,
+        categoria: prev.categoria,
+      }));
+    },
+    [editingPinId],
+  );
 
-  const handleEditPin = useCallback((pin: Pin) => {
-    if (!editingPinId) creationDraft.current = formData
-    setEditingPinId(pin.id)
-    setFormData(pinToFormData(pin))
-    if (window.matchMedia('(max-width: 767px)').matches) setDrawerOpen(true)
-  }, [editingPinId, formData])
+  const handleEditPin = useCallback(
+    (pin: Pin) => {
+      if (!editingPinId) creationDraft.current = formData;
+      setEditingPinId(pin.id);
+      setFormData(pinToFormData(pin));
+      if (window.matchMedia("(max-width: 767px)").matches) setDrawerOpen(true);
+    },
+    [editingPinId, formData],
+  );
 
   const handleCancelEdit = useCallback(() => {
-    setEditingPinId(null)
-    setFormData(creationDraft.current)
-  }, [])
+    setEditingPinId(null);
+    setFormData(creationDraft.current);
+  }, []);
 
-  const handleDeletePin = useCallback(async (id: string) => {
-    await deletePin(id)
-    setSavedPins((prev) => prev.filter((p) => p.id !== id))
-    if (id === editingPinId) handleCancelEdit()
-  }, [editingPinId, handleCancelEdit])
+  const handleDeletePin = useCallback(
+    async (id: string) => {
+      await deletePin(id);
+      setSavedPins((prev) => prev.filter((p) => p.id !== id));
+      if (id === editingPinId) handleCancelEdit();
+    },
+    [editingPinId, handleCancelEdit],
+  );
 
   const handleExport = useCallback(() => {
     const blob = new Blob([JSON.stringify(savedPins, null, 2)], {
-      type: 'application/json',
-    })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `geopin-${new Date().toISOString().split('T')[0]}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-  }, [savedPins])
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `geopin-${new Date().toISOString().split("T")[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [savedPins]);
 
   return (
     <main className="h-screen flex flex-col overflow-hidden bg-slate-50">
+      <a
+        href="#map-content"
+        className="fixed left-3 top-3 z-1000001 -translate-y-20 rounded-md bg-white px-4 py-2 text-sm font-bold text-[#1e3a5f] shadow-lg focus:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"
+      >
+        Saltar al mapa
+      </a>
       {/* ── Top header ──────────────────────────────────────── */}
       <header
-        className="flex items-center gap-3 px-5 py-3 shadow-sm z-20 flex-shrink-0"
-        style={{ background: '#1e3a5f' }}
+        className="flex items-center gap-3 px-3 py-3 shadow-sm z-20 shrink-0 sm:px-5"
+        style={{ background: "#1e3a5f" }}
       >
         <svg
           width="22"
@@ -166,73 +184,80 @@ export default function Page() {
           <circle cx="12" cy="10" r="3" />
         </svg>
         <div>
-          <h1 className="font-bold text-base leading-none text-white tracking-tight">GeoPin</h1>
-          <p className="text-xs leading-none mt-0.5" style={{ color: '#93c5fd' }}>
+          <h1 className="font-bold text-base leading-none text-white tracking-tight">
+            GeoPin
+          </h1>
+          <p
+            className="hidden text-xs leading-none mt-0.5 sm:block"
+            style={{ color: "#93c5fd" }}
+          >
             Sistema de marcado de establecimientos
           </p>
         </div>
 
-        {/* Empty placeholder to keep layout on mobile (we use floating button instead) */}
-        <div className="md:hidden ml-auto" />
-
         {/* GPS status pill (desktop) */}
-        {gpsStatus !== 'idle' && (
+        {gpsStatus !== "idle" && (
           <span
             className="hidden md:flex ml-3 items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
             style={{
               background:
-                gpsStatus === 'found'
-                  ? '#14532d'
-                  : gpsStatus === 'searching'
-                    ? '#1e3a8a'
-                    : '#7f1d1d',
+                gpsStatus === "found"
+                  ? "#14532d"
+                  : gpsStatus === "searching"
+                    ? "#1e3a8a"
+                    : "#7f1d1d",
               color:
-                gpsStatus === 'found'
-                  ? '#86efac'
-                  : gpsStatus === 'searching'
-                    ? '#93c5fd'
-                    : '#fca5a5',
+                gpsStatus === "found"
+                  ? "#86efac"
+                  : gpsStatus === "searching"
+                    ? "#93c5fd"
+                    : "#fca5a5",
             }}
           >
-            {gpsStatus === 'searching' && (
+            {gpsStatus === "searching" && (
               <span
                 style={{
                   width: 9,
                   height: 9,
-                  border: '1.5px solid currentColor',
-                  borderTopColor: 'transparent',
-                  borderRadius: '50%',
-                  display: 'inline-block',
-                  animation: 'spin 0.8s linear infinite',
+                  border: "1.5px solid currentColor",
+                  borderTopColor: "transparent",
+                  borderRadius: "50%",
+                  display: "inline-block",
+                  animation: "spin 0.8s linear infinite",
                 }}
               />
             )}
-            {gpsStatus !== 'searching' && (
+            {gpsStatus !== "searching" && (
               <span
                 style={{
                   width: 7,
                   height: 7,
-                  borderRadius: '50%',
-                  background: 'currentColor',
-                  display: 'inline-block',
+                  borderRadius: "50%",
+                  background: "currentColor",
+                  display: "inline-block",
                 }}
               />
             )}
-            {gpsStatus === 'found' && 'GPS activo'}
-            {gpsStatus === 'searching' && 'Buscando GPS...'}
-            {gpsStatus === 'error' && 'GPS no disponible'}
-            {gpsStatus === 'denied' && 'GPS denegado'}
+            {gpsStatus === "found" && "GPS activo"}
+            {gpsStatus === "searching" && "Buscando GPS..."}
+            {gpsStatus === "error" && "GPS no disponible"}
+            {gpsStatus === "denied" && "GPS denegado"}
           </span>
         )}
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        <AppNavigation active="map" />
       </header>
 
       {/* ── Split layout ────────────────────────────────────── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div
+        id="map-content"
+        tabIndex={-1}
+        className="flex flex-1 overflow-hidden"
+      >
         {/* Left panel — form + list (desktop) */}
         <aside
-          className="hidden md:flex flex-col overflow-hidden flex-shrink-0"
-          style={{ width: 360, borderRight: '1px solid #e2e8f0' }}
+          className="hidden md:flex flex-col overflow-hidden shrink-0"
+          style={{ width: 360, borderRight: "1px solid #e2e8f0" }}
         >
           <div className="flex-1 overflow-y-auto">
             <div className="p-4 flex flex-col gap-5">
@@ -243,17 +268,17 @@ export default function Page() {
                     style={{
                       width: 4,
                       height: 16,
-                      background: '#1d4ed8',
+                      background: "#1d4ed8",
                       borderRadius: 2,
                     }}
                     aria-hidden="true"
                   />
                   <h2 className="text-xs font-bold text-slate-600 uppercase tracking-widest">
-                    {editingPinId ? 'Editar pin' : 'Nuevo pin'}
+                    {editingPinId ? "Editar pin" : "Nuevo pin"}
                   </h2>
                 </div>
                 <PinForm
-                  key={`desktop-${editingPinId ?? 'new'}`}
+                  key={`desktop-${editingPinId ?? "new"}`}
                   formData={formData}
                   onChange={handleFormChange}
                   onSubmit={handleSubmit}
@@ -263,7 +288,7 @@ export default function Page() {
                 />
               </section>
 
-              <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0' }} />
+              <hr style={{ border: "none", borderTop: "1px solid #e2e8f0" }} />
 
               {/* Pins list section */}
               <section>
@@ -280,7 +305,11 @@ export default function Page() {
         </aside>
 
         {/* Mobile drawer (bottom) */}
-        <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} height={'84vh'}>
+        <Drawer
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          height={"84vh"}
+        >
           <div className="p-4 flex flex-col gap-5">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -288,13 +317,13 @@ export default function Page() {
                   style={{
                     width: 4,
                     height: 16,
-                    background: '#1d4ed8',
+                    background: "#1d4ed8",
                     borderRadius: 2,
                   }}
                   aria-hidden="true"
                 />
                 <h2 className="text-xs font-bold text-slate-600 uppercase tracking-widest">
-                  {editingPinId ? 'Editar pin' : 'Nuevo pin'}
+                  {editingPinId ? "Editar pin" : "Nuevo pin"}
                 </h2>
               </div>
               <div>
@@ -310,12 +339,12 @@ export default function Page() {
 
             <section>
               <PinForm
-                key={`mobile-${editingPinId ?? 'new'}`}
+                key={`mobile-${editingPinId ?? "new"}`}
                 formData={formData}
                 onChange={handleFormChange}
                 onSubmit={async (d) => {
-                  await handleSubmit(d)
-                  setDrawerOpen(false)
+                  await handleSubmit(d);
+                  setDrawerOpen(false);
                 }}
                 gpsStatus={gpsStatus}
                 isEditing={editingPinId !== null}
@@ -323,7 +352,7 @@ export default function Page() {
               />
             </section>
 
-            <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0' }} />
+            <hr style={{ border: "none", borderTop: "1px solid #e2e8f0" }} />
 
             <section>
               <PinsList
@@ -377,5 +406,5 @@ export default function Page() {
         </div>
       </div>
     </main>
-  )
+  );
 }

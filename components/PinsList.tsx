@@ -1,17 +1,17 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import type { Pin } from '@/lib/types'
-import { getCategoryConfig } from '@/lib/categories'
-import { getUrbanDetails } from '@/lib/urban-options'
-import ExportModal from './ExportModal'
+import { useState } from "react";
+import type { Pin } from "@/lib/types";
+import { getCategoryConfig } from "@/lib/categories";
+import { getUrbanDetails } from "@/lib/urban-options";
+import ExportModal from "./ExportModal";
 
 interface PinsListProps {
-  pins: Pin[]
-  onDelete: (id: string) => void
-  onEdit: (pin: Pin) => void
-  onExport: () => void
-  onExportStart?: () => void
+  pins: Pin[];
+  onDelete: (id: string) => void;
+  onEdit: (pin: Pin) => void;
+  onExport: () => void;
+  onExportStart?: () => void;
 }
 
 function TrashIcon() {
@@ -32,7 +32,7 @@ function TrashIcon() {
       <path d="M10 11v6M14 11v6" />
       <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
     </svg>
-  )
+  );
 }
 
 function DownloadIcon() {
@@ -52,30 +52,36 @@ function DownloadIcon() {
       <polyline points="7 10 12 15 17 10" />
       <line x1="12" y1="15" x2="12" y2="3" />
     </svg>
-  )
+  );
 }
 
 function formatDate(iso: string) {
   try {
-    return new Date(iso).toLocaleString('es', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    return new Date(iso).toLocaleString("es", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   } catch {
-    return iso
+    return iso;
   }
 }
 
-export default function PinsList({ pins, onDelete, onEdit, onExport, onExportStart }: PinsListProps) {
-  const [showExportModal, setShowExportModal] = useState(false)
+export default function PinsList({
+  pins,
+  onDelete,
+  onEdit,
+  onExport,
+  onExportStart,
+}: PinsListProps) {
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const handleOpenExport = () => {
-    onExportStart?.()
-    setShowExportModal(true)
-  }
+    onExportStart?.();
+    setShowExportModal(true);
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -104,11 +110,11 @@ export default function PinsList({ pins, onDelete, onEdit, onExport, onExportSta
             style={{
               width: 40,
               height: 40,
-              borderRadius: '50%',
-              background: '#f1f5f9',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              borderRadius: "50%",
+              background: "#f1f5f9",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               marginBottom: 10,
             }}
           >
@@ -139,8 +145,8 @@ export default function PinsList({ pins, onDelete, onEdit, onExport, onExportSta
       {pins.length > 0 && (
         <ul className="flex flex-col gap-2" role="list">
           {pins.map((pin) => {
-            const cat = getCategoryConfig(pin.categoria)
-            const urbanDetails = getUrbanDetails(pin)
+            const cat = getCategoryConfig(pin.categoria);
+            const urbanDetails = getUrbanDetails(pin);
             return (
               <li
                 key={pin.id}
@@ -148,12 +154,13 @@ export default function PinsList({ pins, onDelete, onEdit, onExport, onExportSta
               >
                 {/* Category dot */}
                 <div
-                  className="flex-shrink-0 flex items-center justify-center rounded-full text-white font-bold"
+                  className="shrink-0 flex items-center justify-center rounded-full text-white font-bold"
                   style={{
                     width: 30,
                     height: 30,
                     background: cat.color,
-                    fontSize: cat.abbr.length > 2 ? 8 : cat.abbr.length > 1 ? 9 : 12,
+                    fontSize:
+                      cat.abbr.length > 2 ? 8 : cat.abbr.length > 1 ? 9 : 12,
                     marginTop: 1,
                   }}
                   aria-hidden="true"
@@ -168,7 +175,7 @@ export default function PinsList({ pins, onDelete, onEdit, onExport, onExportSta
                       {pin.nombre}
                     </span>
                     <span
-                      className="text-xs font-medium px-1.5 py-0.5 rounded-md flex-shrink-0"
+                      className="text-xs font-medium px-1.5 py-0.5 rounded-md shrink-0"
                       style={{ backgroundColor: cat.bgColor, color: cat.color }}
                     >
                       {cat.label}
@@ -190,7 +197,9 @@ export default function PinsList({ pins, onDelete, onEdit, onExport, onExportSta
                         {urbanDetails.map((detail) => (
                           <div key={detail.label} className="contents">
                             <dt className="text-slate-500">{detail.label}</dt>
-                            <dd className="text-right font-medium text-slate-700">{detail.value}</dd>
+                            <dd className="text-right font-medium text-slate-700">
+                              {detail.value}
+                            </dd>
                           </div>
                         ))}
                       </dl>
@@ -200,7 +209,9 @@ export default function PinsList({ pins, onDelete, onEdit, onExport, onExportSta
                   <p className="text-xs font-mono text-slate-400">
                     {pin.lat.toFixed(5)}, {pin.lng.toFixed(5)}
                   </p>
-                  <p className="text-xs text-slate-300 mt-0.5">{formatDate(pin.creadoEn)}</p>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    {formatDate(pin.creadoEn)}
+                  </p>
                   <div className="mt-2 flex gap-2">
                     <button
                       type="button"
@@ -222,13 +233,17 @@ export default function PinsList({ pins, onDelete, onEdit, onExport, onExportSta
                   </div>
                 </div>
               </li>
-            )
+            );
           })}
         </ul>
       )}
 
       {/* Export Modal */}
-      <ExportModal isOpen={showExportModal} pins={pins} onClose={() => setShowExportModal(false)} />
+      <ExportModal
+        isOpen={showExportModal}
+        pins={pins}
+        onClose={() => setShowExportModal(false)}
+      />
     </div>
-  )
+  );
 }
