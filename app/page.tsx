@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import type { Pin, PinFormData } from '@/lib/types'
-import { getAllPins, addPin, deletePin } from '@/lib/db'
+import { getAllPins, addPin, deletePin, updatePin } from '@/lib/db'
+import { normalizeCategory } from '@/lib/categories'
 import PinForm from '@/components/PinForm'
 import Drawer from '@/components/Drawer'
 import PinsList from '@/components/PinsList'
@@ -42,7 +43,7 @@ const DEFAULT_FORM: PinFormData = {
   estadoConstruccion: undefined,
   material: undefined,
   hectareasParcela: undefined,
-  poblacion: undefined,
+  poblacionRango: undefined,
   drenaje: undefined,
   metrosCuadradosParcela: undefined,
   metrosCuadradosManzana: undefined,
@@ -50,11 +51,33 @@ const DEFAULT_FORM: PinFormData = {
 
 type GPSStatus = 'idle' | 'searching' | 'found' | 'error' | 'denied'
 
+function pinToFormData(pin: Pin): PinFormData {
+  return {
+    lat: pin.lat,
+    lng: pin.lng,
+    nombre: pin.nombre,
+    descripcion: pin.descripcion,
+    categoria: normalizeCategory(pin.categoria),
+    usoGeneral: pin.usoGeneral,
+    usoEspecifico: pin.usoEspecifico,
+    pisosConstruccion: pin.pisosConstruccion,
+    estadoConstruccion: pin.estadoConstruccion,
+    material: pin.material,
+    hectareasParcela: pin.hectareasParcela,
+    poblacionRango: pin.poblacionRango,
+    drenaje: pin.drenaje,
+    metrosCuadradosParcela: pin.metrosCuadradosParcela,
+    metrosCuadradosManzana: pin.metrosCuadradosManzana,
+  }
+}
+
 export default function Page() {
   const [formData, setFormData] = useState<PinFormData>(DEFAULT_FORM)
   const [savedPins, setSavedPins] = useState<Pin[]>([])
   const [gpsStatus, setGpsStatus] = useState<GPSStatus>('idle')
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [editingPinId, setEditingPinId] = useState<string | null>(null)
+  const creationDraft = useRef<PinFormData>(DEFAULT_FORM)
 
   // Load existing pins from IndexedDB (Dexie) on mount
   useEffect(() => {
@@ -72,6 +95,14 @@ export default function Page() {
   }, [])
 
   const handleSubmit = useCallback(async (data: PinFormData) => {
+    if (editingPinId) {
+      const updatedPin = await updatePin(editingPinId, data)
+      setSavedPins((prev) => prev.map((pin) => (pin.id === editingPinId ? updatedPin : pin)))
+      setEditingPinId(null)
+      setFormData(creationDraft.current)
+      return
+    }
+
     const newPin = await addPin(data)
     setSavedPins((prev) => [...prev, newPin])
     // Keep the position and icon category ready for the next pin.
@@ -81,12 +112,25 @@ export default function Page() {
       lng: prev.lng,
       categoria: prev.categoria,
     }))
+  }, [editingPinId])
+
+  const handleEditPin = useCallback((pin: Pin) => {
+    if (!editingPinId) creationDraft.current = formData
+    setEditingPinId(pin.id)
+    setFormData(pinToFormData(pin))
+    if (window.matchMedia('(max-width: 767px)').matches) setDrawerOpen(true)
+  }, [editingPinId, formData])
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingPinId(null)
+    setFormData(creationDraft.current)
   }, [])
 
   const handleDeletePin = useCallback(async (id: string) => {
     await deletePin(id)
     setSavedPins((prev) => prev.filter((p) => p.id !== id))
-  }, [])
+    if (id === editingPinId) handleCancelEdit()
+  }, [editingPinId, handleCancelEdit])
 
   const handleExport = useCallback(() => {
     const blob = new Blob([JSON.stringify(savedPins, null, 2)], {
@@ -205,14 +249,17 @@ export default function Page() {
                     aria-hidden="true"
                   />
                   <h2 className="text-xs font-bold text-slate-600 uppercase tracking-widest">
-                    Nuevo pin
+                    {editingPinId ? 'Editar pin' : 'Nuevo pin'}
                   </h2>
                 </div>
                 <PinForm
+                  key={`desktop-${editingPinId ?? 'new'}`}
                   formData={formData}
                   onChange={handleFormChange}
                   onSubmit={handleSubmit}
                   gpsStatus={gpsStatus}
+                  isEditing={editingPinId !== null}
+                  onCancel={handleCancelEdit}
                 />
               </section>
 
@@ -223,6 +270,7 @@ export default function Page() {
                 <PinsList
                   pins={savedPins}
                   onDelete={handleDeletePin}
+                  onEdit={handleEditPin}
                   onExport={handleExport}
                   onExportStart={() => setDrawerOpen(false)}
                 />
@@ -245,7 +293,9 @@ export default function Page() {
                   }}
                   aria-hidden="true"
                 />
-                <h2 className="text-xs font-bold text-slate-600 uppercase tracking-widest">Nuevo pin</h2>
+                <h2 className="text-xs font-bold text-slate-600 uppercase tracking-widest">
+                  {editingPinId ? 'Editar pin' : 'Nuevo pin'}
+                </h2>
               </div>
               <div>
                 <button
@@ -260,6 +310,7 @@ export default function Page() {
 
             <section>
               <PinForm
+                key={`mobile-${editingPinId ?? 'new'}`}
                 formData={formData}
                 onChange={handleFormChange}
                 onSubmit={async (d) => {
@@ -267,6 +318,8 @@ export default function Page() {
                   setDrawerOpen(false)
                 }}
                 gpsStatus={gpsStatus}
+                isEditing={editingPinId !== null}
+                onCancel={handleCancelEdit}
               />
             </section>
 
@@ -276,6 +329,7 @@ export default function Page() {
               <PinsList
                 pins={savedPins}
                 onDelete={handleDeletePin}
+                onEdit={handleEditPin}
                 onExport={handleExport}
                 onExportStart={() => setDrawerOpen(false)}
               />
@@ -301,10 +355,11 @@ export default function Page() {
             lat={formData.lat}
             lng={formData.lng}
             categoria={formData.categoria}
-            savedPins={savedPins}
+            savedPins={savedPins.filter((pin) => pin.id !== editingPinId)}
             onPositionChange={handlePositionChange}
             onGPSStatus={(s) => setGpsStatus(s as GPSStatus)}
             onDeletePin={handleDeletePin}
+            onEditPin={handleEditPin}
           />
 
           {/* Map hint overlay */}

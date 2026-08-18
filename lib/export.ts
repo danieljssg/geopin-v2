@@ -1,10 +1,12 @@
 import type { Pin } from './types'
+import { normalizeCategory } from './categories'
 import {
   ESTADOS_CONSTRUCCION,
   MATERIALES,
   USOS_ESPECIFICOS,
   USOS_GENERALES,
   getOptionLabel,
+  parsePoblacionRango,
 } from './urban-options'
 import * as XLSX from 'xlsx'
 
@@ -36,7 +38,8 @@ export function exportAsCSV(pins: Pin[]): void {
     'Estado de la construcción',
     'Material',
     'Hectáreas por parcela',
-    'Población',
+    'Población (rango)',
+    'Población (promedio)',
     'Drenaje',
     'Metros cuadrados de la parcela',
     'Metros cuadrados de la manzana',
@@ -47,7 +50,7 @@ export function exportAsCSV(pins: Pin[]): void {
   const rows = pins.map((pin) => [
     pin.id,
     pin.nombre,
-    pin.categoria,
+    normalizeCategory(pin.categoria),
     pin.descripcion ?? '',
     getOptionLabel(USOS_GENERALES, pin.usoGeneral) ?? '',
     getOptionLabel(USOS_ESPECIFICOS, pin.usoEspecifico) ?? '',
@@ -55,7 +58,8 @@ export function exportAsCSV(pins: Pin[]): void {
     getOptionLabel(ESTADOS_CONSTRUCCION, pin.estadoConstruccion) ?? '',
     getOptionLabel(MATERIALES, pin.material) ?? '',
     pin.hectareasParcela ?? '',
-    pin.poblacion ?? '',
+    pin.poblacionRango ?? '',
+    pin.poblacionPromedio ?? parsePoblacionRango(pin.poblacionRango)?.promedio ?? pin.poblacion ?? '',
     pin.drenaje ?? '',
     pin.metrosCuadradosParcela ?? '',
     pin.metrosCuadradosManzana ?? '',
@@ -77,7 +81,7 @@ export function exportAsExcel(pins: Pin[]): void {
   const data = pins.map((pin) => ({
     ID: pin.id,
     Nombre: pin.nombre,
-    Categoría: pin.categoria,
+    Categoría: normalizeCategory(pin.categoria),
     Descripción: pin.descripcion,
     'Uso general': getOptionLabel(USOS_GENERALES, pin.usoGeneral) ?? '',
     'Uso específico': getOptionLabel(USOS_ESPECIFICOS, pin.usoEspecifico) ?? '',
@@ -85,7 +89,9 @@ export function exportAsExcel(pins: Pin[]): void {
     'Estado de la construcción': getOptionLabel(ESTADOS_CONSTRUCCION, pin.estadoConstruccion) ?? '',
     Material: getOptionLabel(MATERIALES, pin.material) ?? '',
     'Hectáreas por parcela': pin.hectareasParcela ?? '',
-    Población: pin.poblacion ?? '',
+    'Población (rango)': pin.poblacionRango ?? '',
+    'Población (promedio)':
+      pin.poblacionPromedio ?? parsePoblacionRango(pin.poblacionRango)?.promedio ?? pin.poblacion ?? '',
     Drenaje: pin.drenaje ?? '',
     'Metros cuadrados de la parcela': pin.metrosCuadradosParcela ?? '',
     'Metros cuadrados de la manzana': pin.metrosCuadradosManzana ?? '',
@@ -110,7 +116,8 @@ export function exportAsExcel(pins: Pin[]): void {
     { wch: 27 }, // Estado de la construcción
     { wch: 18 }, // Material
     { wch: 23 }, // Hectáreas por parcela
-    { wch: 12 }, // Población
+    { wch: 20 }, // Población (rango)
+    { wch: 24 }, // Población (promedio)
     { wch: 24 }, // Drenaje
     { wch: 32 }, // Metros cuadrados de la parcela
     { wch: 32 }, // Metros cuadrados de la manzana

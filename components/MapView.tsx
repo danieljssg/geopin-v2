@@ -5,14 +5,14 @@ import { LayersControl, MapContainer, Marker, Popup, TileLayer, useMap, useMapEv
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { Pin, Category } from '@/lib/types'
-import { CATEGORIAS } from '@/lib/categories'
+import { getCategoryConfig } from '@/lib/categories'
 import { getUrbanDetails } from '@/lib/urban-options'
 
 // ---------------------------------------------------------------------------
 // Icon factory — uses divIcon so no webpack asset-path issues
 // ---------------------------------------------------------------------------
-function createCategoryIcon(categoria: Category, size = 32): L.DivIcon {
-  const cat = CATEGORIAS[categoria]
+function createCategoryIcon(categoria: string, size = 32): L.DivIcon {
+  const cat = getCategoryConfig(categoria)
   const abbr = cat.abbr
   const fontSize = abbr.length > 2 ? '8px' : abbr.length > 1 ? '10px' : '13px'
 
@@ -47,7 +47,7 @@ function createCategoryIcon(categoria: Category, size = 32): L.DivIcon {
 }
 
 function createDraggableIcon(categoria: Category): L.DivIcon {
-  const cat = CATEGORIAS[categoria]
+  const cat = getCategoryConfig(categoria)
   const abbr = cat.abbr
   const size = 38
   const fontSize = abbr.length > 2 ? '9px' : abbr.length > 1 ? '11px' : '15px'
@@ -256,6 +256,7 @@ export interface MapViewProps {
   onPositionChange: (lat: number, lng: number) => void
   onGPSStatus: (status: 'searching' | 'found' | 'error' | 'denied') => void
   onDeletePin: (id: string) => void
+  onEditPin: (pin: Pin) => void
 }
 
 export default function MapView({
@@ -266,6 +267,7 @@ export default function MapView({
   onPositionChange,
   onGPSStatus,
   onDeletePin,
+  onEditPin,
 }: MapViewProps) {
   const hasValidPosition = lat !== 0 || lng !== 0
 
@@ -333,7 +335,7 @@ export default function MapView({
 
       {/* Saved pins */}
       {savedPins.map((pin) => {
-        const cat = CATEGORIAS[pin.categoria]
+        const cat = getCategoryConfig(pin.categoria)
         const urbanDetails = getUrbanDetails(pin)
         return (
           <Marker
@@ -388,6 +390,14 @@ export default function MapView({
                 <p style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace', margin: '0 0 8px' }}>
                   {pin.lat.toFixed(6)}, {pin.lng.toFixed(6)}
                 </p>
+                <button
+                  type="button"
+                  onClick={() => onEditPin(pin)}
+                  aria-label={`Editar ${pin.nombre}`}
+                  style={{ background: '#dbeafe', color: '#1d4ed8', border: 'none', borderRadius: 4, padding: '4px 10px', marginRight: 6, fontSize: 12, cursor: 'pointer', fontWeight: 600 }}
+                >
+                  Editar
+                </button>
                 <button
                   type="button"
                   onClick={() => onDeletePin(pin.id)}

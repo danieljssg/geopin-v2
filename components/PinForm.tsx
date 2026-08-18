@@ -6,8 +6,10 @@ import { CATEGORIAS_LIST } from '@/lib/categories'
 import {
   ESTADOS_CONSTRUCCION,
   MATERIALES,
+  POBLACION_RANGO_PATTERN,
   USOS_ESPECIFICOS,
   USOS_GENERALES,
+  parsePoblacionRango,
   type EstadoConstruccion,
   type Material,
   type UsoEspecifico,
@@ -21,6 +23,8 @@ interface PinFormProps {
   onChange: (data: Partial<PinFormData>) => void
   onSubmit: (data: PinFormData) => Promise<void>
   gpsStatus: GPSStatus
+  isEditing: boolean
+  onCancel: () => void
 }
 
 const GPS_STATUS_TEXT: Record<GPSStatus, string> = {
@@ -120,7 +124,7 @@ function NumberField({ id, label, value, step, invalid, onChange }: NumberFieldP
   )
 }
 
-export default function PinForm({ formData, onChange, onSubmit, gpsStatus }: PinFormProps) {
+export default function PinForm({ formData, onChange, onSubmit, gpsStatus, isEditing, onCancel }: PinFormProps) {
   const idPrefix = useId()
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -139,7 +143,7 @@ export default function PinForm({ formData, onChange, onSubmit, gpsStatus }: Pin
     estadoConstruccion: `${idPrefix}-estado-construccion`,
     material: `${idPrefix}-material`,
     hectareasParcela: `${idPrefix}-hectareas-parcela`,
-    poblacion: `${idPrefix}-poblacion`,
+    poblacionRango: `${idPrefix}-poblacion-rango`,
     drenaje: `${idPrefix}-drenaje`,
     metrosCuadradosParcela: `${idPrefix}-metros-cuadrados-parcela`,
     metrosCuadradosManzana: `${idPrefix}-metros-cuadrados-manzana`,
@@ -169,11 +173,8 @@ export default function PinForm({ formData, onChange, onSubmit, gpsStatus }: Pin
       showError('Los pisos de la construcción deben ser un número entero no negativo.', ids.pisosConstruccion)
       return
     }
-    if (
-      formData.poblacion !== undefined &&
-      (!Number.isInteger(formData.poblacion) || formData.poblacion < 0)
-    ) {
-      showError('La población debe ser un número entero no negativo.', ids.poblacion)
+    if (formData.poblacionRango?.trim() && !parsePoblacionRango(formData.poblacionRango)) {
+      showError('Usa dos enteros consecutivos entre 0 y 10, por ejemplo 2-3.', ids.poblacionRango)
       return
     }
 
@@ -195,8 +196,8 @@ export default function PinForm({ formData, onChange, onSubmit, gpsStatus }: Pin
       await onSubmit(formData)
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3500)
-    } catch {
-      showError('Error al guardar. Intenta de nuevo.')
+    } catch (cause) {
+      showError(cause instanceof Error ? cause.message : 'Error al guardar. Intenta de nuevo.')
     } finally {
       setSubmitting(false)
     }
@@ -412,14 +413,19 @@ export default function PinForm({ formData, onChange, onSubmit, gpsStatus }: Pin
             invalid={error?.fieldId === ids.pisosConstruccion}
             onChange={(value) => onChange({ pisosConstruccion: value })}
           />
-          <NumberField
-            id={ids.poblacion}
-            label="Población"
-            value={formData.poblacion}
-            step={1}
-            invalid={error?.fieldId === ids.poblacion}
-            onChange={(value) => onChange({ poblacion: value })}
-          />
+          <div>
+            <label htmlFor={ids.poblacionRango} className={labelClass}>Población</label>
+            <input
+              id={ids.poblacionRango}
+              type="text"
+              pattern={POBLACION_RANGO_PATTERN}
+              value={formData.poblacionRango ?? ''}
+              onChange={(e) => onChange({ poblacionRango: e.target.value || undefined })}
+              placeholder="Ej. 2-3"
+              aria-invalid={error?.fieldId === ids.poblacionRango}
+              className={inputClass}
+            />
+          </div>
         </div>
 
         <SelectField
@@ -511,20 +517,32 @@ export default function PinForm({ formData, onChange, onSubmit, gpsStatus }: Pin
       )}
 
       {/* Submit */}
-      <button
-        type="submit"
-        disabled={submitting}
-        className="w-full py-2.5 px-4 rounded-lg font-semibold text-sm text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-        style={{ background: submitting ? '#93c5fd' : '#1d4ed8' }}
-        onMouseEnter={(e) => {
-          if (!submitting) (e.currentTarget as HTMLButtonElement).style.background = '#1e40af'
-        }}
-        onMouseLeave={(e) => {
-          if (!submitting) (e.currentTarget as HTMLButtonElement).style.background = '#1d4ed8'
-        }}
-      >
-        {submitting ? 'Guardando...' : 'Guardar Pin'}
-      </button>
+      <div className="flex gap-2">
+        {isEditing && (
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={submitting}
+            className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Cancelar
+          </button>
+        )}
+        <button
+          type="submit"
+          disabled={submitting}
+          className={`${isEditing ? 'flex-1' : 'w-full'} py-2.5 px-4 rounded-lg font-semibold text-sm text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed`}
+          style={{ background: submitting ? '#93c5fd' : '#1d4ed8' }}
+          onMouseEnter={(e) => {
+            if (!submitting) (e.currentTarget as HTMLButtonElement).style.background = '#1e40af'
+          }}
+          onMouseLeave={(e) => {
+            if (!submitting) (e.currentTarget as HTMLButtonElement).style.background = '#1d4ed8'
+          }}
+        >
+          {submitting ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Guardar Pin'}
+        </button>
+      </div>
 
       {/* Spin keyframe (injected inline) */}
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.status-spinner{animation:none!important}}`}</style>

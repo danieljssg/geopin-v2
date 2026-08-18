@@ -50,6 +50,8 @@ export interface UrbanData {
   estadoConstruccion?: EstadoConstruccion
   material?: Material
   hectareasParcela?: number
+  poblacionRango?: string
+  poblacionPromedio?: number
   poblacion?: number
   drenaje?: string
   metrosCuadradosParcela?: number
@@ -57,6 +59,23 @@ export interface UrbanData {
 }
 
 type UrbanOption = { readonly value: string; readonly label: string }
+
+export const POBLACION_RANGO_PATTERN = String.raw`\s*\d+\s*-\s*\d+\s*`
+const POBLACION_RANGO_REGEXP = /^\s*(\d+)\s*-\s*(\d+)\s*$/
+
+export function parsePoblacionRango(
+  value: string | undefined,
+): { rango: string; promedio: number } | null {
+  if (!value) return null
+  const match = POBLACION_RANGO_REGEXP.exec(value)
+  if (!match) return null
+
+  const inicio = Number(match[1])
+  const fin = Number(match[2])
+  if (inicio > 10 || fin > 10 || fin !== inicio + 1) return null
+
+  return { rango: `${inicio}-${fin}`, promedio: (inicio + fin) / 2 }
+}
 
 export function getOptionLabel(
   options: readonly UrbanOption[],
@@ -87,7 +106,7 @@ export function getUrbanDetails(data: UrbanData): Array<{ label: string; value: 
     },
     {
       label: 'Población',
-      value: data.poblacion?.toLocaleString('es-VE'),
+      value: data.poblacionRango?.trim() || data.poblacion?.toLocaleString('es-VE'),
     },
     { label: 'Drenaje', value: data.drenaje?.trim() || undefined },
     {

@@ -2,13 +2,14 @@
 
 import { useState } from 'react'
 import type { Pin } from '@/lib/types'
-import { CATEGORIAS } from '@/lib/categories'
+import { getCategoryConfig } from '@/lib/categories'
 import { getUrbanDetails } from '@/lib/urban-options'
 import ExportModal from './ExportModal'
 
 interface PinsListProps {
   pins: Pin[]
   onDelete: (id: string) => void
+  onEdit: (pin: Pin) => void
   onExport: () => void
   onExportStart?: () => void
 }
@@ -68,7 +69,7 @@ function formatDate(iso: string) {
   }
 }
 
-export default function PinsList({ pins, onDelete, onExport, onExportStart }: PinsListProps) {
+export default function PinsList({ pins, onDelete, onEdit, onExport, onExportStart }: PinsListProps) {
   const [showExportModal, setShowExportModal] = useState(false)
 
   const handleOpenExport = () => {
@@ -138,7 +139,7 @@ export default function PinsList({ pins, onDelete, onExport, onExportStart }: Pi
       {pins.length > 0 && (
         <ul className="flex flex-col gap-2" role="list">
           {pins.map((pin) => {
-            const cat = CATEGORIAS[pin.categoria]
+            const cat = getCategoryConfig(pin.categoria)
             const urbanDetails = getUrbanDetails(pin)
             return (
               <li
@@ -200,18 +201,26 @@ export default function PinsList({ pins, onDelete, onExport, onExportStart }: Pi
                     {pin.lat.toFixed(5)}, {pin.lng.toFixed(5)}
                   </p>
                   <p className="text-xs text-slate-300 mt-0.5">{formatDate(pin.creadoEn)}</p>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onEdit(pin)}
+                      className="flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                      aria-label={`Editar ${pin.nombre}`}
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(pin.id)}
+                      className="flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
+                      aria-label={`Eliminar ${pin.nombre}`}
+                    >
+                      <TrashIcon />
+                      Eliminar
+                    </button>
+                  </div>
                 </div>
-
-                {/* Delete */}
-                <button
-                  type="button"
-                  onClick={() => onDelete(pin.id)}
-                  className="flex-shrink-0 text-slate-300 hover:text-red-500 transition-colors p-1 rounded"
-                  aria-label={`Eliminar ${pin.nombre}`}
-                  title="Eliminar pin"
-                >
-                  <TrashIcon />
-                </button>
               </li>
             )
           })}

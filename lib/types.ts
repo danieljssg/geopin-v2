@@ -2,25 +2,13 @@ import type { UrbanData } from './urban-options'
 
 export type Category =
   | 'vivienda'
-  | 'edificio'
-  | 'hospital'
-  | 'restaurante'
-  | 'abasto'
-  | 'clinica'
-  | 'escuela'
-  | 'cancha_deportiva'
-  | 'auditorio'
-  | 'estadio'
-  | 'centro_deportivo'
-  | 'gimnasio'
-  | 'bodega'
-  | 'kiosko'
-  | 'centro_comercial'
-  | 'local_comercial'
-  | 'taller'
-  | 'garaje'
-  | 'hotel'
-  | 'posada'
+  | 'salud'
+  | 'educacion'
+  | 'comercio'
+  | 'entretenimiento'
+  | 'cultura'
+  | 'industria'
+  | 'agricola'
   | 'otro'
 
 export interface Pin extends UrbanData {
@@ -29,11 +17,11 @@ export interface Pin extends UrbanData {
   lng: number
   nombre: string
   descripcion: string
-  categoria: Category
+  categoria: string
   creadoEn: string
 }
 
-export interface PinFormData extends UrbanData {
+export interface PinFormData extends Omit<UrbanData, 'poblacion' | 'poblacionPromedio'> {
   lat: number
   lng: number
   nombre: string
