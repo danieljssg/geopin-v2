@@ -36,6 +36,16 @@ const DEFAULT_FORM: PinFormData = {
   nombre: '',
   descripcion: '',
   categoria: 'vivienda',
+  usoGeneral: undefined,
+  usoEspecifico: undefined,
+  pisosConstruccion: undefined,
+  estadoConstruccion: undefined,
+  material: undefined,
+  hectareasParcela: undefined,
+  poblacion: undefined,
+  drenaje: undefined,
+  metrosCuadradosParcela: undefined,
+  metrosCuadradosManzana: undefined,
 }
 
 type GPSStatus = 'idle' | 'searching' | 'found' | 'error' | 'denied'
@@ -64,8 +74,13 @@ export default function Page() {
   const handleSubmit = useCallback(async (data: PinFormData) => {
     const newPin = await addPin(data)
     setSavedPins((prev) => [...prev, newPin])
-    // Keep coordinates and category; reset only text fields
-    setFormData((prev) => ({ ...prev, nombre: '', descripcion: '' }))
+    // Keep the position and icon category ready for the next pin.
+    setFormData((prev) => ({
+      ...DEFAULT_FORM,
+      lat: prev.lat,
+      lng: prev.lng,
+      categoria: prev.categoria,
+    }))
   }, [])
 
   const handleDeletePin = useCallback(async (id: string) => {

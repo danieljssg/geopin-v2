@@ -36,12 +36,11 @@ export async function getAllPins(): Promise<Pin[]> {
 /** Crea y guarda un nuevo pin a partir de los datos del formulario. */
 export async function addPin(data: PinFormData): Promise<Pin> {
   const pin: Pin = {
+    ...data,
     id: generateId(),
-    lat: data.lat,
-    lng: data.lng,
-    nombre: data.nombre,
-    descripcion: data.descripcion,
-    categoria: data.categoria,
+    nombre: data.nombre.trim(),
+    descripcion: data.descripcion.trim(),
+    drenaje: data.drenaje?.trim() || undefined,
     creadoEn: new Date().toISOString(),
   }
   await db.pins.add(pin)

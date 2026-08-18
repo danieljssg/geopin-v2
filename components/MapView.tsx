@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useRef, useCallback } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet'
+import { LayersControl, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { Pin, Category } from '@/lib/types'
 import { CATEGORIAS } from '@/lib/categories'
+import { getUrbanDetails } from '@/lib/urban-options'
 
 // ---------------------------------------------------------------------------
 // Icon factory — uses divIcon so no webpack asset-path issues
@@ -287,10 +288,21 @@ export default function MapView({
       zoomControl={false}
       scrollWheelZoom
     >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
+      <LayersControl position="topright" collapsed={false}>
+        <LayersControl.BaseLayer checked name="Mapa estándar">
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+        </LayersControl.BaseLayer>
+        <LayersControl.BaseLayer name="Mapa topográfico (relieve)">
+          <TileLayer
+            attribution='Kartendaten: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende, SRTM | Kartendarstellung: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'
+            url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+            maxNativeZoom={17}
+          />
+        </LayersControl.BaseLayer>
+      </LayersControl>
 
       <GPSDetector onPositionChange={onPositionChange} onGPSStatus={onGPSStatus} />
       <MapClickHandler onPositionChange={onPositionChange} />
@@ -322,6 +334,7 @@ export default function MapView({
       {/* Saved pins */}
       {savedPins.map((pin) => {
         const cat = CATEGORIAS[pin.categoria]
+        const urbanDetails = getUrbanDetails(pin)
         return (
           <Marker
             key={pin.id}
@@ -350,11 +363,35 @@ export default function MapView({
                     {pin.descripcion}
                   </p>
                 )}
+                {urbanDetails.length > 0 && (
+                  <dl
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr) auto',
+                      gap: '3px 8px',
+                      fontSize: 11,
+                      margin: '8px 0',
+                      maxHeight: 180,
+                      overflowY: 'auto',
+                    }}
+                  >
+                    {urbanDetails.map((detail) => (
+                      <div key={detail.label} style={{ display: 'contents' }}>
+                        <dt style={{ color: '#64748b' }}>{detail.label}</dt>
+                        <dd style={{ color: '#1e293b', fontWeight: 600, margin: 0, textAlign: 'right' }}>
+                          {detail.value}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
                 <p style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace', margin: '0 0 8px' }}>
                   {pin.lat.toFixed(6)}, {pin.lng.toFixed(6)}
                 </p>
                 <button
+                  type="button"
                   onClick={() => onDeletePin(pin.id)}
+                  aria-label={`Eliminar ${pin.nombre}`}
                   style={{
                     background: '#fee2e2',
                     color: '#dc2626',

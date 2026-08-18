@@ -1,3 +1,5 @@
+import type { UrbanData } from './urban-options'
+
 export type Category =
   | 'vivienda'
   | 'edificio'
@@ -21,7 +23,7 @@ export type Category =
   | 'posada'
   | 'otro'
 
-export interface Pin {
+export interface Pin extends UrbanData {
   id: string
   lat: number
   lng: number
@@ -31,7 +33,7 @@ export interface Pin {
   creadoEn: string
 }
 
-export interface PinFormData {
+export interface PinFormData extends UrbanData {
   lat: number
   lng: number
   nombre: string

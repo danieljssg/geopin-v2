@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { Pin } from '@/lib/types'
 import { CATEGORIAS } from '@/lib/categories'
+import { getUrbanDetails } from '@/lib/urban-options'
 import ExportModal from './ExportModal'
 
 interface PinsListProps {
@@ -84,6 +85,7 @@ export default function PinsList({ pins, onDelete, onExport, onExportStart }: Pi
         </h2>
         {pins.length > 0 && (
           <button
+            type="button"
             onClick={handleOpenExport}
             className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
             title="Elegir formato de exportación"
@@ -118,6 +120,7 @@ export default function PinsList({ pins, onDelete, onExport, onExportStart }: Pi
               strokeWidth="1.8"
               strokeLinecap="round"
               strokeLinejoin="round"
+              aria-hidden="true"
             >
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
               <circle cx="12" cy="10" r="3" />
@@ -136,6 +139,7 @@ export default function PinsList({ pins, onDelete, onExport, onExportStart }: Pi
         <ul className="flex flex-col gap-2" role="list">
           {pins.map((pin) => {
             const cat = CATEGORIAS[pin.categoria]
+            const urbanDetails = getUrbanDetails(pin)
             return (
               <li
                 key={pin.id}
@@ -176,6 +180,22 @@ export default function PinsList({ pins, onDelete, onExport, onExportStart }: Pi
                     </p>
                   )}
 
+                  {urbanDetails.length > 0 && (
+                    <details className="mb-1 text-xs text-slate-600">
+                      <summary className="cursor-pointer rounded py-1 font-medium text-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+                        Ver datos urbanísticos
+                      </summary>
+                      <dl className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-1 border-l-2 border-slate-100 pl-2">
+                        {urbanDetails.map((detail) => (
+                          <div key={detail.label} className="contents">
+                            <dt className="text-slate-500">{detail.label}</dt>
+                            <dd className="text-right font-medium text-slate-700">{detail.value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </details>
+                  )}
+
                   <p className="text-xs font-mono text-slate-400">
                     {pin.lat.toFixed(5)}, {pin.lng.toFixed(5)}
                   </p>
@@ -184,6 +204,7 @@ export default function PinsList({ pins, onDelete, onExport, onExportStart }: Pi
 
                 {/* Delete */}
                 <button
+                  type="button"
                   onClick={() => onDelete(pin.id)}
                   className="flex-shrink-0 text-slate-300 hover:text-red-500 transition-colors p-1 rounded"
                   aria-label={`Eliminar ${pin.nombre}`}
