@@ -34,10 +34,5 @@
     "postcss": "^8.5.26",
     "tailwindcss": "^4.3.3",
     "typescript": "7.0.2"
-  },
-  "pnpm": {
-    "overrides": {
-      "hono": "4.12.25"
-    }
   }
 }
