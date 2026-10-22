@@ -1,0 +1,8 @@
+# Ajustes de pnpm. pnpm 12 movió aquí las opciones que antes vivían en el
+# campo "pnpm" de package.json.
+#
+# esbuild necesita su postinstall para traer el binario de la plataforma:
+# tsx lo usa para ejecutar scripts de TypeScript y @serwist/turbopack lo usa
+# para compilar el service worker.
+allowBuilds:
+  esbuild: true

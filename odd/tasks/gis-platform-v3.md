@@ -242,7 +242,7 @@ El plan original pone el formulario (Fase 2) antes del schema builder (Fase 3). 
 | ID | Tarea | Specs | Ruta | Estado | Commit |
 | --- | --- | --- | --- | --- | --- |
 | T1 | Cimientos: harness de tests, validación de env, cliente Cosmos, índices, modelo de dominio v2, tipos de esquema | S13, S21, S28 | inline | completado | `e26a629` |
-| T2 | Better Auth, roles `encuestador`/`admin`, guard de sesión | S29 | inline | pendiente | — |
+| T2 | Better Auth, roles `encuestador`/`admin`, guard de sesión | S29 | inline | completado | pendiente |
 | T3 | API de parcelas: CRUD, `version` por módulo, idempotencia de sync | S15, S17 | inline | pendiente | — |
 | T4 | Shell PWA: manifest, Serwist/Turbopack, fallback offline, cache de teselas | S7, S22, S27 | inline | pendiente | — |
 | T5 | Cliente de campo v2 sobre modelo v2: outbox Dexie, motor de sync, reintentos | S1, S2, S6 | inline | pendiente | — |
@@ -328,5 +328,42 @@ Excepción declarada al RED→GREEN: los módulos de T1 son nuevos, no hay compo
 
 Nota de ruta: T1 no nombra ningún ítem de alto riesgo. `Risk: none`.
 
-Próximo paso: T2 (Better Auth, roles `encuestador`/`admin`, guard de sesión).
+**T2 completado (2026-10-21).**
+
+Confirmación del usuario (2026-10-21): *"es cierto, sólo se usa la ubicación con la app abierta"* → el supuesto de S27/L3 queda confirmado y la recomendación de PWA no se revisa.
+
+Entregado:
+
+- `lib/auth/roles.ts` — roles `encuestador` y `admin`, nueve permisos y mapa rol→permisos. `normalizeRole` cae en `encuestador` ante un valor desconocido: la dirección del fallback es lo que importa, un rol corrupto nunca escala a administrador.
+- `lib/server/auth.ts` — instancia de Better Auth sobre Cosmos DB for MongoDB, creada de forma perezosa para que importar el módulo no exija entorno configurado. `role` con `input: false` para que nadie se registre como admin.
+- `lib/server/session.ts` — `getSessionUser`, `requireSessionUser`, `requirePermission` y traducción de errores a respuesta HTTP. Reciben las cabeceras explícitamente para no atarlos al App Router.
+- `app/api/auth/[...all]/route.ts` — rutas de Better Auth con `dynamic = 'force-dynamic'`.
+- `lib/auth-client.ts` — cliente de navegador con `inferAdditionalFields<AuthInstance>()` para que `session.user.role` esté tipado sin duplicar la definición del rol.
+- `scripts/create-admin.ts` + `pnpm auth:create-admin` — alta y promoción de administradores, escribiendo el rol directo en la colección `user` porque `input: false` bloquea el signup.
+- `.env.example` — variables de entorno documentadas, incluida la nota de que el free tier se pide al crear la cuenta.
+
+Decisiones técnicas tomadas en T2:
+
+- **`transaction: false` en el adaptador de MongoDB.** Better Auth activa transacciones por defecto cuando recibe el cliente, y en Cosmos solo son válidas dentro de una misma partición: `user` y `session` viven en particiones distintas, así que cada registro fallaría. Sin este flag, el primer usuario en registrarse rompe.
+- **Sesión de 7 días** con refresco diario: un levantador puede pasar varios días sin abrir la app.
+- **Sin middleware de Next.js.** El middleware corre en Edge y no puede hablar con el driver de Mongo; la verificación de sesión va en la página o en el route handler, que es donde Better Auth la recomienda con adaptador de base de datos.
+
+Evidencia de verificación:
+
+- `pnpm test` → 49 tests, 6 archivos, todo en verde.
+- `pnpm typecheck` → limpio.
+- `pnpm build` → compila; `/api/auth/[...all]` aparece como ruta dinámica y las otras tres siguen prerenderizadas.
+
+RED observado y corregido:
+
+1. `lib/auth/roles.test.ts` falló al afirmar que un rol desconocido no concede ningún permiso. La implementación era la correcta y el test estaba mal: la política de mínimo privilegio significa caer en `encuestador`, no en cero permisos. Se reescribió la aserción para fijar la propiedad de seguridad real — un rol desconocido nunca escala a admin — y se agregó un caso para variantes de mayúsculas y espacios (`'Admin'`, `' admin'`), que tampoco deben escalar.
+2. `pnpm typecheck` detectó tres errores de tipos en T2: la anotación de retorno de `createAuth` creaba una referencia circular de tipo, `session.user.role` no existía porque `AuthInstance` estaba tipado con el genérico por defecto de `betterAuth()` en vez del tipo concreto de la instancia, y la colección `user` del script asumía `_id` como `ObjectId` cuando Better Auth lo guarda como string. Los tres corregidos.
+
+Desviación registrada: para resolver el segundo error hubo que exponer el tipo concreto de la instancia (`AuthInstance`) y usar `inferAdditionalFields` en el cliente. Eso arrastra la configuración del servidor al tipado del cliente — sin valores de entorno, solo tipos — y es el mecanismo que la propia documentación de Better Auth prescribe para proyectos de un solo repositorio.
+
+Nota de ruta: T2 toca credenciales y guards de autorización. `Risk: item 2 (security: auth, permisos y credenciales)`. La mitigación es el `input: false` sobre el rol, la validación de entorno que rechaza secretos cortos y la suite de roles; los checks de T2 son los 49 tests más el typecheck y el build.
+
+Bloqueo conocido: T2 no se pudo probar contra una cuenta real de Cosmos porque no hay credenciales en este entorno. El smoke test `lib/server/auth.test.ts` valida que la configuración se construye sin tocar la red, pero el primer `pnpm auth:create-admin` contra la cuenta real es la prueba pendiente.
+
+Próximo paso: T3 (API de parcelas: CRUD, `version` por módulo, idempotencia de sync).
 
