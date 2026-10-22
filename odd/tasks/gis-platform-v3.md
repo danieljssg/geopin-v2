@@ -393,7 +393,7 @@ Bloqueo conocido: T2 no se pudo probar contra una cuenta real de Cosmos porque n
 
 Próximo paso: T3 (API de parcelas: CRUD, `version` por módulo, idempotencia de sync).
 
-**T2bis completado (2026-10-21), commit pendiente.** Ajustes pedidos por el usuario tras la T2.
+**T2bis completado (2026-10-21), commit `a8f749d`.** Ajustes pedidos por el usuario tras la T2.
 
 Entregado:
 
