@@ -59,4 +59,27 @@ describe('getAuth', () => {
     expect(typeof auth.api.signInEmail).toBe('function')
     expect(typeof auth.api.signOut).toBe('function')
   })
+
+  /**
+   * El invariante de seguridad más importante de toda la T2: el rol no puede
+   * entrar por la API. Con `input: false`, el esquema de entrada de Better
+   * Auth excluye el campo, así que un body de registro con
+   * `role: "admin"` se ignora. Sin esto, cualquiera que se registrara podría
+   * quedarse como administrador.
+   */
+  it('el campo role no acepta entrada desde la API', () => {
+    const auth = getAuth()
+    const roleField = auth.options.user?.additionalFields?.role
+
+    expect(roleField).toBeDefined()
+    expect(roleField?.input).toBe(false)
+  })
+
+  it('el rol por defecto es el no-administrador', () => {
+    const auth = getAuth()
+    const roleField = auth.options.user?.additionalFields?.role
+
+    expect(roleField?.defaultValue).toBe('encuestador')
+    expect(roleField?.defaultValue).not.toBe('admin')
+  })
 })

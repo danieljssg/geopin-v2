@@ -1,4 +1,4 @@
-import type { Collection } from 'mongodb'
+import type { Collection, IndexDescription } from 'mongodb'
 import { getDb } from './cosmos'
 import type { Levantamiento, ModuleSchema, Parcela } from '@/lib/domain/types'
 
@@ -14,6 +14,24 @@ import type { Levantamiento, ModuleSchema, Parcela } from '@/lib/domain/types'
 export const COLLECTION_PARECLAS = 'parcelas'
 export const COLLECTION_SCHEMAS = 'schemas'
 export const COLLECTION_LEVANTAMIENTOS = 'levantamientos'
+
+/**
+ * Colecciones que administra Better Auth. El adaptador de MongoDB usa
+ * nombres singulares porque se configuró con `usePlural: false`.
+ */
+export const COLLECTION_USERS = 'user'
+export const COLLECTION_SESSIONS = 'session'
+
+/**
+ * Documento de usuario tal y como lo guarda Better Auth: el `_id` es el id
+ * del usuario como string, no un ObjectId. De la tabla de usuarios solo nos
+ * interesa el rol.
+ */
+export interface UserDoc {
+  _id: string
+  email: string
+  role?: string
+}
 
 /** Documento de parcela tal y como se guarda: `_id` replica el `id` de negocio. */
 export type ParcelaDoc = Parcela & { _id: string }
@@ -34,59 +52,109 @@ export function levantamientosCollection(): Collection<LevantamientoDoc> {
   return getDb().collection<LevantamientoDoc>(COLLECTION_LEVANTAMIENTOS)
 }
 
-/**
- * Crea los índices si no existen.
- *
- * `createIndexes` es idempotente en MongoDB: volver a llamarlo con la misma
- * definición no falla, solo no hace nada. Por eso se puede llamar en cada
- * arranque sin miedo.
- *
- * Nota sobre el free tier de Cosmos (1000 RU/s, 25 GB): cada índice consume
- * almacenamiento y operaciones de escritura adicionales. Por eso el conjunto
- * es deliberadamente corto — los campos dinámicos que el administrador de
- * esquemas agregue se indexan solo cuando el cliente lo justifique, porque
- * indexar un campo dinámico obliga a crear un índice nuevo por cada par
- * módulo/campo.
- */
-export async function ensureIndexes(): Promise<void> {
-  const db = getDb()
+export function usuariosCollection(): Collection<UserDoc> {
+  return getDb().collection<UserDoc>(COLLECTION_USERS)
+}
 
-  await db.collection(COLLECTION_PARECLAS).createIndexes([
-    {
+export interface IndexSpec {
+  collection: string
+  index: IndexDescription
+}
+
+/**
+ * Definición de los índices.
+ *
+ * Cada uno se crea por separado y los fallos se toleran de forma
+ * individual: hay dos motores distintos detrás de "Cosmos DB for MongoDB"
+ * con capacidades de índice diferentes —la API RU no admite índices
+ * `sparse`, vCore sí— y un único índice no soportado no debe tumbar el
+ * resto del bootstrap ni el arranque de la aplicación.
+ */
+export const INDEX_SPECS: IndexSpec[] = [
+  {
+    collection: COLLECTION_PARECLAS,
+    index: {
       key: { ubicacion: '2dsphere' },
       name: 'ubicacion_2dsphere',
     },
-    {
+  },
+  {
+    collection: COLLECTION_PARECLAS,
+    index: {
       key: { codigo: 1 },
       name: 'codigo_unique',
       unique: true,
       sparse: true,
     },
-    {
+  },
+  {
+    collection: COLLECTION_PARECLAS,
+    index: {
       key: { estado: 1 },
       name: 'estado',
     },
-    {
+  },
+  {
+    collection: COLLECTION_PARECLAS,
+    index: {
       key: { levantamientoId: 1 },
       name: 'levantamiento',
     },
-    {
+  },
+  {
+    collection: COLLECTION_PARECLAS,
+    index: {
       key: { creadoEn: -1 },
       name: 'creadoEn',
     },
-  ])
-
-  await db.collection(COLLECTION_SCHEMAS).createIndexes([
-    {
+  },
+  {
+    collection: COLLECTION_SCHEMAS,
+    index: {
       key: { modulo: 1 },
       name: 'modulo',
     },
-  ])
-
-  await db.collection(COLLECTION_LEVANTAMIENTOS).createIndexes([
-    {
+  },
+  {
+    collection: COLLECTION_LEVANTAMIENTOS,
+    index: {
       key: { ciudad: 1 },
       name: 'ciudad',
     },
-  ])
+  },
+]
+
+export interface IndexFailure {
+  collection: string
+  name: string
+  message: string
+}
+
+/**
+ * Crea los índices que falten.
+ *
+ * `createIndexes` es idempotente en MongoDB: volver a llamarlo con la misma
+ * definición no falla, solo no hace nada. Por eso se puede llamar en cada
+ * arranque sin miedo.
+ *
+ * Devuelve la lista de índices que no se pudieron crear, en lugar de
+ * lanzar: el llamador decide si eso es tolerable.
+ */
+export async function ensureIndexes(): Promise<IndexFailure[]> {
+  const db = getDb()
+  const failures: IndexFailure[] = []
+
+  for (const spec of INDEX_SPECS) {
+    try {
+      await db.collection(spec.collection).createIndexes([spec.index])
+    } catch (error) {
+      failures.push({
+        collection: spec.collection,
+        name: spec.index.name ?? '(sin nombre)',
+        message: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  return failures
 }

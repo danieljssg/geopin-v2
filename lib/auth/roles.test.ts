@@ -90,3 +90,24 @@ describe('etiquetas de rol', () => {
     }
   })
 })
+
+describe('rol por defecto', () => {
+  /**
+   * El invariante de seguridad del rol se verifica en dos niveles: este fija
+   * la política en el módulo de roles y `lib/server/auth.test.ts` verifica
+   * que la configuración de Better Auth la respete en la práctica.
+   */
+
+  it('no es el rol de administración', () => {
+    expect(DEFAULT_ROLE).not.toBe('admin')
+  })
+
+  it('es uno de los roles declarados', () => {
+    expect(USER_ROLES).toContain(DEFAULT_ROLE)
+  })
+
+  it('el rol de administración existe y es distinto del de por defecto', () => {
+    expect(USER_ROLES).toContain('admin')
+    expect(USER_ROLES.filter((role) => role !== DEFAULT_ROLE)).toEqual(['admin'])
+  })
+})

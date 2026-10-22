@@ -53,13 +53,18 @@ Alcance: cliente de campo.
 Criterios: al recuperar la red, la cola se drena sin que el usuario reinicie nada.
 Checks: test del disparador `online` con cola pendiente.
 
-### S7 — Precarga de teselas de mapas
+### S7 — Tiles offline autoalojados (MBTiles)
 
-> "Garantizar precarga de teselas de mapas (tiles) en memoria caché para navegación en zonas de baja cobertura."
+Decisión del usuario: *"creo que sería mejor tener los mbtiles autoalojados para radios de 10x10km (ya tengo un blob storage setteado)"*.
 
-Alcance: cliente de campo, runtime caching de teselas OSM/OpenTopoMap.
-Criterios: las teselas vistas quedan disponibles sin red; la política no precachea dominios no permitidos.
-Checks: inspección del `runtimeCaching` de Serwist + prueba de cache-hit en el service worker.
+Restricción legal verificada (OSMF Tile Usage Policy): el uso offline y el prefetch están **prohibidos** en `tile.openstreetmap.org` — *"Offline use is not permitted on tile.openstreetmap.org"* y *"Any 'download for offline' button or background job that fetches tiles a user is not currently viewing"* está en la lista de no permitidos. Lo que sí está permitido es cachear mientras el usuario navega por el viewport.
+
+Alcance: la app consume una plantilla de tiles configurable `{TILE_BASE_URL}/{z}/{x}/{y}.png` servida desde el blob storage propio. Un botón "descargar mapa del levantamiento" precarga la pirámide z12–z18 del área de 10 × 10 km.
+
+Cálculo de tamaño: en Venezuela (lat ~10.5°) un tile z18 cubre ~40 km; la pirámide completa de un área de 10 × 10 km son ~340 tiles (~7 MB). El prefetch es barato porque el área es chica.
+
+Criterios: la app nunca pide tiles de OSMF fuera del viewport; la descarga del área se sirve solo desde el blob propio; el cálculo de la lista de tiles que cubren un bbox es una función pura testeable.
+Checks: test del cálculo de la lista de tiles de un bbox.
 
 ### S8 — Motor de digitalización de parcelas
 
@@ -217,11 +222,19 @@ Decisión del usuario: `cual recomiendas objetivamente ? porque debe ser rápido
 Restricción: `Mixto Android + iPhone`. En iOS no existe Background Sync, por lo que el drenaje de la cola se apoya en Web Push (iOS 16.4+, home screen) + reintento en foreground.
 Criterios: el bundle de campo no depende de un server dedicado; el service worker se compila con Turbopack.
 
-### S28 — Cosmos DB for MongoDB
+### S28 — Azure DocumentDB for MongoDB vCore (Free Tier)
 
-Decisión del usuario: `Cosmos DB for MongoDB (Recomendado)`.
-Restricciones verificadas: free tier = 1000 RU/s + 25 GB, se habilita al crear la cuenta (`enableFreeTier: true`), máximo 25 containers, sin serverless. Índice `2dsphere` soportado; `$geoWithin`/`$geoIntersects`/`$near`/`$nearSphere` soportados; `$center`/`$centerSphere`/`$box`/`$polygon` no soportados; `text`, `$where` y `jsonSchema` no soportados. El spatial index de Cosmos no equivale al motor `2dsphere` de MongoDB real.
-Criterios: toda la geometría que Cosmos no soporta (buffer 2 m, área, perímetro) se calcula en la aplicación.
+Decisión del usuario: `Cosmos DB for MongoDB (Recomendado)`. La cuenta creada es un cluster **vCore** — host `*.global.mongocluster.cosmos.azure.com`, `authMechanism=SCRAM-SHA-256` — no la API RU clásica.
+
+Verificado (Microsoft Learn, docs de mayo y junio de 2026):
+
+- **Free Tier**: cluster MongoDB dedicado, **32 GB de almacenamiento**, costo cero, de por vida, uno por suscripción. Se pide al crear el cluster. Regiones disponibles: East US, West US, West US 2, Central US, Canada Central, Brazil South, y varias de Europa y Asia.
+- Restricciones del Free Tier: sin alta disponibilidad, sin Microsoft Entra ID, **sin Backup/Restore**, sin índices vectoriales HNSW/DiskANN, sin Diagnostic Logging, y **el cluster se pausa a los 60 días de inactividad**.
+- El modelo de precio de vCore es vertical (vCores + almacenamiento), no RU/s: los 1000 RU/s + 25 GB del free tier de la API RU **no aplican** a esta cuenta.
+- Multi-document transactions solo dentro de una colección no fragmentada: `user` y `session` están en colecciones distintas, así que `transaction: false` es obligatorio (ya está en `lib/server/auth.ts`).
+- Índices: `2dsphere` sí, `unique` sí, `sparse` sí en vCore — la API RU no admite `sparse`.
+
+Criterios: la geometría que el motor no soporta (buffer de 2 m, área, perímetro) se calcula en la aplicación; el bootstrap de índices tolera fallos individuales porque hay dos motores distintos detrás del mismo nombre de producto y una migración futura no debe romper el arranque.
 
 ### S29 — Autenticación propia
 
@@ -254,6 +267,7 @@ El plan original pone el formulario (Fase 2) antes del schema builder (Fase 3). 
 | T11 | Export desde el servidor: GeoJSON, CSV, Excel | S21 | inline | pendiente | — |
 | T12 | WMS/WMTS propios, precarga de teselas, documento legal/bibliográfico | S7, S22, S23 | inline | pendiente | — |
 | T13 | Hardening: quitar `ignoreBuildErrors`, carga, despliegue, documentación | S24, S25 | inline | pendiente | — |
+| T14 | Pipeline de tiles autoalojados: extract OSM → clip al bbox del levantamiento → render → pirámide XYZ z12-z18 → blob storage | S7 | inline | pendiente | — |
 
 Ruta de todas las tareas: **inline**. No hay razón de escritura delegada (ninguna unidad independiente de >100 líneas con superficies disjuntas en paralelo), y ninguna tarea nombra un ítem de alto riesgo que requiera verificador independiente más allá de sus propios checks.
 
@@ -274,6 +288,18 @@ Verbatim: `cual recomiendas objetivamente ? porque debe ser rápido los desplieg
 - **Serwist con Turbopack, no el `withSerwist` clásico.** Next 16 hace Turbopack el bundler por defecto y Turbopack no soporta plugins de webpack; `@serwist/next` queda inutilizable. Se usa `@serwist/turbopack` (`withSerwist` + `createSerwistRoute` + `SerwistProvider`), que exige Next ≥ 15 — el proyecto va en 16.3.1.
 - **Fases 2 y 3 invertidas** (S31). El esquema se define antes que el formulario.
 - **Supuesto declarado:** el levantamiento NO exige GPS continuo con el teléfono bloqueado. Si resulta falso, la recomendación de cliente de campo se revisa; el admin y la API no cambian.
+
+### L7 — Decisiones del usuario sobre tiles y base de datos (2026-10-21)
+
+- **MBTiles autoalojados, área de 10 × 10 km por levantamiento.** Decisión: *"creo que sería mejor tener los mbtiles autoalojados para radios de 10x10km (ya tengo un blob storage setteado) porque siendo venezuela, dudo mucho que los mapas u ortofotos estén actualizados o incluso que sean accesibles de alguna manera 'pública'"*. Es la decisión correcta por dos razones que se refuerzan: la política de OSMF prohíbe el uso offline en sus servidores públicos, y la hipótesis de que exista una ortofoto pública y actualizada en Venezuela es, con acierto, dudosa. Pipeline en T14.
+- **La cuenta de base de datos es vCore, no la API RU.** El host `*.global.mongocluster.cosmos.azure.com` y el `authMechanism=SCRAM-SHA-256` delatan el cluster vCore, que es Free Tier: 32 GB dedicados, costo cero, de por vida. Pero sus límites son otros: sin Backup/Restore, sin Diagnostic Logging, se pausa a los 60 días de inactividad, y el precio es por vCores, no por RU/s — los 1000 RU/s + 25 GB de la API RU no aplican. **El plan de continuidad tiene que ser la exportación periódica al blob storage, no el backup de la base.**
+- **El administrador solo existe si el seeder lo crea.** El rol tiene `input: false`, así que el registro nunca lo acepta; el primer admin lo crea `pnpm seed` con `ADMIN_EMAIL` y `ADMIN_PASSWORD` del entorno. Se eliminó `scripts/create-admin.ts`: un solo camino para crear administradores.
+
+### L8 — Credenciales
+
+La URI real con usuario y cuenta se pegó primero en `.env.example`, que **sí está versionado**. Se movió a `.env.local` — que está en `.gitignore` — y `.env.example` volvió a una plantilla genérica. No llegó a ningún commit: el contenido commiteado era el genérico. El `BETTER_AUTH_SECRET` faltaba y se generó uno de 48 bytes en `.env.local`.
+
+**La contraseña de la URI quedó enmascarada como `<password>`**, así que la conexión a la cuenta real todavía no se pudo probar.
 
 ### L4 — Evidencia verificada (2026-10-21)
 
@@ -364,6 +390,35 @@ Desviación registrada: para resolver el segundo error hubo que exponer el tipo 
 Nota de ruta: T2 toca credenciales y guards de autorización. `Risk: item 2 (security: auth, permisos y credenciales)`. La mitigación es el `input: false` sobre el rol, la validación de entorno que rechaza secretos cortos y la suite de roles; los checks de T2 son los 49 tests más el typecheck y el build.
 
 Bloqueo conocido: T2 no se pudo probar contra una cuenta real de Cosmos porque no hay credenciales en este entorno. El smoke test `lib/server/auth.test.ts` valida que la configuración se construye sin tocar la red, pero el primer `pnpm auth:create-admin` contra la cuenta real es la prueba pendiente.
+
+Próximo paso: T3 (API de parcelas: CRUD, `version` por módulo, idempotencia de sync).
+
+**T2bis completado (2026-10-21), commit pendiente.** Ajustes pedidos por el usuario tras la T2.
+
+Entregado:
+
+- `lib/server/bootstrap.ts` — siembra única: `seedSchemas()` crea los esquemas que faltan, actualiza los que siguen siendo del seed y **preserva los que un administrador ya editó**; `ensureAdmin()` crea o promueve el administrador. `seed()` orquesta ambas cosas y omite el admin si no hay credenciales.
+- `scripts/seed.ts` + `pnpm seed` — siembra desde el entorno. `ADMIN_PASSWORD` va por variable de entorno y no por argumento: los argumentos quedan en el historial del shell y en la lista de procesos.
+- `scripts/ensure-indexes.ts` + `pnpm db:indexes` — bootstrap de índices fuera del arranque de la app.
+- `lib/server/collections.ts` — `ensureIndexes()` ahora crea cada índice por separado y **devuelve los fallos en lugar de lanzar**. Hay dos motores distintos detrás del nombre "Cosmos DB for MongoDB" con capacidades de índice diferentes (la API RU no admite `sparse`, vCore sí): un índice no soportado no puede tumbar el resto.
+- Se eliminó `scripts/create-admin.ts`: queda un solo camino para crear administradores.
+- `.env.example` — variables del cluster vCore con sus tres restricciones y las del administrador inicial.
+
+Corrección de seguridad: la URI real se había pegado en `.env.example`, que está versionado. Se movió a `.env.local` (ignorado por git) antes de que llegara a un commit, y `.env.example` volvió a ser genérico.
+
+Invariante de rol reforzado con dos tests que fallan si alguien toca la configuración: `auth.options.user.additionalFields.role.input` tiene que ser `false`, y su `defaultValue` tiene que ser `encuestador`. El primero es el que importa — con `input: true`, cualquiera que se registrara con `role: "admin"` en el body se quedaría como administrador.
+
+Evidencia de verificación:
+
+- `pnpm test` → 54 tests, 6 archivos, todo en verde.
+- `pnpm typecheck` → limpio.
+- `pnpm build` → compila.
+
+Error propio detectado y corregido: al agregar el bloque de tests del rol por defecto, sobrescribí `lib/auth/roles.test.ts` completo y perdí los 10 tests que ya existían. Lo detectó la caída del conteo global (49 → 44). Se restauró el archivo con los 13 tests y el conteo volvió a cuadrar. Lalesson: contar los tests por archivo, no solo mirar que la suite pase.
+
+Nota de ruta: T2bis no nombra ningún ítem de alto riesgo nuevo. `Risk: item 2 (security: credenciales movidas a un archivo ignorado por git y credenciales de administrador por entorno)`.
+
+Bloqueo conocido sin cambios: la contraseña de la URI está enmascarada como `<password>`, así que la conexión a la cuenta real sigue sin probarse. Con la contraseña real en `.env.local`, `pnpm db:indexes` y `pnpm seed` cierran el bloqueo.
 
 Próximo paso: T3 (API de parcelas: CRUD, `version` por módulo, idempotencia de sync).
 
