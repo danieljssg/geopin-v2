@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -17,6 +20,7 @@
     "dexie": "^4.4.5",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.31.0",
+    "mongodb": "^7.7.0",
     "next": "16.3.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -33,6 +37,7 @@
     "@types/react-dom": "^19.2.4",
     "postcss": "^8.5.26",
     "tailwindcss": "^4.3.3",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "vitest": "^5.0.5"
   }
 }
