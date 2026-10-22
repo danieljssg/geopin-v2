@@ -1,4 +1,4 @@
-import type { Collection, IndexDescription } from 'mongodb'
+import type { Collection, IndexDescription, ObjectId } from 'mongodb'
 import { getDb } from './cosmos'
 import type { Levantamiento, ModuleSchema, Parcela } from '@/lib/domain/types'
 
@@ -23,12 +23,13 @@ export const COLLECTION_USERS = 'user'
 export const COLLECTION_SESSIONS = 'session'
 
 /**
- * Documento de usuario tal y como lo guarda Better Auth: el `_id` es el id
- * del usuario como string, no un ObjectId. De la tabla de usuarios solo nos
- * interesa el rol.
+ * Documento de usuario tal y como lo guarda Better Auth: el `_id` lo
+ * genera el driver y es un `ObjectId`, aunque Better Auth devuelva el id
+ * como string hexadecimal. De la tabla de usuarios solo nos interesa el
+ * rol, y las consultas se hacen por email.
  */
 export interface UserDoc {
-  _id: string
+  _id: ObjectId | string
   email: string
   role?: string
 }

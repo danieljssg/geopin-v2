@@ -1,0 +1,142 @@
+import { getAuth } from '../lib/server/auth'
+import { closeMongo } from '../lib/server/cosmos'
+import { schemasCollection, usuariosCollection } from '../lib/server/collections'
+import { findParcela, deleteParcela } from '../lib/server/repositories/parcelas'
+import { writeParcela } from '../lib/server/services/parcelas'
+import type { ParcelaCreateRequest } from '../lib/api/contracts'
+
+/**
+ * Prueba de ida y vuelta contra la base de datos real.
+ *
+ * Verifica lo que ninguna suite unitaria puede verificar: que el cluster
+ * acepta las escrituras, que la idempotencia aguanta un reintento real y que
+ * el control de concurrencia por módulo se comporta como dice.
+ *
+ * Uso:
+ *   pnpm verify
+ */
+
+const ADMIN = { id: 'verify-admin', nombre: 'Verificación' }
+const PARCELA_ID = `verify-${Date.now()}`
+
+function payload(modulos: ParcelaCreateRequest['modulos']): ParcelaCreateRequest {
+  return {
+    id: PARCELA_ID,
+    nombre: 'Parcela de verificación',
+    descripcion: 'Creada por pnpm verify. Se borra al terminar.',
+    categoria: 'Vivienda',
+    codigo: undefined,
+    ubicacion: { lat: 10.4806, lng: -66.9036 },
+    gps: { fuente: 'sensor', precision: 8 },
+    estado: 'pendiente',
+    levantamientoId: undefined,
+    modulos,
+  }
+}
+
+function modulo(moduleId: string, baseVersion: number, datos: Record<string, unknown>) {
+  return { moduleId, baseVersion, schemaVersion: 1, datos }
+}
+
+let fallos = 0
+
+function verificar(descripcion: string, condicion: boolean, detalle?: unknown): void {
+  if (condicion) {
+    console.log(`  ✓ ${descripcion}`)
+    return
+  }
+  fallos += 1
+  console.log(`  ✗ ${descripcion}`)
+  if (detalle !== undefined) console.log(`      ${JSON.stringify(detalle)}`)
+}
+
+async function main(): Promise<void> {
+  console.log('Esquemas')
+  const esquemas = await schemasCollection().find({}).toArray()
+  verificar('los tres módulos están publicados', esquemas.length === 3, esquemas.map((e) => e.moduleId))
+  verificar(
+    'cada módulo tiene sus campos',
+    esquemas.every((esquema) => esquema.campos.length > 0),
+  )
+
+  console.log('\nAdministrador')
+  const usuarios = await usuariosCollection().find({ role: 'admin' }).toArray()
+  verificar('existe al menos un administrador', usuarios.length > 0)
+  verificar('tiene rol admin', usuarios.every((u) => u.role === 'admin'))
+  verificar('el admin tiene email', usuarios.every((u) => typeof u.email === 'string'))
+
+  console.log('\nAutenticación')
+  const auth = getAuth()
+  verificar('la instancia de Better Auth está construida', typeof auth.api.signInEmail === 'function')
+
+  console.log('\nEscritura de parcela')
+  const creacion = await writeParcela(
+    payload([modulo('edificacion', 0, { uso_general: 'Residencial' })]),
+    ADMIN,
+  )
+  verificar('la parcela se crea', creacion.estado === 'creado', creacion.estado)
+  verificar('el módulo queda en versión 1', creacion.moduleVersions.edificacion === 1)
+
+  const guardada = await findParcela(PARCELA_ID)
+  verificar('se puede leer del cluster', guardada !== null)
+  verificar('guarda la ubicación', guardada?.ubicacion?.coordinates?.[0] === -66.9036, guardada?.ubicacion)
+  verificar('guarda el dato del módulo', guardada?.modulos?.edificacion?.datos?.uso_general === 'Residencial')
+  verificar(
+    'guarda la autoría',
+    guardada?.modulos?.edificacion?.actualizadoPor === ADMIN.id,
+  )
+
+  console.log('\nIdempotencia')
+  const repetida = await writeParcela(
+    payload([modulo('edificacion', 0, { uso_general: 'Residencial' })]),
+    ADMIN,
+  )
+  verificar('reenviar lo mismo no lo duplica', repetida.estado === 'ignorado', repetida.estado)
+  verificar('la versión no se mueve', repetida.moduleVersions.edificacion === 1, repetida.moduleVersions)
+
+  console.log('\nConcurrencia')
+  const primera = await writeParcela(
+    payload([modulo('edificacion', 1, { uso_general: 'Comercial' })]),
+    { id: 'otro-encuestador', nombre: 'Otro' },
+  )
+  verificar('la primera edición se aplica', primera.estado === 'actualizado', primera.estado)
+  verificar('la versión sube a 2', primera.moduleVersions.edificacion === 2, primera.moduleVersions)
+
+  const enConflicto = await writeParcela(
+    payload([modulo('edificacion', 1, { uso_general: 'Industrial' })]),
+    ADMIN,
+  )
+  verificar('una edición con versión vieja entra en conflicto', enConflicto.estado === 'conflicto', enConflicto.estado)
+  verificar('el conflicto trae el detalle', enConflicto.conflictos.length === 1, enConflicto.conflictos)
+
+  const otroModulo = await writeParcela(
+    payload([
+      modulo('edificacion', 2, { uso_general: 'Comercial' }),
+      modulo('equipamiento', 0, { vialidad: 'Asfalto' }),
+    ]),
+    ADMIN,
+  )
+  verificar('un módulo distinto no colisiona', otroModulo.estado === 'actualizado', otroModulo.estado)
+  verificar('el módulo nuevo queda en versión 1', otroModulo.moduleVersions.equipamiento === 1)
+
+  console.log('\nLimpieza')
+  await deleteParcela(PARCELA_ID)
+  const despues = await findParcela(PARCELA_ID)
+  verificar('la parcela de prueba se borró', despues === null)
+}
+
+main()
+  .then(async () => {
+    await closeMongo()
+    if (fallos > 0) {
+      console.log(`\n${fallos} verificación(es) fallaron.`)
+      process.exit(1)
+    }
+    console.log('\nTodas las verificaciones pasaron.')
+    process.exit(0)
+  })
+  .catch(async (error) => {
+    console.error(error)
+    await closeMongo()
+    process.exit(1)
+  })

@@ -74,6 +74,11 @@ export async function seedSchemas(): Promise<{
  *
  * El rol se escribe directo en la colección `user` porque `input: false`
  * impide que el registro lo acepte.
+ *
+ * La actualización va **por email y no por `_id`**: el driver de MongoDB
+ * guarda el `_id` del usuario como `ObjectId`, mientras que Better Auth
+ * devuelve el id como string hexadecimal. Buscar por `_id` con ese string
+ * no casa con nada y el update se va en silencio, sin cambiar el rol.
  */
 export async function ensureAdmin(input: {
   email: string
@@ -83,30 +88,36 @@ export async function ensureAdmin(input: {
   const auth = getAuth()
   const collection = usuariosCollection()
 
-  let userId: string
   let outcome: AdminOutcome = 'creado'
 
   try {
-    const created = await auth.api.signUpEmail({
+    await auth.api.signUpEmail({
       body: {
         email: input.email,
         password: input.password,
         name: input.name ?? input.email,
       },
     })
-    userId = created.user.id
   } catch {
-    const existing = await collection.findOne({ email: input.email })
-    if (!existing) {
+    const existente = await collection.findOne({ email: input.email })
+    if (!existente) {
       throw new Error(
         `No se pudo crear el usuario ${input.email} ni promover uno existente.`,
       )
     }
-    userId = existing._id
     outcome = 'promovido'
   }
 
-  await collection.updateOne({ _id: userId }, { $set: { role: 'admin' } })
+  const resultado = await collection.updateOne(
+    { email: input.email },
+    { $set: { role: 'admin' } },
+  )
+
+  if (resultado.matchedCount === 0) {
+    throw new Error(
+      `No se encontró el usuario ${input.email} para asignarle el rol de administrador.`,
+    )
+  }
 
   return outcome
 }
