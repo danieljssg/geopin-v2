@@ -415,6 +415,53 @@ El cluster existe y su DNS es correcto, pero el endpoint se anuncia por el nombr
 
 Pendiente de confirmación: si desde la red del usuario el cluster responde, el problema es solo el firewall de esta red. Si tampoco responde, hay que habilitar acceso público con lista de IPs o desplegar dentro de la VNet.
 
+**Resuelto (2026-10-22).** El usuario pasó la URI de un cluster distinto, `docdb-cluster-20261022-1356`, que resuelve por SRV a `fc-f199b6141d76-000.global.mongocluster.cosmos.azure.com` — **sin** `privatelink` en el nombre. Es un endpoint público: Vercel lo puede alcanzar y no hace falta mover el despliegue dentro de una VNet. La conexión, los índices y la siembra funcionan.
+
+### L15 — Verificación de ida y vuelta contra el cluster real (2026-10-22)
+
+Se agregó `pnpm verify` (`scripts/verify.ts`), una prueba que ejercita el backend real de punta a punta. Contra el cluster:
+
+```
+Esquemas
+  ✓ los tres módulos están publicados
+  ✓ cada módulo tiene sus campos
+Administrador
+  ✓ existe al menos un administrador
+  ✓ tiene rol admin
+  ✓ el admin tiene email
+Autenticación
+  ✓ la instancia de Better Auth está construida
+Escritura de parcela
+  ✓ la parcela se crea
+  ✓ el módulo queda en versión 1
+  ✓ se puede leer del cluster
+  ✓ guarda la ubicación
+  ✓ guarda el dato del módulo
+  ✓ guarda la autoría
+Idempotencia
+  ✓ reenviar lo mismo no lo duplica
+  ✓ la versión no se mueve
+Concurrencia
+  ✓ la primera edición se aplica
+  ✓ la versión sube a 2
+  ✓ una edición con versión vieja entra en conflicto
+  ✓ el conflicto trae el detalle
+  ✓ un módulo distinto no colisiona
+  ✓ el módulo nuevo queda en versión 1
+Limpieza
+  ✓ la parcela de prueba se borró
+```
+
+Esto cierra los bloqueos que arrastraban desde T2: la creación de la cuenta de Cosmos, los índices, la siembra, el alta del administrador y las dos propiedades que el plan pedía y que no se podían probar sin base de datos — la **idempotencia** y la **concurrencia por módulo**.
+
+**Bug encontrado por la verificación.** El seeder informaba "Administrador: creado" y el usuario se quedaba con el rol `encuestador`. Causa: el driver de MongoDB guarda el `_id` del usuario como `ObjectId`, pero Better Auth devuelve el id como string hexadecimal, así que el `updateOne({ _id })` no casaba con nada y **se iba en silencio**. El update ahora va por email, que es único y estable, y comprueba que `matchedCount` no sea cero: un update que no aplica nada tiene que dar error, no pasar inadvertido.
+
+### L16 — Credenciales
+
+La URI con la contraseña real se escribió en **`.env.local`**, no en `.env`. Motivo: `.env` no estaba en `.gitignore` —solo lo estaba `.env*.local`— así que escribir ahí las credenciales las exponía al próximo `git add -A`. El `.gitignore` ahora ignora `.env` y `.env.*` con la excepción explícita de `!.env.example`.
+
+El valor de la URI va entrecomillado en el archivo porque el parser de `.env` de Node corta en el primer `#` y el shell expande el `$` de la contraseña si el archivo se sourcea. La contraseña contiene un `$` y llega intacta: verificado.
+
 ### L10 — T3 completado (2026-10-22)
 
 Entregado:
