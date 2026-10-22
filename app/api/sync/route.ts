@@ -54,6 +54,7 @@ export async function POST(request: Request): Promise<Response> {
           estado: result.estado,
           resultados: result.resultados,
           conflictos: result.conflictos,
+          moduleVersions: result.moduleVersions,
         })
       } catch (error) {
         if (error instanceof DuplicateCodigoError) {

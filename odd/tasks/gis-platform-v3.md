@@ -265,7 +265,7 @@ El plan original pone el formulario (Fase 2) antes del schema builder (Fase 3). 
 | T2 | Better Auth, roles `encuestador`/`admin`, guard de sesión | S29 | inline | completado | `ffdad81` |
 | T3 | API de parcelas: CRUD, `version` por módulo, idempotencia de sync | S15, S17 | inline | completado | `183d71a` |
 | T4 | Shell PWA: manifest, Serwist/Turbopack, fallback offline, cache de teselas | S7, S22, S27 | inline | completado | `f10555d` |
-| T5 | Cliente de campo v2 sobre modelo v2: outbox Dexie, motor de sync, reintentos | S1, S2, S6 | inline | pendiente | — |
+| T5 | Cliente de campo v2: outbox Dexie, motor de sync, reintentos | S1, S2, S6 | inline | completado | pendiente |
 | T6 | Schema builder en admin + formulario renderizado desde el esquema | S11, S12, S14, S31 | inline | pendiente | — |
 | T7 | Geometría: dibujo de polígonos, área, perímetro, m² manual | S8, S9, S10 | inline | pendiente | — |
 | T8 | GPS: `watchPosition`, filtro 15 m, indicador, asistida/manual | S3, S4, S5 | inline | pendiente | — |
@@ -359,6 +359,44 @@ Nota de ruta: T4 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`.
 Bloqueo conocido: el service worker se compiló y sus reglas se verificaron en el bundle, pero no se pudo probar en un navegador real sin desplegar. La instalación en iOS sigue requiriendo el paso manual de "Agregar a inicio".
 
 Próximo paso: T5 (cliente de campo v2: outbox Dexie, motor de sync, reintentos).
+
+### L14 — T5 completado (2026-10-22)
+
+Entregado:
+
+- `lib/field/db.ts` — base local del cliente de campo, con tres tablas: `outbox` (la cola), `parcelas` (lo que el servidor ya conoce, con las versiones que tiene) y `esquemas` (los publicados, para que el formulario funcione sin red). Es una base separada, `geopin-field`, de la del prototipo (`geopin`, tabla `pins`), para que las dos convivan sin migraciones hasta que T6 termine el reemplazo.
+- `lib/field/outbox.ts` — la cola. **La clave primaria es el id de la parcela, no un id de entrada**: encolar dos veces la misma parcela reemplaza el contenido en vez de mandar dos versiones. La idempotencia de la cola sale gratis de esa decisión.
+- `lib/field/sync-plan.ts` — la regla de qué hacer con cada entrada, **pura y sin IndexedDB ni red**. Es la parte que más bugs produce, así que está aislada y testeada aparte.
+- `lib/field/sync.ts` — el motor: toma lo enviable, lo manda en una tanda de hasta 100, y aplica el plan. Nunca lanza: un fallo de red es un reintento programado, no un error que rompa la app en campo.
+- `lib/field/triggers.ts` — los disparadores del drenado: `online` (la red vuelve), `visibilitychange` (la app vuelve al frente, que en iOS es el disparador de fondo real), intervalo de 60 s, y el botón manual. Background Sync se pide de forma opcional y no rompe nada donde no existe.
+- `lib/field/cache.ts` — caché de parcelas y esquemas.
+- `components/field/SyncProvider.tsx` — el proveedor React que monta los disparadores una sola vez y expone el estado de la cola. Tiene un guardia propio: dos disparos seguidos no mandan la misma tanda dos veces.
+- `components/field/SyncStatus.tsx` — el indicador que ve el levantador. En campo es la única señal de que el trabajo está a salvo.
+- El servidor ahora devuelve `moduleVersions` en la respuesta de sync. El cliente los guarda para mandar la siguiente edición con la `baseVersion` correcta y no volver a chocar con un conflicto ya resuelto.
+
+Decisiones que conviene que queden escritas:
+
+- **La cola tiene tres estados, no dos.** `pendiente`, `fallido` y `conflicto`. Un conflicto **no se reintenta solo**: reintentarlo daría el mismo conflicto. Queda esperando que alguien lo resuelva, con el detalle de qué módulo y qué versión tiene el servidor.
+- **No hay estado "enviando".** Si la app muere a mitad de un envío, la entrada queda pendiente y se reintenta. Es entrega al menos una vez, y la idempotencia del servidor la convierte en exactamente una.
+- **Una edición nueva reinicia los intentos.** El error anterior era de otra versión del dato; darle una oportunidad nueva es lo correcto.
+- **El backoff lleva jitter.** Si veinte dispositivos pierden la señal en el mismo momento, sin variación reconectan todos en el mismo instante y le pegan al servidor de golpe.
+
+Evidencia de verificación:
+
+- `pnpm test` → 152 tests, 14 archivos, todo en verde. Los tests de la cola y del motor usan `fake-indexeddb` mediante `vitest.setup.ts`.
+- `pnpm typecheck` → limpio en los dos proyectos.
+- `pnpm build` → compila, sin rutas nuevas.
+
+RED observado y corregido:
+
+1. El test del backoff falló con `reintentadas: 0` en vez de 1. El motivo era del test: usaba un reloj simulado en el pasado respecto al encolado, así que la entrada todavía no era "enviable" y la tanda salió vacía. El motor estaba bien; se alineó el reloj del test con el del encolado.
+2. `pnpm typecheck` detectó que `navigator.sync` estaba tipado como `unknown` y `.register` no existía. Se resolvió con una interfaz `SyncManager` propia.
+
+Nota de ruta: T5 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`.
+
+Bloqueo conocido: la cola y el motor están probados con `fake-indexeddb` y un `fetch` simulado, pero no se pudo probar contra el cluster real — sigue el bloqueo de red de L9.
+
+Próximo paso: T6 (schema builder en el admin + formulario renderizado desde el esquema, que es el que reemplaza al formulario hardcodeado).
 
 ### L9 — El cluster está detrás de Private Link (2026-10-22)
 

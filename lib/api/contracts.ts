@@ -64,6 +64,12 @@ export interface SyncItemResult {
   estado: ParcelaEstadoSync
   resultados?: Record<string, string>
   conflictos?: unknown[]
+  /**
+   * Versión que quedó de cada módulo en el servidor. El cliente la guarda
+   * para mandar la siguiente edición con la `baseVersion` correcta, y para
+   * no volver a chocar con el conflicto que ya resolvió.
+   */
+  moduleVersions?: Record<string, number>
   error?: string
 }
 

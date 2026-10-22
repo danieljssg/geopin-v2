@@ -1,6 +1,7 @@
 import { SerwistProvider } from '@serwist/turbopack/react'
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
+import { SyncProvider } from '@/components/field/SyncProvider'
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -48,7 +49,9 @@ export default function RootLayout({
   return (
     <html lang="es" className="bg-slate-50" suppressHydrationWarning>
       <body className="antialiased">
-        <SerwistProvider swUrl="/serwist/sw.js">{children}</SerwistProvider>
+        <SerwistProvider swUrl="/serwist/sw.js">
+          <SyncProvider>{children}</SyncProvider>
+        </SerwistProvider>
         {process.env.NODE_ENV === "production" && <Analytics />}
       </body>
     </html>

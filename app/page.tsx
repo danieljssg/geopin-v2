@@ -9,6 +9,7 @@ import PinForm from "@/components/PinForm";
 import Drawer from "@/components/Drawer";
 import PinsList from "@/components/PinsList";
 import AppNavigation from "@/components/AppNavigation";
+import SyncStatus from "@/components/field/SyncStatus";
 import type { MapViewProps } from "@/components/MapView";
 
 // Leaflet requires a browser environment — load with ssr:false
@@ -213,8 +214,7 @@ export default function Page() {
                     ? "#93c5fd"
                     : "#fca5a5",
             }}
-          >
-            {gpsStatus === "searching" && (
+          >            {gpsStatus === "searching" && (
               <span
                 style={{
                   width: 9,
@@ -245,6 +245,9 @@ export default function Page() {
           </span>
         )}
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        <div className="ml-3">
+          <SyncStatus />
+        </div>
         <AppNavigation active="map" />
       </header>
 

@@ -17,6 +17,8 @@ export interface ParcelaWriteResult {
   estado: ParcelaEstadoSync
   resultados: Record<string, ModuleOutcome>
   conflictos: ModuleConflict[]
+  /** Versión que quedó de cada módulo en el servidor. */
+  moduleVersions: Record<string, number>
   parcela?: ParcelaDoc
   error?: string
 }
@@ -142,11 +144,16 @@ export async function writeParcela(
         ? 'ignorado'
         : 'actualizado'
 
+  const moduleVersions = Object.fromEntries(
+    Object.entries(applied.modulos).map(([moduleId, data]) => [moduleId, data.version]),
+  )
+
   return {
     id: input.id,
     estado,
     resultados: applied.resultados,
     conflictos: applied.conflictos,
+    moduleVersions,
     parcela: doc,
   }
 }
