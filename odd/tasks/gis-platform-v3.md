@@ -264,7 +264,7 @@ El plan original pone el formulario (Fase 2) antes del schema builder (Fase 3). 
 | T1 | Cimientos: harness de tests, validación de env, cliente Cosmos, índices, modelo de dominio v2, tipos de esquema | S13, S21, S28 | inline | completado | `e26a629` |
 | T2 | Better Auth, roles `encuestador`/`admin`, guard de sesión | S29 | inline | completado | `ffdad81` |
 | T3 | API de parcelas: CRUD, `version` por módulo, idempotencia de sync | S15, S17 | inline | completado | `183d71a` |
-| T4 | Shell PWA: manifest, Serwist/Turbopack, fallback offline, cache de teselas | S7, S22, S27 | inline | completado | pendiente |
+| T4 | Shell PWA: manifest, Serwist/Turbopack, fallback offline, cache de teselas | S7, S22, S27 | inline | completado | `f10555d` |
 | T5 | Cliente de campo v2 sobre modelo v2: outbox Dexie, motor de sync, reintentos | S1, S2, S6 | inline | pendiente | — |
 | T6 | Schema builder en admin + formulario renderizado desde el esquema | S11, S12, S14, S31 | inline | pendiente | — |
 | T7 | Geometría: dibujo de polígonos, área, perímetro, m² manual | S8, S9, S10 | inline | pendiente | — |
