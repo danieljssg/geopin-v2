@@ -256,7 +256,7 @@ El plan original pone el formulario (Fase 2) antes del schema builder (Fase 3). 
 | --- | --- | --- | --- | --- | --- |
 | T1 | Cimientos: harness de tests, validación de env, cliente Cosmos, índices, modelo de dominio v2, tipos de esquema | S13, S21, S28 | inline | completado | `e26a629` |
 | T2 | Better Auth, roles `encuestador`/`admin`, guard de sesión | S29 | inline | completado | `ffdad81` |
-| T3 | API de parcelas: CRUD, `version` por módulo, idempotencia de sync | S15, S17 | inline | pendiente | — |
+| T3 | API de parcelas: CRUD, `version` por módulo, idempotencia de sync | S15, S17 | inline | completado | pendiente |
 | T4 | Shell PWA: manifest, Serwist/Turbopack, fallback offline, cache de teselas | S7, S22, S27 | inline | pendiente | — |
 | T5 | Cliente de campo v2 sobre modelo v2: outbox Dexie, motor de sync, reintentos | S1, S2, S6 | inline | pendiente | — |
 | T6 | Schema builder en admin + formulario renderizado desde el esquema | S11, S12, S14, S31 | inline | pendiente | — |
@@ -300,6 +300,62 @@ Verbatim: `cual recomiendas objetivamente ? porque debe ser rápido los desplieg
 La URI real con usuario y cuenta se pegó primero en `.env.example`, que **sí está versionado**. Se movió a `.env.local` — que está en `.gitignore` — y `.env.example` volvió a una plantilla genérica. No llegó a ningún commit: el contenido commiteado era el genérico. El `BETTER_AUTH_SECRET` faltaba y se generó uno de 48 bytes en `.env.local`.
 
 **La contraseña de la URI quedó enmascarada como `<password>`**, así que la conexión a la cuenta real todavía no se pudo probar.
+
+### L9 — El cluster está detrás de Private Link (2026-10-22)
+
+Diagnóstico del bloqueo de T2:
+
+| Comprobación | Resultado |
+| --- | --- |
+| DNS del cluster | El SRV resuelve a `fc-a1be8b57cee6-000.global.**privatelink**.mongocluster.cosmos.azure.com` |
+| TCP a `20.65.94.153:10260` | Timeout (también 443 y 27017) |
+| Egreso general (github, npm, learn.microsoft, google) | Funciona |
+| Lectura de la URI con la contraseña real | Imposible: la contraseña está enmascarada |
+
+El cluster existe y su DNS es correcto, pero el endpoint se anuncia por el nombre `privatelink` y no acepta conexiones desde esta red. Dos causas candidatas: Private Link con acceso público deshabilitado, o una regla de firewall que no incluye esta IP. Con la contraseña real el handshake fallaría igual por tiempo de espera, no por autenticación.
+
+**Consecuencia de arquitectura que hay que decidir:** si el acceso público del cluster está deshabilitado, **Vercel tampoco va a poder llegar a la base**. El Next.js tendría que correr dentro de la VNet — Azure App Service o Container Apps con integración de red privada — en lugar del pipeline actual de v0 → Vercel. Esto no cambia el diseño de la app: la PWA es offline-first igual, pero cambia dónde vive el servidor.
+
+Pendiente de confirmación: si desde la red del usuario el cluster responde, el problema es solo el firewall de esta red. Si tampoco responde, hay que habilitar acceso público con lista de IPs o desplegar dentro de la VNet.
+
+### L10 — T3 completado (2026-10-22)
+
+Entregado:
+
+- `lib/domain/sync.ts` — la lógica de concurrencia, **pura y testeable sin base de datos**: `applyModuleUpdates()` decide por módulo entre `aplicado`, `ignorado` y `conflicto`. Reglas: (a) cada módulo tiene su propia versión, así que dos encuestadores sobre módulos distintos de la misma parcela no colisionan — el requisito de concurrencia de la Fase 3; (b) el cliente declara la versión que leyó (`baseVersion`) y si coincide la escritura se aplica y la versión sube; (c) **un reintento no es un conflicto**: si la versión no coincide pero los datos son idénticos a los guardados, la escritura ya se aplicó y se devuelve `ignorado`; (d) un conflicto real no pisa nada y devuelve el estado actual para resolverlo.
+- `lib/domain/json.ts` — `jsonEquals()`, que es lo que permite distinguir el reintento del conflicto.
+- `lib/domain/parcela.ts` — conversión `lat/lng` ↔ GeoJSON `[lng, lat]`, y cálculo de área y perímetro con la fórmula del trapecio sobre proyección equirectangular.
+- `lib/api/contracts.ts` — contrato de la API: tipos de petición y respuesta más los validadores. Los usa el servidor y los usará el cliente de campo de T5, así que hay una sola definición de qué es una petición válida.
+- `lib/server/repositories/parcelas.ts` y `esquemas.ts` — acceso a las colecciones y validación de los datos de cada módulo contra el esquema publicado.
+- `lib/server/services/parcelas.ts` — servicio de escritura compartido por `POST /api/parcelas` y `POST /api/sync`, para que las reglas no se dupliquen.
+- `lib/server/http.ts` — `apiRoute()` traduce los errores de autenticación a su código HTTP y deja cualquier otro como 500 sin filtrar detalles.
+- `app/api/parcelas/route.ts` — listado con filtros y alta idempotente por el id que genera el cliente.
+- `app/api/parcelas/[id]/route.ts` — lectura, actualización parcial con detección de conflicto y borrado. Un管理员 borra lo que sea; un encuestador solo lo que creó.
+- `app/api/sync/route.ts` — sincronización por lotes de hasta 100 parcelas. Cada parcela se procesa por separado: un error en una no detiene al resto.
+
+Decisiones que conviene que queden escritas:
+
+- **Los campos núcleo son de última escritura gana; los de módulo tienen versión.** Nombre, ubicación y estado son compartidos entre encuestadores y no tienen versión propia. Los datos de cada módulo sí, y ahí es donde se detectan los conflictos.
+- **Un `PATCH` con conflicto devuelve 409 con el estado actual**, pero los módulos que no chocaron ya quedaron aplicados. El cuerpo trae siempre `resultados` y `conflictos` para que la app sepa qué pasó sin adivinar por el código HTTP.
+- **La validación contra el esquema no bloquea si el módulo no tiene esquema publicado.** El administrador puede agregar un módulo a la app antes de publicar su esquema, y frenar la captura en campo por eso sería peor que el dato sin validar.
+
+Evidencia de verificación:
+
+- `pnpm test` → 103 tests, 10 archivos, todo en verde. El conteo por archivo cuadra: 10 + 13 + 17 + 24 + 4 + 6 + 7 + 7 + 7 + 8 = 103.
+- `pnpm typecheck` → limpio.
+- `pnpm build` → compila; aparecen `/api/parcelas`, `/api/parcelas/[id]` y `/api/sync` como rutas dinámicas.
+
+RED observado y corregido:
+
+1. `parseParcelaPatch({ nombre: 'Nuevo nombre' })` falló. El bug era real: `parseCore` validaba los campos del núcleo como obligatorios también en el modo parcial, así que un PATCH de un solo campo se rechazaba por `ubicacion` ausente. Se reescribió `parseCore` para validar solo los campos presentes, y el caso `requireAll` conserva sus defaults (`descripcion` vacío, `estado` pendiente).
+2. `pnpm typecheck` detectó tres errores: `SessionUser` usa `name` y no `nombre`, `ParcelaDoc` no estaba reexportado desde el repositorio, y `useGeoPoint` no era el nombre correcto. Los tres corregidos.
+3. `polygonAreaM2` se validó contra un cuadrado de 0,001° × 0,001° en el ecuador, donde un grado mide exactamente los 111.132,92 m de la fórmula: el área esperada es el producto de los lados y el perímetro, el cuádruplo del lado.
+
+Nota de ruta: T3 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`. La concurrencia y la idempotencia están resueltas en módulos puros con cobertura de tests, y la autorización la aplica `requirePermission` en cada ruta.
+
+Bloqueo conocido: sin acceso de red al cluster no se pudo probar la API contra la base real. La lógica de negocio está cubierta por tests unitarios; el camino de ida y vuelta a Cosmos queda pendiente.
+
+Próximo paso: T4 (shell PWA: manifest, `@serwist/turbopack`, fallback offline, tiles configurables).
 
 ### L4 — Evidencia verificada (2026-10-21)
 

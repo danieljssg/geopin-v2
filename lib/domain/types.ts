@@ -57,6 +57,12 @@ export interface ModuleSchema {
 
 /** Datos capturados de un módulo dentro de una parcela. */
 export interface ParcelaModuloData {
+  /**
+   * Versión del módulo. Es el control de concurrencia optimista: cada
+   * escritura de un módulo lo incrementa, y dos encuestadores sobre módulos
+   * distintos de la misma parcela no se pisan.
+   */
+  version: number
   /** Versión del esquema con el que se capturó. Permite renderizar la visita tal como se vio. */
   schemaVersion: number
   datos: Record<string, unknown>

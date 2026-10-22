@@ -1,5 +1,5 @@
 import { closeMongo } from '../lib/server/cosmos'
-import { ensureIndexes } from '../lib/server/collections'
+import { ensureIndexes, INDEX_SPECS } from '../lib/server/collections'
 
 /**
  * Crea los índices que falten en la base de datos.
@@ -25,7 +25,14 @@ async function main(): Promise<void> {
   for (const failure of failures) {
     console.log(`  - ${failure.collection}.${failure.name}: ${failure.message}`)
   }
-  console.log('Los índices que sí se pudieron crear quedaron aplicados.')
+
+  if (failures.length === INDEX_SPECS.length) {
+    console.log('Ningún índice se pudo crear: el problema no es de los índices.')
+    console.log('Revisá la conectividad con el cluster y las credenciales de la URI.')
+  } else {
+    console.log('Los índices que sí se pudieron crear quedaron aplicados.')
+  }
+
   process.exitCode = 1
 }
 
