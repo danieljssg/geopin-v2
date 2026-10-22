@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.sw.json --noEmit",
     "seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
     "db:indexes": "tsx --env-file-if-exists=.env.local scripts/ensure-indexes.ts"
   },
@@ -34,11 +34,14 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@serwist/turbopack": "^9.5.13",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "esbuild": "^0.28.2",
     "postcss": "^8.5.26",
+    "serwist": "^9.5.13",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
     "typescript": "7.0.2",

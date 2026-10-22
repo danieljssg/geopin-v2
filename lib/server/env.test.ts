@@ -59,6 +59,36 @@ describe('parseServerEnv', () => {
     )
     expect(error.message).toContain('BETTER_AUTH_URL')
   })
+
+  /**
+   * La contraseña de la cuenta de Azure casi seguro trae caracteres
+   * especiales, y varios de ellos rompen el parseo de la URI: el `#` abre un
+   * fragmento, el `@` confunde el host y la `/` y la `?` cortan la URI.
+   */
+  it('rechaza una contraseña con caracteres que rompen la URI', () => {
+    for (const prohibido of ['#', '@', '/', '?', ' ']) {
+      const uri = `mongodb+srv://usuario:${encodeURIComponent('pa' + prohibido + 'ss')}@cuenta.mongodb.cosmos.azure.com/?ssl=true`
+      // Se simula el caso real: la contraseña pegada sin codificar.
+      const sinCodificar = `mongodb+srv://usuario:pa${prohibido}ss@cuenta.mongodb.cosmos.azure.com/?ssl=true`
+      const error = captureError(() =>
+        parseServerEnv(entorno({ MONGODB_URI: prohibido === ' ' ? sinCodificar : sinCodificar })),
+      )
+      expect(error.message, `debería rechazar ${prohibido}`).toMatch(/codific/i)
+      expect(uri).toContain('mongodb+srv://')
+    }
+  })
+
+  it('acepta una contraseña percent-encoded', () => {
+    const uri =
+      'mongodb+srv://usuario:pa%23ss%40word@cuenta.mongodb.cosmos.azure.com/?ssl=true'
+    const parsed = parseServerEnv(entorno({ MONGODB_URI: uri }))
+    expect(parsed.MONGODB_URI).toBe(uri)
+  })
+
+  it('acepta una contraseña con caracteres seguros', () => {
+    const uri = 'mongodb+srv://usuario:ClaveSegura2026@cuenta.mongodb.cosmos.azure.com/?ssl=true'
+    expect(() => parseServerEnv(entorno({ MONGODB_URI: uri }))).not.toThrow()
+  })
 })
 
 function captureError(fn: () => unknown): Error {

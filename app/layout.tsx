@@ -1,3 +1,4 @@
+import { SerwistProvider } from '@serwist/turbopack/react'
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
@@ -24,6 +25,11 @@ export const metadata: Metadata = {
     ],
     apple: "/apple-icon.png",
   },
+  appleWebApp: {
+    capable: true,
+    title: "GeoPin",
+    statusBarStyle: "default",
+  },
 };
 
 export const viewport: Viewport = {
@@ -42,7 +48,7 @@ export default function RootLayout({
   return (
     <html lang="es" className="bg-slate-50" suppressHydrationWarning>
       <body className="antialiased">
-        {children}
+        <SerwistProvider swUrl="/serwist/sw.js">{children}</SerwistProvider>
         {process.env.NODE_ENV === "production" && <Analytics />}
       </body>
     </html>

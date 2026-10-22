@@ -55,3 +55,38 @@ export async function closeMongo(): Promise<void> {
   await client.close()
   delete globalRef[GLOBAL_KEY]
 }
+
+/**
+ * Traduce un error del driver a un mensaje accionable.
+ *
+ * El error crudo del driver es un volcado de veinte líneas que no dice qué
+ * hacer. Estas son las dos causas que se van a encontrar siempre: la red no
+ * llega al cluster, o el cluster rechazó las credenciales.
+ */
+export function describeCosmosError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+
+  if (/Server selection timed out/i.test(message)) {
+    return (
+      'No se pudo alcanzar el cluster: el servidor selectó por timeout. ' +
+      'Revisá la conectividad, las reglas de firewall del cluster y que la ' +
+      'URI apunte al cluster correcto.'
+    )
+  }
+
+  if (/Authentication failed|Unauthorized/i.test(message)) {
+    return (
+      'El cluster rechazó las credenciales de MONGODB_URI. Revisá el usuario, ' +
+      'la contraseña (percent-encoded) y que el usuario tenga permisos sobre la base.'
+    )
+  }
+
+  if (/MongoParseError/i.test(message)) {
+    return (
+      'La URI de MongoDB no se pudo parsear. Si la contraseña trae símbolos, ' +
+      'codificala con encodeURIComponent.'
+    )
+  }
+
+  return message
+}

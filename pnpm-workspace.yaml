@@ -5,4 +5,5 @@
 # tsx lo usa para ejecutar scripts de TypeScript y @serwist/turbopack lo usa
 # para compilar el service worker.
 allowBuilds:
+  '@swc/core': true
   esbuild: true

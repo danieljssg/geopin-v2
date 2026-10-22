@@ -1,4 +1,4 @@
-import { closeMongo } from '../lib/server/cosmos'
+import { closeMongo, describeCosmosError } from '../lib/server/cosmos'
 import { ensureIndexes, INDEX_SPECS } from '../lib/server/collections'
 
 /**
@@ -42,6 +42,6 @@ main()
     process.exit(process.exitCode ?? 0)
   })
   .catch((error) => {
-    console.error(error)
+    console.error(`Error al crear los índices: ${describeCosmosError(error)}`)
     process.exit(1)
   })

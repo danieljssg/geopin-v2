@@ -1,5 +1,5 @@
 import { seed } from '../lib/server/bootstrap'
-import { closeMongo } from '../lib/server/cosmos'
+import { closeMongo, describeCosmosError } from '../lib/server/cosmos'
 
 /**
  * Siembra la base de datos: esquemas de los módulos y el administrador
@@ -43,6 +43,6 @@ main()
     process.exit(process.exitCode ?? 0)
   })
   .catch((error) => {
-    console.error(error)
+    console.error(`Error de la siembra: ${describeCosmosError(error)}`)
     process.exit(1)
   })

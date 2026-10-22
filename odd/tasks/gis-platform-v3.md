@@ -59,9 +59,16 @@ Decisión del usuario: *"creo que sería mejor tener los mbtiles autoalojados pa
 
 Restricción legal verificada (OSMF Tile Usage Policy): el uso offline y el prefetch están **prohibidos** en `tile.openstreetmap.org` — *"Offline use is not permitted on tile.openstreetmap.org"* y *"Any 'download for offline' button or background job that fetches tiles a user is not currently viewing"* está en la lista de no permitidos. Lo que sí está permitido es cachear mientras el usuario navega por el viewport.
 
-Alcance: la app consume una plantilla de tiles configurable `{TILE_BASE_URL}/{z}/{x}/{y}.png` servida desde el blob storage propio. Un botón "descargar mapa del levantamiento" precarga la pirámide z12–z18 del área de 10 × 10 km.
+Alcance: la app consume una plantilla de tiles configurable `{TILE_BASE_URL}/{z}/{x}/{y}.png` servida desde el blob storage propio. Un botón "descargar mapa del levantamiento" precarga la pirámide del área de 10 × 10 km.
 
-Cálculo de tamaño: en Venezuela (lat ~10.5°) un tile z18 cubre ~40 km; la pirámide completa de un área de 10 × 10 km son ~340 tiles (~7 MB). El prefetch es barato porque el área es chica.
+**Corrección de la estimación de volumen (2026-10-22).** La cifra que se había dado antes —"~340 tiles, ~7 MB"— estaba mal por un factor de 256: un tile z18 mide **~155 m**, no 40 km. Los números reales para un área de 11 × 11 km:
+
+| Rango | Teselas | Volumen aproximado |
+| --- | --- | --- |
+| z12–z16 | ~500 | ~10 MB |
+| z12–z18 | ~7.500 | ~150 MB |
+
+Por eso el precacheo se detiene en **z16** (el mapa base para orientarse) y z17–z18 se van llenando a medida que el surveyor navega. Prefetchar los tres niveles sería descargar 150 MB de datos móviles antes de poder empezar a trabajar.
 
 Criterios: la app nunca pide tiles de OSMF fuera del viewport; la descarga del área se sirve solo desde el blob propio; el cálculo de la lista de tiles que cubren un bbox es una función pura testeable.
 Checks: test del cálculo de la lista de tiles de un bbox.
@@ -257,7 +264,7 @@ El plan original pone el formulario (Fase 2) antes del schema builder (Fase 3). 
 | T1 | Cimientos: harness de tests, validación de env, cliente Cosmos, índices, modelo de dominio v2, tipos de esquema | S13, S21, S28 | inline | completado | `e26a629` |
 | T2 | Better Auth, roles `encuestador`/`admin`, guard de sesión | S29 | inline | completado | `ffdad81` |
 | T3 | API de parcelas: CRUD, `version` por módulo, idempotencia de sync | S15, S17 | inline | completado | `183d71a` |
-| T4 | Shell PWA: manifest, Serwist/Turbopack, fallback offline, cache de teselas | S7, S22, S27 | inline | pendiente | — |
+| T4 | Shell PWA: manifest, Serwist/Turbopack, fallback offline, cache de teselas | S7, S22, S27 | inline | completado | pendiente |
 | T5 | Cliente de campo v2 sobre modelo v2: outbox Dexie, motor de sync, reintentos | S1, S2, S6 | inline | pendiente | — |
 | T6 | Schema builder en admin + formulario renderizado desde el esquema | S11, S12, S14, S31 | inline | pendiente | — |
 | T7 | Geometría: dibujo de polígonos, área, perímetro, m² manual | S8, S9, S10 | inline | pendiente | — |
@@ -300,6 +307,58 @@ Verbatim: `cual recomiendas objetivamente ? porque debe ser rápido los desplieg
 La URI real con usuario y cuenta se pegó primero en `.env.example`, que **sí está versionado**. Se movió a `.env.local` — que está en `.gitignore` — y `.env.example` volvió a una plantilla genérica. No llegó a ningún commit: el contenido commiteado era el genérico. El `BETTER_AUTH_SECRET` faltaba y se generó uno de 48 bytes en `.env.local`.
 
 **La contraseña de la URI quedó enmascarada como `<password>`**, así que la conexión a la cuenta real todavía no se pudo probar.
+
+### L11 — Despliegue en Vercel (2026-10-22)
+
+Decisión del usuario: *"se despliega en vercel"*.
+
+Consecuencia que hay que cumplir: **Vercel no puede llegar a un cluster detrás de Private Link.** Si el acceso público del cluster está deshabilitado, la API va a fallar en tiempo de ejecución aunque todo el código esté bien. La cuenta necesita "Public network access = Enabled" con una regla de firewall que incluya los rangos de salida de Vercel, o el cluster tiene que exponerse por IP pública con lista de IPs.
+
+Los scripts de base de datos (`pnpm db:indexes`, `pnpm seed`) corren desde la máquina del desarrollador, así que necesitan la red del desarrollador autorizada en el firewall del cluster, o la regla con "Allow access from all IP addresses" mientras se configura.
+
+### L12 — Dos trampas de credenciales (2026-10-22)
+
+Encontradas al correr los comandos con la contraseña de mockup:
+
+1. **El `#` rompe la URI de MongoDB.** Es el delimitador de fragmento: el driver falla con `MongoParseError: mongodb+srv URI cannot have port number`, un error que no dice nada sobre la causa real. Lo mismo pasa con `@`, `/`, `?`, `[` y `]`, que la especificación de connection string de MongoDB exige percent-encoded dentro de la contraseña. Como la contraseña que genera Azure casi siempre trae símbolos, `lib/server/env.ts` ahora valida las credenciales de la URI y dice exactamente qué hay que codificar y con qué (`encodeURIComponent`).
+2. **El parser de `.env` de Node corta el valor en el primer `#`**, aunque no haya espacio antes: `ADMIN_PASSWORD=Mockup#2026Geopin` llega como `Mockup`. El valor tiene que ir entrecomillado. Documentado en `.env.example`.
+
+La contraseña de mockup quedó como `Mockup-Geonet-2026`, sin caracteres problemáticos, solo en `.env.local`.
+
+### L13 — T4 completado (2026-10-22)
+
+Entregado:
+
+- `next.config.mjs` — envuelto con `withSerwist` de `@serwist/turbopack`.
+- `app/serwist/[path]/route.ts` — `createSerwistRoute()` compila el service worker con esbuild y lo sirve. La revisión es el hash del commit, para que el navegador detecte la versión nueva.
+- `app/sw.ts` — el service worker con cuatro políticas de cache explícitas, en orden: `/api/auth` a `NetworkOnly` (una sesión cacheada sobrevive al cierre de sesión y deja la cookie en el disco), `/api/parcelas` a `NetworkFirst` con timeout de 5 s (en campo la red se cae, y responder desde el cache con datos viejos es mejor que quedarse esperando), tiles propios a `CacheFirst` (son inmutables) y tiles de terceros a `StaleWhileRevalidate` con TTL de 30 días (la política de OSMF exige cachear según las cabeceras del servidor o al menos 7 días; lo que no permite es prefetchear, y esta regla no precachea nada).
+- `app/manifest.ts` — manifiesto de la PWA con `display: standalone` y tres iconos.
+- `app/offline/page.tsx` + `components/OfflineRetryButton.tsx` — página de respaldo con botón de reintento. El botón va en un componente aparte porque Next.js no permite exportar `metadata` desde un componente de cliente.
+- `public/geopin-icon-*.png` — icono propio de la app con el azul de la marca, en 192, 512 y maskable.
+- `lib/map/tiles.ts` — matemática de teselas pura: conversión lon/lat ↔ x/y, lista de teselas de un bbox y caja envolvente con margen en metros. Es la misma función que usarán el botón de descarga del cliente y el generador de la pirámide del servidor, para que coincidan.
+- `lib/map/tile-sources.ts` — configuración de fuentes con el rango de precacheo (`PREFETCH_MIN_ZOOM` 12, `PREFETCH_MAX_ZOOM` 16).
+- `tsconfig.sw.json` — el service worker se typea aparte, con la lib `webworker` en lugar de `dom`. Mezclarlas en un solo proyecto produce identificadores duplicados; `pnpm typecheck` corre los dos.
+
+Corrección de la estimación de volumen de tiles (ver S7): la cifra anterior estaba mal por un factor de 256. Un tile z18 mide ~155 m, no 40 km. Un área de 11 × 11 km son ~7.500 teselas hasta z18 (~150 MB) y ~500 hasta z16 (~10 MB). El precacheo se detiene en z16 y los niveles finos se llenan bajo demanda.
+
+Evidencia de verificación:
+
+- `pnpm test` → 122 tests, 11 archivos, todo en verde.
+- `pnpm typecheck` → limpio en los dos proyectos.
+- `pnpm build` → compila; `/manifest.webmanifest` y `/offline` prerenderizados, y `/serwist/sw.js` generado como SSG (56 KB).
+- El service worker compilado contiene las cuatro reglas: `/api/auth`, `/api/parcelas`, `geopin-tiles-propios-v1`, `geopin-tiles-terceros-v1`, más los dominios de OSM y OpenTopoMap y el fallback a `/offline`.
+
+RED observado y corregido:
+
+1. `latToTileY(0, 1)` devolvía 1 y el test esperaba 0. El test estaba mal: el ecuador es exactamente el borde entre la fila norte y la sur, así que la fila 1 es la que empieza en latitud 0. La implementación era la correcta.
+2. El test del volumen de tiles falló con 7.455 teselas donde se esperaban menos de 2.000. **El test tenía razón y mi estimación previa estaba mal**: un tile z18 mide ~155 m, no 40 km. Se corrigió la estimación en S7 y en la conversación con el usuario, y se fijó la política de precacheo en z16.
+3. `next build` falló con `You are attempting to export "metadata" from a component marked with "use client"`. La página offline quedó como Server Component y el botón de reintento se movió a su propio componente de cliente.
+
+Nota de ruta: T4 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`.
+
+Bloqueo conocido: el service worker se compiló y sus reglas se verificaron en el bundle, pero no se pudo probar en un navegador real sin desplegar. La instalación en iOS sigue requiriendo el paso manual de "Agregar a inicio".
+
+Próximo paso: T5 (cliente de campo v2: outbox Dexie, motor de sync, reintentos).
 
 ### L9 — El cluster está detrás de Private Link (2026-10-22)
 

@@ -98,6 +98,73 @@ function validateCosmosUri(uri: string): void {
   if (!/^mongodb(\+srv)?:\/\//.test(uri)) {
     throw new EnvError('MONGODB_URI debe empezar por "mongodb://" o "mongodb+srv://".')
   }
+
+  validateUriCredentials(uri)
+}
+
+/**
+ * Caracteres que la especificación de connection string de MongoDB exige
+ * percent-encoded dentro de la contraseña.
+ *
+ * Sin codificar, cada uno rompe el parseo de una forma distinta y el error
+ * que devuelve el driver no dice nada sobre la causa real: un `#` abre un
+ * fragmento, un `@` confunde el host, una `?` corta la URI. Como la
+ * contraseña que genera Azure casi siempre trae símbolos, esto se valida
+ * antes de intentar conectar.
+ */
+const PROHIBIDOS_EN_CLAVE = /[:@/?#[\]\s]/
+
+function validateUriCredentials(uri: string): void {
+  const posicionArroba = uri.indexOf('@')
+  const posicionInterrogacion = uri.indexOf('?')
+  const posicionFragmento = uri.indexOf('#')
+
+  // Si el "?" o el "#" aparecen antes del "@", la contraseña los trae sin
+  // codificar: el parser corta la URI ahí y el host se pierde.
+  if (
+    posicionInterrogacion !== -1 &&
+    (posicionArroba === -1 || posicionInterrogacion < posicionArroba)
+  ) {
+    throw new EnvError(
+      'La contraseña de MONGODB_URI tiene un "?" sin codificar, y eso rompe el ' +
+        'parseo de la URI. Codificá la contraseña con encodeURIComponent ' +
+        '(por ejemplo, "?" → "%3F").',
+    )
+  }
+
+  if (posicionFragmento !== -1 && (posicionArroba === -1 || posicionFragmento < posicionArroba)) {
+    throw new EnvError(
+      'La contraseña de MONGODB_URI tiene un "#" sin codificar, y eso rompe el ' +
+        'parseo de la URI. Codificá la contraseña con encodeURIComponent ' +
+        '(por ejemplo, "#" → "%23").',
+    )
+  }
+
+  const arrobas = (uri.match(/@/g) ?? []).length
+  if (arrobas > 1) {
+    throw new EnvError(
+      'MONGODB_URI tiene más de un "@": la contraseña trae un "@" sin codificar. ' +
+        'Codificá la contraseña con encodeURIComponent antes de pegarla.',
+    )
+  }
+
+  if (arrobas === 0) return
+
+  const credenciales = /^mongodb(?:\+srv)?:\/\/([^@]*)@/.exec(uri)?.[1]
+  if (!credenciales) return
+
+  const separador = credenciales.indexOf(':')
+  if (separador === -1) return
+
+  const clave = credenciales.slice(separador + 1)
+  const prohibido = PROHIBIDOS_EN_CLAVE.exec(clave)
+  if (!prohibido) return
+
+  throw new EnvError(
+    `La contraseña de MONGODB_URI tiene un "${prohibido[0]}" sin codificar, ` +
+      'y eso rompe el parseo de la URI. Codificá la contraseña con ' +
+      'encodeURIComponent (por ejemplo, "#" → "%23", "@" → "%40").',
+  )
 }
 
 let cached: ServerEnv | null = null
