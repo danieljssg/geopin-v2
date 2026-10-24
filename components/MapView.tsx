@@ -7,6 +7,7 @@ import 'leaflet/dist/leaflet.css'
 import type { Pin, Category } from '@/lib/types'
 import { getCategoryConfig } from '@/lib/categories'
 import { getUrbanDetails } from '@/lib/urban-options'
+import { capasBasePorDefecto, capasDeTipo, type CapaMapa } from '@/lib/map/capas'
 
 // ---------------------------------------------------------------------------
 // Icon factory — uses divIcon so no webpack asset-path issues
@@ -281,6 +282,13 @@ export interface MapViewProps {
   autoLocate?: boolean
   /** Reemplaza el comportamiento del botón "usar mi ubicación". */
   onLocateRequest?: () => void
+  /**
+   * Configuración de las capas del mapa. Si no se pasa, se usan las dos
+   * fuentes de siempre.
+   */
+  capas?: CapaMapa[]
+  /** Capa base activa. */
+  capaBase?: string
   /** Capas y controles que se dibujan dentro del mapa. */
   children?: React.ReactNode
 }
@@ -297,9 +305,23 @@ export default function MapView({
   clickToPosition = true,
   autoLocate = true,
   onLocateRequest,
+  capas,
+  capaBase,
   children,
 }: MapViewProps) {
   const hasValidPosition = lat !== 0 || lng !== 0
+
+  /**
+   * Las capas base nunca pueden quedar vacías: `LayersControl` de Leaflet
+   * lanza si no tiene ninguna. Además, antes de que llegue la configuración
+   * del servidor el array está vacío, así que el respaldo tiene que ser
+   * explícito.
+   */
+  const capasBase =
+    capas && capasDeTipo(capas, 'base').length > 0
+      ? capasDeTipo(capas, 'base')
+      : capasBasePorDefecto('')
+  const baseActiva = capaBase ?? capasBase[0]?.id
 
   const handleDragEnd = useCallback(
     (e: L.DragEndEvent) => {
@@ -320,20 +342,16 @@ export default function MapView({
       zoomControl={false}
       scrollWheelZoom
     >
-      <LayersControl position="topright" collapsed={false}>
-        <LayersControl.BaseLayer checked name="Mapa estándar">
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-        </LayersControl.BaseLayer>
-        <LayersControl.BaseLayer name="Mapa topográfico (relieve)">
-          <TileLayer
-            attribution='Kartendaten: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende, SRTM | Kartendarstellung: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'
-            url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
-            maxNativeZoom={17}
-          />
-        </LayersControl.BaseLayer>
+      <LayersControl position="topright" collapsed={capas ? true : false}>
+        {capasBase.map((capa) => (
+          <LayersControl.BaseLayer
+            key={capa.id}
+            checked={capa.id === baseActiva}
+            name={capa.label}
+          >
+            <TileLayer url={capa.url} attribution={capa.attribution} />
+          </LayersControl.BaseLayer>
+        ))}
       </LayersControl>
 
       {autoLocate && <GPSDetector onPositionChange={onPositionChange} onGPSStatus={onGPSStatus} />}

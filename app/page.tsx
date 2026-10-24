@@ -7,11 +7,13 @@ import type { MapViewProps } from '@/components/MapView'
 import type { Parcela } from '@/lib/domain/types'
 import FormularioParcela from '@/components/field/FormularioParcela'
 import GeometriaPanel from '@/components/field/GeometriaPanel'
+import PanelCapas from '@/components/field/PanelCapas'
 import PanelDescargarMapa from '@/components/field/PanelDescargarMapa'
 import GpsIndicator from '@/components/field/GpsIndicator'
 import SyncStatus from '@/components/field/SyncStatus'
 import { useSync } from '@/components/field/SyncProvider'
 import { useSchemas } from '@/lib/field/use-schemas'
+import { useCapas } from '@/lib/field/use-capas'
 import { usePoligono } from '@/lib/field/use-poligono'
 import { useGeolocation } from '@/lib/field/use-geolocation'
 import { shouldFollowSensor, type OrigenPosicion } from '@/lib/domain/gps'
@@ -44,12 +46,21 @@ const PolygonEditor = dynamic(() => import('@/components/field/PolygonEditor'), 
   ssr: false,
 })
 
+/**
+ * La superposición también se carga solo en el cliente: `leaflet` toca
+ * `window` al importarse y el prerender del servidor no lo tiene.
+ */
+const CapaSuperpuesta = dynamic(() => import('@/components/field/CapaSuperpuesta'), {
+  ssr: false,
+})
+
 const CENTRO_INICIAL = { lat: 10.4806, lng: -66.9036 }
 
 export default function CampoPage() {
   const { esquemas, cargando, desdeCache, error, recargar } = useSchemas()
   const { encolar } = useSync()
   const poligono = usePoligono()
+  const capas = useCapas()
   const geo = useGeolocation()
 
   const [ubicacion, setUbicacion] = useState(CENTRO_INICIAL)
@@ -234,11 +245,26 @@ export default function CampoPage() {
             // tiene que pedir su propia lectura.
             autoLocate={false}
             onLocateRequest={usarMiUbicacion}
+            capas={capas.capas}
+            capaBase={capas.baseActiva}
             onPositionChange={onPositionChange}
             onGPSStatus={() => {}}
             onDeletePin={() => {}}
             onEditPin={() => {}}
           >
+            {capas.capas
+              .filter(
+                (capa) =>
+                  capa.tipo === 'superposicion' && capas.overlaysVisibles.includes(capa.id),
+              )
+              .map((capa) => (
+                <CapaSuperpuesta
+                  key={capa.id}
+                  capa={capa}
+                  opacidad={capas.opacidades[capa.id] ?? capa.opacity}
+                />
+              ))}
+
             <PolygonEditor
               draft={poligono.draft}
               geometria={poligono.geometria}
@@ -248,6 +274,16 @@ export default function CampoPage() {
               onQuitar={poligono.quitar}
             />
           </MapView>
+
+          <PanelCapas
+            capas={capas.capas}
+            baseActiva={capas.baseActiva}
+            onCambiarBase={capas.setBaseActiva}
+            overlaysVisibles={capas.overlaysVisibles}
+            onToggleOverlay={capas.toggleOverlay}
+            opacidades={capas.opacidades}
+            onCambiarOpacidad={capas.setOpacidad}
+          />
         </div>
       </div>
     </main>
