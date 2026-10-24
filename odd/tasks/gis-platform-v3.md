@@ -269,7 +269,7 @@ El plan original pone el formulario (Fase 2) antes del schema builder (Fase 3). 
 | T6 | Schema builder en admin + formulario renderizado desde el esquema | S11, S12, S14, S31 | inline | completado | `aa5cc5b` |
 | T7 | Geometría: dibujo de polígonos, área, perímetro, m² manual | S8, S9, S10 | inline | completado | `b8d15ab` |
 | T8 | GPS: `watchPosition`, filtro 15 m, indicador, asistida/manual | S3, S4, S5 | inline | completado | `4fb4d82` |
-| T9 | Dashboard: consultas al servidor, mapa con heatmap, completados vs pendientes, déficit/saturación | S19, S20 | inline | pendiente | — |
+| T9 | Dashboard: consultas al servidor, mapa con heatmap, completados vs pendientes, déficit/saturación | S19, S20 | inline | completado | `4a0a769` |
 | T10 | Importación Excel/CSV, cruce, dedup buffer 2 m, resolución de conflictos | S16, S17, S18 | inline | pendiente | — |
 | T11 | Export desde el servidor: GeoJSON, CSV, Excel | S21 | inline | pendiente | — |
 | T12 | WMS/WMTS propios, precarga de teselas, documento legal/bibliográfico | S7, S22, S23 | inline | pendiente | — |
