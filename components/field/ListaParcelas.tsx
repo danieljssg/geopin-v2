@@ -134,14 +134,14 @@ export default function ListaParcelas() {
         </span>
 
         <div className="ml-auto flex gap-2">
-          {(['geojson', 'csv', 'xlsx'] as const).map((formato) => (
+          {(['geojson', 'csv', 'xlsx', 'shp'] as const).map((formato) => (
             <a
               key={formato}
               href={`/api/export?format=${formato}`}
               className="rounded-md px-3 py-1.5 text-xs font-semibold"
               style={{ background: '#e2e8f0', color: '#334155' }}
             >
-              {formato.toUpperCase()}
+              {formato === 'shp' ? 'SHP' : formato.toUpperCase()}
             </a>
           ))}
         </div>

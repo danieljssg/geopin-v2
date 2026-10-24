@@ -7,6 +7,7 @@ import { getModuleSchemas } from '@/lib/server/repositories/esquemas'
 import {
   FORMATOS_EXPORT,
   prepararHojas,
+  prepararShapefile,
   toCSV,
   toGeoJSON,
   type FormatoExport,
@@ -29,6 +30,7 @@ const TIPOS: Record<FormatoExport, { contentType: string; extension: string }> =
     contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     extension: 'xlsx',
   },
+  shp: { contentType: 'application/zip', extension: 'zip' },
 }
 
 export async function GET(request: Request): Promise<Response> {
@@ -77,6 +79,17 @@ export async function GET(request: Request): Promise<Response> {
         headers: {
           'Content-Type': TIPOS.csv.contentType,
           'Content-Disposition': `attachment; filename="parcelas${sufijo}-${marca}.csv"`,
+        },
+      })
+    }
+
+    if (formato === 'shp') {
+      const shapefile = prepararShapefile(parcelas, listaEsquemas)
+
+      return new Response(shapefile.zip as unknown as BodyInit, {
+        headers: {
+          'Content-Type': TIPOS.shp.contentType,
+          'Content-Disposition': `attachment; filename="parcelas${sufijo}-${marca}.zip"`,
         },
       })
     }

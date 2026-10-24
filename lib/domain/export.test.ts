@@ -5,6 +5,7 @@ import {
   columnasDeModulos,
   escaparCsv,
   prepararHojas,
+  prepararShapefile,
   toCSV,
   toGeoJSON,
 } from './export'
@@ -233,5 +234,75 @@ describe('prepararHojas', () => {
     const hojas = prepararHojas([parcela({ id: 'p1', nombre: 'Mi casa' })], [ESQUEMA])
     const indiceNombre = hojas[0].encabezados.indexOf('nombre')
     expect(hojas[0].filas[0][indiceNombre]).toBe('Mi casa')
+  })
+})
+
+describe('prepararShapefile', () => {
+  const parcela = (overrides: Partial<Parcela> & { id: string }): Parcela => ({
+    nombre: 'Casa',
+    descripcion: 'Con patio',
+    categoria: 'Vivienda',
+    ubicacion: { type: 'Point', coordinates: [-66.9036, 10.4806] },
+    gps: { fuente: 'sensor', precision: 8 },
+    estado: 'completa',
+    modulos: {
+      edificacion: {
+        version: 1,
+        schemaVersion: 1,
+        datos: { uso_general: 'Residencial' },
+        actualizadoEn: '',
+        actualizadoPor: 'u1',
+      },
+    },
+    version: 1,
+    creadoEn: '2026-10-24T10:00:00.000Z',
+    creadoPor: 'u1',
+    actualizadoEn: '2026-10-24T10:00:00.000Z',
+    actualizadoPor: 'u1',
+    ...overrides,
+  })
+
+  const esquema: ModuleSchema = {
+    moduleId: 'edificacion',
+    modulo: 'edificacion',
+    version: 1,
+    campos: [{ key: 'uso_general', label: 'Uso general', tipo: 'lista', opciones: ['X'], orden: 1 }],
+    actualizadoEn: '',
+    actualizadoPor: 'u1',
+  }
+
+  it('produce un zip con los cuatro archivos', () => {
+    const resultado = prepararShapefile([parcela({ id: 'p1' })], [esquema])
+    expect(resultado.puntos).toBe(1)
+    expect(resultado.zip.length).toBeGreaterThan(100)
+  })
+
+  it('acorta los nombres de campo a 10 caracteres', () => {
+    const resultado = prepararShapefile([parcela({ id: 'p1' })], [esquema])
+
+    for (const campo of resultado.campos) {
+      expect(campo.nombre.length).toBeLessThanOrEqual(10)
+    }
+  })
+
+  it('no repite nombres de campo', () => {
+    const resultado = prepararShapefile([parcela({ id: 'p1' })], [esquema])
+    const nombres = resultado.campos.map((campo) => campo.nombre)
+    expect(new Set(nombres).size).toBe(nombres.length)
+  })
+
+  it('documenta el mapeo entre el nombre corto y el original', () => {
+    const resultado = prepararShapefile([parcela({ id: 'p1' })], [esquema])
+    expect(resultado.mapeo.map((m) => m.original)).toContain('edificacion.uso_general')
+  })
+
+  it('el nombre corto de una columna es el mismo en todos los puntos', () => {
+    const resultado = prepararShapefile(
+      [parcela({ id: 'p1' }), parcela({ id: 'p2' })],
+      [esquema],
+    )
+
+    const nombres = resultado.mapeo.filter((m) => m.original === 'edificacion.uso_general')
+    expect(nombres).toHaveLength(1)
   })
 })

@@ -8,9 +8,9 @@ import type { ModuleSchema, Parcela } from './types'
  * corresponde para que un Excel no rompa la fila.
  */
 
-export type FormatoExport = 'geojson' | 'csv' | 'xlsx'
+export type FormatoExport = 'geojson' | 'csv' | 'xlsx' | 'shp'
 
-export const FORMATOS_EXPORT: readonly FormatoExport[] = ['geojson', 'csv', 'xlsx']
+export const FORMATOS_EXPORT: readonly FormatoExport[] = ['geojson', 'csv', 'xlsx', 'shp']
 
 /** Formatos que el plan menciona y que quedan pendientes. */
 export const FORMATOS_PENDIENTES = ['shapefile'] as const
@@ -280,4 +280,134 @@ export function prepararHojas(
       filas: parcelas.map((parcela) => filaDeParcela(parcela, columnasModulo)),
     },
   ]
+}
+
+// ---------------------------------------------------------------------------
+// Shapefile
+// ---------------------------------------------------------------------------
+
+import {
+  construirShapefile,
+  empaquetarShapefile,
+  type CampoShapefile,
+  type PuntoShapefile,
+} from './shapefile'
+
+/**
+ * Nombres de campo del Shapefile.
+ *
+ * La base dBase III limita los nombres a **10 caracteres**. Los nuestros son
+ * más largos —`edificacion.uso_general` tiene 23—, así que se generan nombres
+ * cortos y únicos. El mapeo se devuelve para que el llamador pueda
+ * informar cuál es cuál.
+ */
+export const COLUMNAS_SHAPEFILE: ReadonlyArray<{ clave: string; nombre: string }> = [
+  { clave: 'id', nombre: 'id' },
+  { clave: 'codigo', nombre: 'codigo' },
+  { clave: 'nombre', nombre: 'nombre' },
+  { clave: 'descripcion', nombre: 'desc' },
+  { clave: 'categoria', nombre: 'categoria' },
+  { clave: 'estado', nombre: 'estado' },
+  { clave: 'latitud', nombre: 'latitud' },
+  { clave: 'longitud', nombre: 'longitud' },
+  { clave: 'area_m2', nombre: 'area_m2' },
+  { clave: 'perimetro_m', nombre: 'perim_m' },
+  { clave: 'gps_fuente', nombre: 'gps_fuente' },
+  { clave: 'gps_precision', nombre: 'gps_precis' },
+  { clave: 'creado_en', nombre: 'creado_en' },
+  { clave: 'actualizado_en', nombre: 'actualizado' },
+  { clave: 'actualizado_por', nombre: 'actual_por' },
+]
+
+/** Genera un nombre de campo único de a lo sumo 10 caracteres. */
+function nombreCorto(base: string, usados: Set<string>): string {
+  const limpio = base.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 10)
+  if (!usados.has(limpio)) {
+    usados.add(limpio)
+    return limpio
+  }
+
+  for (let i = 1; i < 100; i += 1) {
+    const sufijo = `_${i}`
+    const candidato = `${limpio.slice(0, 10 - sufijo.length)}${sufijo}`
+    if (!usados.has(candidato)) {
+      usados.add(candidato)
+      return candidato
+    }
+  }
+
+  return limpio
+}
+
+export interface ResultadoShapefile {
+  zip: Uint8Array
+  campos: CampoShapefile[]
+  /** Mapeo entre el nombre corto del campo y el original. */
+  mapeo: Array<{ nombre: string; original: string }>
+  puntos: number
+}
+
+/**
+ * Prepara el Shapefile de las parcelas.
+ *
+ * Devuelve el `.zip` con los cuatro archivos, los campos con sus nombres
+ * cortos y el mapeo para poder documentar la equivalencia.
+ */
+export function prepararShapefile(
+  parcelas: readonly Parcela[],
+  esquemas: readonly ModuleSchema[] = [],
+): ResultadoShapefile {
+  const usados = new Set<string>()
+  const campos: CampoShapefile[] = []
+  const mapeo: Array<{ nombre: string; original: string }> = []
+
+  for (const columna of COLUMNAS_SHAPEFILE) {
+    const nombre = nombreCorto(columna.nombre, usados)
+    campos.push({ nombre, tipo: 'texto' })
+    mapeo.push({ nombre, original: columna.clave })
+  }
+
+  const columnasModulo = columnasDeModulos(esquemas)
+
+  // El nombre corto se calcula UNA vez por columna: si se recalculara por
+  // punto, la segunda vez devolvería otro nombre (el primero ya está en uso)
+  // y los atributos no coincidirían con los campos.
+  const nombresColumnas: Array<{ columna: string; nombre: string }> = []
+
+  for (const columna of columnasModulo) {
+    const nombre = nombreCorto(`m_${columna}`, usados)
+    nombresColumnas.push({ columna, nombre })
+    campos.push({ nombre, tipo: 'texto' })
+    mapeo.push({ nombre, original: columna })
+  }
+
+  const puntos: PuntoShapefile[] = parcelas.map((parcela) => {
+    const atributos: Record<string, string | number | null> = {
+      id: parcela.id,
+      codigo: parcela.codigo ?? '',
+      nombre: parcela.nombre,
+      desc: parcela.descripcion,
+      categoria: parcela.categoria,
+      estado: parcela.estado,
+      latitud: parcela.ubicacion.coordinates[1],
+      longitud: parcela.ubicacion.coordinates[0],
+      area_m2: parcela.areaM2 ?? null,
+      perim_m: parcela.perimetroM ?? null,
+      gps_fuente: parcela.gps.fuente,
+      gps_precis: parcela.gps.precision ?? null,
+      creado_en: parcela.creadoEn,
+      actualizado: parcela.actualizadoEn,
+      actual_por: parcela.actualizadoPor,
+    }
+
+    for (const { columna, nombre } of nombresColumnas) {
+      const [moduleId, clave] = columna.split('.')
+      const valor = parcela.modulos?.[moduleId]?.datos?.[clave]
+      atributos[nombre] = valor === undefined ? null : String(valor)
+    }
+
+    return { x: parcela.ubicacion.coordinates[0], y: parcela.ubicacion.coordinates[1], atributos }
+  })
+
+  return { zip: empaquetarShapefile(construirShapefile(puntos, campos)), campos, mapeo, puntos: puntos.length }
 }
