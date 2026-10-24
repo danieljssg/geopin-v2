@@ -6,6 +6,7 @@ import { writeParcela } from '../lib/server/services/parcelas'
 import { getModuleSchema, saveModuleSchema } from '../lib/server/repositories/esquemas'
 import { draftToSchema, validateSchemaFields } from '../lib/domain/schema-builder'
 import { closeDraft } from '../lib/domain/polygon-draft'
+import { isUsable, shouldFollowSensor } from '../lib/domain/gps'
 import type { ParcelaCreateRequest } from '../lib/api/contracts'
 
 /**
@@ -217,6 +218,33 @@ async function main(): Promise<void> {
     { lng: 0, lat: 0.002 },
   ])
   verificar('un contorno cruzado se rechaza', lazo.ok === false)
+
+  console.log('\nGPS')
+
+  verificar('una lectura de 8 m es aceptable', isUsable(8) === true)
+  verificar('una lectura de 30 m se descarta', isUsable(30) === false)
+  verificar('una lectura de 15,1 m se descarta', isUsable(15.1) === false)
+  verificar(
+    'la posición manual no la mueve el sensor',
+    shouldFollowSensor('manual', { lat: 10.48, lng: -66.9, accuracy: 3, timestamp: Date.now() }) === false,
+  )
+
+  const conSensor = await writeParcela(
+    {
+      ...payload([modulo('edificacion', 0, { uso_general: 'Residencial' })]),
+      id: `${PARCELA_ID}-gps`,
+      gps: { fuente: 'sensor', precision: 8 },
+    },
+    ADMIN,
+  )
+  verificar('la parcela con GPS del sensor se guarda', conSensor.estado === 'creado', conSensor.estado)
+
+  const leidaGps = await findParcela(`${PARCELA_ID}-gps`)
+  verificar('persiste el origen sensor', leidaGps?.gps?.fuente === 'sensor', leidaGps?.gps)
+  verificar('persiste la precisión', leidaGps?.gps?.precision === 8, leidaGps?.gps)
+  verificar('persiste el momento de la fijación', typeof leidaGps?.gps?.fijadoEn === 'string')
+
+  await deleteParcela(`${PARCELA_ID}-gps`)
 }
 
 main()

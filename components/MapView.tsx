@@ -151,9 +151,11 @@ function MapClickHandler({ onPositionChange, enabled }: MapClickHandlerProps) {
 function MapActionControls({
   onPositionChange,
   onGPSStatus,
+  onLocateRequest,
 }: {
   onPositionChange: (lat: number, lng: number) => void
   onGPSStatus: (status: 'searching' | 'found' | 'error' | 'denied') => void
+  onLocateRequest?: () => void
 }) {
   const map = useMap()
 
@@ -177,6 +179,13 @@ function MapActionControls({
   }
 
   const handleLocateMe = useCallback(() => {
+    // Si el llamador maneja el GPS, no se pide una lectura acá: una lectura
+    // suelta no pasa por el filtro de precisión y movería el pin sin avisar.
+    if (onLocateRequest) {
+      onLocateRequest()
+      return
+    }
+
     if (!navigator.geolocation) {
       onGPSStatus('error')
       return
@@ -195,7 +204,7 @@ function MapActionControls({
       },
       { enableHighAccuracy: true, timeout: 12000 },
     )
-  }, [map, onGPSStatus, onPositionChange])
+  }, [map, onGPSStatus, onPositionChange, onLocateRequest])
 
   return (
     <div
@@ -265,6 +274,13 @@ export interface MapViewProps {
    * no reubicar el marcador.
    */
   clickToPosition?: boolean
+  /**
+   * Si es `false`, el mapa no busca la ubicación al montarse. La página de
+   * campo v2 maneja el GPS con su propio hook, que filtra por precisión.
+   */
+  autoLocate?: boolean
+  /** Reemplaza el comportamiento del botón "usar mi ubicación". */
+  onLocateRequest?: () => void
   /** Capas y controles que se dibujan dentro del mapa. */
   children?: React.ReactNode
 }
@@ -279,6 +295,8 @@ export default function MapView({
   onDeletePin,
   onEditPin,
   clickToPosition = true,
+  autoLocate = true,
+  onLocateRequest,
   children,
 }: MapViewProps) {
   const hasValidPosition = lat !== 0 || lng !== 0
@@ -318,9 +336,13 @@ export default function MapView({
         </LayersControl.BaseLayer>
       </LayersControl>
 
-      <GPSDetector onPositionChange={onPositionChange} onGPSStatus={onGPSStatus} />
+      {autoLocate && <GPSDetector onPositionChange={onPositionChange} onGPSStatus={onGPSStatus} />}
       <MapClickHandler onPositionChange={onPositionChange} enabled={clickToPosition} />
-      <MapActionControls onPositionChange={onPositionChange} onGPSStatus={onGPSStatus} />
+      <MapActionControls
+        onPositionChange={onPositionChange}
+        onGPSStatus={onGPSStatus}
+        onLocateRequest={onLocateRequest}
+      />
       {children}
 
       {/* Active / draggable marker */}

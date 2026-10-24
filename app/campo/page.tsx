@@ -1,25 +1,27 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import type { ParcelaCreateRequest } from '@/lib/api/contracts'
 import type { MapViewProps } from '@/components/MapView'
 import FormularioParcela from '@/components/field/FormularioParcela'
 import GeometriaPanel from '@/components/field/GeometriaPanel'
+import GpsIndicator from '@/components/field/GpsIndicator'
 import SyncStatus from '@/components/field/SyncStatus'
 import { useSync } from '@/components/field/SyncProvider'
 import { useSchemas } from '@/lib/field/use-schemas'
 import { usePoligono } from '@/lib/field/use-poligono'
+import { useGeolocation } from '@/lib/field/use-geolocation'
+import { shouldFollowSensor, type OrigenPosicion } from '@/lib/domain/gps'
 
 /**
  * Página de campo v2.
  *
  * Los campos salen del esquema publicado, la geometría se traza sobre el
- * mapa y al guardar la parcela entra en la cola local en vez de esperar a la
- * red.
+ * mapa y el GPS se lee en continuo filtrando por precisión.
  *
- * El estado del polígono vive acá y no dentro del formulario porque lo
- * comparten los dos lados: el panel de geometría y el propio mapa.
+ * El estado del polígono y el de la posición viven acá porque los comparten
+ * el panel y el mapa.
  */
 
 const MapView = dynamic<MapViewProps>(() => import('@/components/MapView'), {
@@ -39,17 +41,59 @@ const PolygonEditor = dynamic(() => import('@/components/field/PolygonEditor'), 
   ssr: false,
 })
 
+const CENTRO_INICIAL = { lat: 10.4806, lng: -66.9036 }
+
 export default function CampoPage() {
   const { esquemas, cargando, desdeCache, error, recargar } = useSchemas()
   const { encolar } = useSync()
   const poligono = usePoligono()
+  const geo = useGeolocation()
 
-  const [ubicacion, setUbicacion] = useState({ lat: 10.4806, lng: -66.9036 })
-  const [gps, setGps] = useState<{ fuente: 'sensor' | 'manual'; precision?: number }>({
-    fuente: 'manual',
-  })
+  const [ubicacion, setUbicacion] = useState(CENTRO_INICIAL)
+  const [origen, setOrigen] = useState<OrigenPosicion>('sensor')
+  const [precision, setPrecision] = useState<number | undefined>()
 
   const trazando = poligono.modo === 'trazando'
+
+  /**
+   * El pin solo sigue al sensor cuando la lectura pasa el filtro de 15 m y
+   * la posición no fue puesta a mano. Es la regla de S3 y S5.
+   */
+  useEffect(() => {
+    if (!shouldFollowSensor(origen, geo.reading)) return
+
+    const lectura = geo.reading!
+    setUbicacion({ lat: lectura.lat, lng: lectura.lng })
+    setPrecision(lectura.accuracy)
+  }, [geo.reading, origen])
+
+  /**
+   * Volver al sensor es una acción explícita del levantador: es la
+   * confirmación que pide S5 antes de descartar la posición manual.
+   */
+  const usarMiUbicacion = useCallback(() => {
+    setOrigen('sensor')
+    geo.reiniciar()
+
+    if (geo.reading && shouldFollowSensor('sensor', geo.reading)) {
+      setUbicacion({ lat: geo.reading.lat, lng: geo.reading.lng })
+      setPrecision(geo.reading.accuracy)
+    }
+  }, [geo])
+
+  const onPositionChange = useCallback((lat: number, lng: number) => {
+    setUbicacion({ lat, lng })
+    setOrigen('manual')
+    setPrecision(undefined)
+  }, [])
+
+  const gps = useMemo(
+    () =>
+      precision !== undefined
+        ? { fuente: 'sensor' as const, precision }
+        : { fuente: 'manual' as const },
+    [precision],
+  )
 
   async function onGuardar(payload: ParcelaCreateRequest) {
     await encolar(payload)
@@ -68,6 +112,7 @@ export default function CampoPage() {
             Captura de parcela
           </p>
         </div>
+        <GpsIndicator fix={geo.fix} accuracy={geo.reading?.accuracy} />
         <SyncStatus />
         <a href="/admin/esquema" className="ml-auto text-xs text-white underline">
           Esquemas
@@ -79,6 +124,22 @@ export default function CampoPage() {
           className="w-full md:w-[400px] shrink-0 overflow-y-auto p-4 space-y-4"
           style={{ borderRight: '1px solid #e2e8f0' }}
         >
+          <GpsIndicator
+            fix={geo.fix}
+            accuracy={geo.reading?.accuracy}
+            variant="panel"
+            onReintentar={usarMiUbicacion}
+          />
+
+          {origen === 'manual' && (
+            <div className="rounded-md px-3 py-2 text-xs" style={{ background: '#f1f5f9', color: '#334155' }}>
+              <p>Posición puesta a mano. El sensor no la va a mover.</p>
+              <button type="button" onClick={usarMiUbicacion} className="mt-1 font-semibold underline">
+                Usar mi ubicación
+              </button>
+            </div>
+          )}
+
           {cargando && <p className="text-sm text-slate-500">Cargando formulario…</p>}
 
           {!cargando && (desdeCache || error) && (
@@ -114,13 +175,12 @@ export default function CampoPage() {
             // Mientras se traza, cada toque agrega un vértice en vez de
             // mover el pin.
             clickToPosition={!trazando}
-            onPositionChange={(lat, lng) => {
-              setUbicacion({ lat, lng })
-              setGps((previo) => ({ ...previo, fuente: 'manual' }))
-            }}
-            onGPSStatus={(status) => {
-              if (status === 'found') setGps((previo) => ({ ...previo, fuente: 'sensor' }))
-            }}
+            // El GPS lo maneja el hook, que filtra por precisión: el mapa no
+            // tiene que pedir su propia lectura.
+            autoLocate={false}
+            onLocateRequest={usarMiUbicacion}
+            onPositionChange={onPositionChange}
+            onGPSStatus={() => {}}
             onDeletePin={() => {}}
             onEditPin={() => {}}
           >

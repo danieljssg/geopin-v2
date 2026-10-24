@@ -268,7 +268,7 @@ El plan original pone el formulario (Fase 2) antes del schema builder (Fase 3). 
 | T5 | Cliente de campo v2: outbox Dexie, motor de sync, reintentos | S1, S2, S6 | inline | completado | `bf18ce5` |
 | T6 | Schema builder en admin + formulario renderizado desde el esquema | S11, S12, S14, S31 | inline | completado | `aa5cc5b` |
 | T7 | Geometría: dibujo de polígonos, área, perímetro, m² manual | S8, S9, S10 | inline | completado | `b8d15ab` |
-| T8 | GPS: `watchPosition`, filtro 15 m, indicador, asistida/manual | S3, S4, S5 | inline | pendiente | — |
+| T8 | GPS: `watchPosition`, filtro 15 m, indicador, asistida/manual | S3, S4, S5 | inline | completado | pendiente |
 | T9 | Dashboard: consultas al servidor, mapa con heatmap, completados vs pendientes, déficit/saturación | S19, S20 | inline | pendiente | — |
 | T10 | Importación Excel/CSV, cruce, dedup buffer 2 m, resolución de conflictos | S16, S17, S18 | inline | pendiente | — |
 | T11 | Export desde el servidor: GeoJSON, CSV, Excel | S21 | inline | pendiente | — |
@@ -472,6 +472,38 @@ RED observado y corregido:
 Nota de ruta: T7 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`.
 
 Próximo paso: T8 (GPS: `watchPosition`, filtro de 15 m, indicador de precisión, asistida/manual). Con T7 y T8 cerrados, el formulario v2 tiene paridad con el v1 y se puede cambiar `/` a `/campo`.
+
+### L19 — T8 completado (2026-10-24)
+
+Entregado:
+
+- `lib/domain/gps.ts` — la decisión, pura: `isUsable` (umbral de 15 m), `qualityOf`, `shouldFollowSensor`, `fixFrom`, `formatAccuracy` y los mensajes por estado.
+- `lib/field/use-geolocation.ts` — lectura continua con `watchPosition`. La primera lectura de un sensor recién encendido suele tener decenas de metros de error y mejora a los pocos segundos; con `getCurrentPosition` habría que elegir entre esperar a ciegas o aceptar el error.
+- `components/field/GpsIndicator.tsx` — dos variantes: píldora para la cabecera y panel para el formulario, con la precisión en metros y qué hacer cuando no alcanza.
+- `components/MapView.tsx` — `autoLocate` para no duplicar la lectura cuando la página maneja el GPS, y `onLocateRequest` para que el botón "usar mi ubicación" pase por el filtro de precisión en lugar de pedir una lectura suelta que lo saltearía.
+- `app/campo/page.tsx` — el efecto que aplica la regla: el pin solo sigue al sensor si la lectura pasa el filtro **y** la posición no fue puesta a mano.
+
+Decisiones que conviene que queden escritas:
+
+- **El pin solo se mueve con lecturas de 15 m o menos.** Es el requisito del plan y la causa del desfase de 30 a 60 m que se vio en campo.
+- **Una posición manual no la mueve el sensor, aunque la lectura sea perfecta.** Volver al sensor es una acción explícita —el botón "usar mi ubicación"— y esa es la confirmación que pide S5. Un pin que salta solo es peor que un pin impreciso.
+- **Un `accuracy` de cero se trata como "sin dato".** No es un radio real, y confiar en él pondría el pin en cualquier lado. Ante la duda no se auto-fija y el levantador puede tocar el mapa.
+- **`maximumAge` de 5 s.** Una lectura de hace cinco segundos sirve para ubicar; una de hace un minuto puede ser de otra cuadra.
+
+Evidencia de verificación:
+
+- `pnpm test` → 225 tests, 17 archivos, todo en verde.
+- `pnpm typecheck` → limpio en los dos proyectos.
+- `pnpm build` → compila.
+- `pnpm verify` contra el cluster real → el bloque de GPS pasa: 8 m se acepta, 30 m y 15,1 m se descartan, la posición manual no la mueve el sensor, y la parcela guarda el origen, la precisión y el momento de la fijación.
+
+RED observado: ninguno en esta unidad. Los 16 tests del módulo pasaron a la primera y la verificación contra el cluster también.
+
+Nota de ruta: T8 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`.
+
+**Sobre el cambio de `/` a `/campo`:** no se hizo todavía, y a propósito. La página v2 tiene paridad en captura —formulario, geometría y GPS— pero **no** en las herramientas que el prototipo v1 le da al equipo de campo: lista de parcelas, edición, borrado y exportación. Cambiar la raíz ahora sería un downgrade. El cambio se hace cuando T11 entregue el export desde el servidor y exista una vista de lista.
+
+Próximo paso: T9 (dashboard: consultas al servidor, mapa con heatmap, completados vs pendientes, déficit y saturación).
 
 ### L9 — El cluster está detrás de Private Link (2026-10-22)
 
