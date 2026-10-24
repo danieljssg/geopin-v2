@@ -205,7 +205,7 @@ export default function ListaParcelas() {
                     <td className="px-3 py-2">
                       <div className="flex gap-2">
                         <Link
-                          href={`/campo?parcela=${encodeURIComponent(parcela.id)}`}
+                          href={`/?parcela=${encodeURIComponent(parcela.id)}`}
                           className="rounded px-2 py-1 text-xs font-semibold"
                           style={{ background: '#dbeafe', color: '#1d4ed8' }}
                         >

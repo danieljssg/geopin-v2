@@ -1,413 +1,255 @@
-"use client";
+'use client'
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import dynamic from "next/dynamic";
-import type { Pin, PinFormData } from "@/lib/types";
-import { getAllPins, addPin, deletePin, updatePin } from "@/lib/db";
-import { normalizeCategory } from "@/lib/categories";
-import PinForm from "@/components/PinForm";
-import Drawer from "@/components/Drawer";
-import PinsList from "@/components/PinsList";
-import AppNavigation from "@/components/AppNavigation";
-import SyncStatus from "@/components/field/SyncStatus";
-import type { MapViewProps } from "@/components/MapView";
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
+import type { ParcelaCreateRequest } from '@/lib/api/contracts'
+import type { MapViewProps } from '@/components/MapView'
+import type { Parcela } from '@/lib/domain/types'
+import FormularioParcela from '@/components/field/FormularioParcela'
+import GeometriaPanel from '@/components/field/GeometriaPanel'
+import PanelDescargarMapa from '@/components/field/PanelDescargarMapa'
+import GpsIndicator from '@/components/field/GpsIndicator'
+import SyncStatus from '@/components/field/SyncStatus'
+import { useSync } from '@/components/field/SyncProvider'
+import { useSchemas } from '@/lib/field/use-schemas'
+import { usePoligono } from '@/lib/field/use-poligono'
+import { useGeolocation } from '@/lib/field/use-geolocation'
+import { shouldFollowSensor, type OrigenPosicion } from '@/lib/domain/gps'
+import { fromGeoPoint } from '@/lib/domain/parcela'
 
-// Leaflet requires a browser environment — load with ssr:false
-const MapView = dynamic<MapViewProps>(() => import("@/components/MapView"), {
+/**
+ * Página de campo v2.
+ *
+ * Los campos salen del esquema publicado, la geometría se traza sobre el
+ * mapa y el GPS se lee en continuo filtrando por precisión.
+ *
+ * El estado del polígono y el de la posición viven acá porque los comparten
+ * el panel y el mapa.
+ */
+
+const MapView = dynamic<MapViewProps>(() => import('@/components/MapView'), {
   ssr: false,
   loading: () => (
-    <div className="h-full w-full flex flex-col items-center justify-center bg-slate-100 gap-3">
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          border: "3px solid #1d4ed8",
-          borderTopColor: "transparent",
-          borderRadius: "50%",
-          animation: "spin 0.8s linear infinite",
-        }}
-      />
-      <p className="text-sm text-slate-500 font-medium">Cargando mapa...</p>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    <div className="h-full w-full flex items-center justify-center bg-slate-100">
+      <p className="text-sm text-slate-500 font-medium">Cargando mapa…</p>
     </div>
   ),
-});
+})
 
-const DEFAULT_FORM: PinFormData = {
-  lat: 0,
-  lng: 0,
-  nombre: "",
-  descripcion: "",
-  categoria: "vivienda",
-  usoGeneral: undefined,
-  usoEspecifico: undefined,
-  pisosConstruccion: undefined,
-  estadoConstruccion: undefined,
-  material: undefined,
-  hectareasParcela: undefined,
-  poblacionRango: undefined,
-  drenaje: undefined,
-  metrosCuadradosParcela: undefined,
-  metrosCuadradosManzana: undefined,
-};
+/**
+ * El editor de polígono también se carga solo en el cliente: usa Leaflet y no
+ * puede evaluarse durante el prerender del servidor.
+ */
+const PolygonEditor = dynamic(() => import('@/components/field/PolygonEditor'), {
+  ssr: false,
+})
 
-type GPSStatus = "idle" | "searching" | "found" | "error" | "denied";
+const CENTRO_INICIAL = { lat: 10.4806, lng: -66.9036 }
 
-function pinToFormData(pin: Pin): PinFormData {
-  return {
-    lat: pin.lat,
-    lng: pin.lng,
-    nombre: pin.nombre,
-    descripcion: pin.descripcion,
-    categoria: normalizeCategory(pin.categoria),
-    usoGeneral: pin.usoGeneral,
-    usoEspecifico: pin.usoEspecifico,
-    pisosConstruccion: pin.pisosConstruccion,
-    estadoConstruccion: pin.estadoConstruccion,
-    material: pin.material,
-    hectareasParcela: pin.hectareasParcela,
-    poblacionRango: pin.poblacionRango,
-    drenaje: pin.drenaje,
-    metrosCuadradosParcela: pin.metrosCuadradosParcela,
-    metrosCuadradosManzana: pin.metrosCuadradosManzana,
-  };
-}
+export default function CampoPage() {
+  const { esquemas, cargando, desdeCache, error, recargar } = useSchemas()
+  const { encolar } = useSync()
+  const poligono = usePoligono()
+  const geo = useGeolocation()
 
-export default function Page() {
-  const [formData, setFormData] = useState<PinFormData>(DEFAULT_FORM);
-  const [savedPins, setSavedPins] = useState<Pin[]>([]);
-  const [gpsStatus, setGpsStatus] = useState<GPSStatus>("idle");
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editingPinId, setEditingPinId] = useState<string | null>(null);
-  const creationDraft = useRef<PinFormData>(DEFAULT_FORM);
+  const [ubicacion, setUbicacion] = useState(CENTRO_INICIAL)
+  const [origen, setOrigen] = useState<OrigenPosicion>('sensor')
+  const [precision, setPrecision] = useState<number | undefined>()
+  const [parcelaEnEdicion, setParcelaEnEdicion] = useState<Parcela | null>(null)
 
-  // Load existing pins from IndexedDB (Dexie) on mount
+  const trazando = poligono.modo === 'trazando'
+
+  /**
+   * Si la URL trae `?parcela=<id>`, se edita esa parcela: se precarga el
+   * formulario, su geometría y las versiones de cada módulo, que son las que
+   * permiten al servidor detectar el conflicto si otro Companero editó el
+   * mismo módulo mientras tanto.
+   */
   useEffect(() => {
-    getAllPins()
-      .then((data) => setSavedPins(data))
-      .catch(() => {});
-  }, []);
+    const id = new URLSearchParams(window.location.search).get('parcela')
+    if (!id) return
 
-  const handlePositionChange = useCallback((lat: number, lng: number) => {
-    setFormData((prev) => ({ ...prev, lat, lng }));
-  }, []);
+    let vivo = true
 
-  const handleFormChange = useCallback((data: Partial<PinFormData>) => {
-    setFormData((prev) => ({ ...prev, ...data }));
-  }, []);
+    void fetch(`/api/parcelas/${encodeURIComponent(id)}`, { credentials: 'same-origin' })
+      .then((respuesta) => (respuesta.ok ? respuesta.json() : null))
+      .then((cuerpo: { parcela?: Parcela } | null) => {
+        if (vivo && cuerpo?.parcela) setParcelaEnEdicion(cuerpo.parcela)
+      })
+      .catch(() => {})
 
-  const handleSubmit = useCallback(
-    async (data: PinFormData) => {
-      if (editingPinId) {
-        const updatedPin = await updatePin(editingPinId, data);
-        setSavedPins((prev) =>
-          prev.map((pin) => (pin.id === editingPinId ? updatedPin : pin)),
-        );
-        setEditingPinId(null);
-        setFormData(creationDraft.current);
-        return;
-      }
+    return () => {
+      vivo = false
+    }
+  }, [])
 
-      const newPin = await addPin(data);
-      setSavedPins((prev) => [...prev, newPin]);
-      // Keep the position and icon category ready for the next pin.
-      setFormData((prev) => ({
-        ...DEFAULT_FORM,
-        lat: prev.lat,
-        lng: prev.lng,
-        categoria: prev.categoria,
-      }));
-    },
-    [editingPinId],
-  );
+  useEffect(() => {
+    if (!parcelaEnEdicion) return
+    poligono.cargar(
+      parcelaEnEdicion.geometria ?? null,
+      parcelaEnEdicion.areaM2 !== undefined ? String(parcelaEnEdicion.areaM2) : '',
+    )
+    // Solo al cambiar de parcela: recargar en cada render borraría el trazado.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parcelaEnEdicion?.id])
 
-  const handleEditPin = useCallback(
-    (pin: Pin) => {
-      if (!editingPinId) creationDraft.current = formData;
-      setEditingPinId(pin.id);
-      setFormData(pinToFormData(pin));
-      if (window.matchMedia("(max-width: 767px)").matches) setDrawerOpen(true);
-    },
-    [editingPinId, formData],
-  );
+  /**
+   * El pin solo sigue al sensor cuando la lectura pasa el filtro de 15 m y
+   * la posición no fue puesta a mano. Es la regla de S3 y S5.
+   */
+  useEffect(() => {
+    if (!shouldFollowSensor(origen, geo.reading)) return
 
-  const handleCancelEdit = useCallback(() => {
-    setEditingPinId(null);
-    setFormData(creationDraft.current);
-  }, []);
+    const lectura = geo.reading!
+    setUbicacion({ lat: lectura.lat, lng: lectura.lng })
+    setPrecision(lectura.accuracy)
+  }, [geo.reading, origen])
 
-  const handleDeletePin = useCallback(
-    async (id: string) => {
-      await deletePin(id);
-      setSavedPins((prev) => prev.filter((p) => p.id !== id));
-      if (id === editingPinId) handleCancelEdit();
-    },
-    [editingPinId, handleCancelEdit],
-  );
+  /**
+   * Volver al sensor es una acción explícita del levantador: es la
+   * confirmación que pide S5 antes de descartar la posición manual.
+   */
+  const usarMiUbicacion = useCallback(() => {
+    setOrigen('sensor')
+    geo.reiniciar()
 
-  const handleExport = useCallback(() => {
-    const blob = new Blob([JSON.stringify(savedPins, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `geopin-${new Date().toISOString().split("T")[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [savedPins]);
+    if (geo.reading && shouldFollowSensor('sensor', geo.reading)) {
+      setUbicacion({ lat: geo.reading.lat, lng: geo.reading.lng })
+      setPrecision(geo.reading.accuracy)
+    }
+  }, [geo])
+
+  const onPositionChange = useCallback((lat: number, lng: number) => {
+    setUbicacion({ lat, lng })
+    setOrigen('manual')
+    setPrecision(undefined)
+  }, [])
+
+  const gps = useMemo(
+    () =>
+      precision !== undefined
+        ? { fuente: 'sensor' as const, precision }
+        : { fuente: 'manual' as const },
+    [precision],
+  )
+
+  async function onGuardar(payload: ParcelaCreateRequest) {
+    await encolar(payload)
+    poligono.limpiar()
+  }
 
   return (
     <main className="h-screen flex flex-col overflow-hidden bg-slate-50">
-      <a
-        href="#map-content"
-        className="fixed left-3 top-3 z-1000001 -translate-y-20 rounded-md bg-white px-4 py-2 text-sm font-bold text-[#1e3a5f] shadow-lg focus:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"
-      >
-        Saltar al mapa
-      </a>
-      {/* ── Top header ──────────────────────────────────────── */}
       <header
-        className="flex items-center gap-3 px-3 py-3 shadow-sm z-20 shrink-0 sm:px-5"
-        style={{ background: "#1e3a5f" }}
+        className="flex flex-wrap items-center gap-3 px-3 py-3 shadow-sm z-20 shrink-0 sm:px-5"
+        style={{ background: '#1e3a5f' }}
       >
-        <svg
-          width="22"
-          height="22"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#60a5fa"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
-          <circle cx="12" cy="10" r="3" />
-        </svg>
         <div>
-          <h1 className="font-bold text-base leading-none text-white tracking-tight">
-            GeoPin
-          </h1>
-          <p
-            className="hidden text-xs leading-none mt-0.5 sm:block"
-            style={{ color: "#93c5fd" }}
-          >
-            Sistema de marcado de establecimientos
+          <h1 className="font-bold text-base leading-none text-white tracking-tight">GeoPin</h1>
+          <p className="hidden text-xs leading-none mt-0.5 sm:block" style={{ color: '#93c5fd' }}>
+            Captura de parcela
           </p>
         </div>
-
-        {/* GPS status pill (desktop) */}
-        {gpsStatus !== "idle" && (
-          <span
-            className="hidden md:flex ml-3 items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
-            style={{
-              background:
-                gpsStatus === "found"
-                  ? "#14532d"
-                  : gpsStatus === "searching"
-                    ? "#1e3a8a"
-                    : "#7f1d1d",
-              color:
-                gpsStatus === "found"
-                  ? "#86efac"
-                  : gpsStatus === "searching"
-                    ? "#93c5fd"
-                    : "#fca5a5",
-            }}
-          >            {gpsStatus === "searching" && (
-              <span
-                style={{
-                  width: 9,
-                  height: 9,
-                  border: "1.5px solid currentColor",
-                  borderTopColor: "transparent",
-                  borderRadius: "50%",
-                  display: "inline-block",
-                  animation: "spin 0.8s linear infinite",
-                }}
-              />
-            )}
-            {gpsStatus !== "searching" && (
-              <span
-                style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  background: "currentColor",
-                  display: "inline-block",
-                }}
-              />
-            )}
-            {gpsStatus === "found" && "GPS activo"}
-            {gpsStatus === "searching" && "Buscando GPS..."}
-            {gpsStatus === "error" && "GPS no disponible"}
-            {gpsStatus === "denied" && "GPS denegado"}
-          </span>
-        )}
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-        <div className="ml-3">
-          <SyncStatus />
+        <GpsIndicator fix={geo.fix} accuracy={geo.reading?.accuracy} />
+        <SyncStatus />
+        <div className="ml-auto flex items-center gap-3">
+          {parcelaEnEdicion && (
+            <span className="text-xs" style={{ color: '#93c5fd' }}>
+              Editando: {parcelaEnEdicion.nombre}
+            </span>
+          )}
+          <a href="/listado" className="text-xs text-white underline">
+            Listado
+          </a>
+          <a href="/admin/esquema" className="text-xs text-white underline">
+            Esquemas
+          </a>
         </div>
-        <AppNavigation active="map" />
       </header>
 
-      {/* ── Split layout ────────────────────────────────────── */}
-      <div
-        id="map-content"
-        tabIndex={-1}
-        className="flex flex-1 overflow-hidden"
-      >
-        {/* Left panel — form + list (desktop) */}
+      <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
         <aside
-          className="hidden md:flex flex-col overflow-hidden shrink-0"
-          style={{ width: 360, borderRight: "1px solid #e2e8f0" }}
+          className="w-full md:w-[400px] shrink-0 overflow-y-auto p-4 space-y-4"
+          style={{ borderRight: '1px solid #e2e8f0' }}
         >
-          <div className="flex-1 overflow-y-auto">
-            <div className="p-4 flex flex-col gap-5">
-              {/* Form section */}
-              <section>
-                <div className="flex items-center gap-2 mb-3">
-                  <div
-                    style={{
-                      width: 4,
-                      height: 16,
-                      background: "#1d4ed8",
-                      borderRadius: 2,
-                    }}
-                    aria-hidden="true"
-                  />
-                  <h2 className="text-xs font-bold text-slate-600 uppercase tracking-widest">
-                    {editingPinId ? "Editar pin" : "Nuevo pin"}
-                  </h2>
-                </div>
-                <PinForm
-                  key={`desktop-${editingPinId ?? "new"}`}
-                  formData={formData}
-                  onChange={handleFormChange}
-                  onSubmit={handleSubmit}
-                  gpsStatus={gpsStatus}
-                  isEditing={editingPinId !== null}
-                  onCancel={handleCancelEdit}
-                />
-              </section>
-
-              <hr style={{ border: "none", borderTop: "1px solid #e2e8f0" }} />
-
-              {/* Pins list section */}
-              <section>
-                <PinsList
-                  pins={savedPins}
-                  onDelete={handleDeletePin}
-                  onEdit={handleEditPin}
-                  onExport={handleExport}
-                  onExportStart={() => setDrawerOpen(false)}
-                />
-              </section>
-            </div>
-          </div>
-        </aside>
-
-        {/* Mobile drawer (bottom) */}
-        <Drawer
-          open={drawerOpen}
-          onClose={() => setDrawerOpen(false)}
-          height={"84vh"}
-        >
-          <div className="p-4 flex flex-col gap-5">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div
-                  style={{
-                    width: 4,
-                    height: 16,
-                    background: "#1d4ed8",
-                    borderRadius: 2,
-                  }}
-                  aria-hidden="true"
-                />
-                <h2 className="text-xs font-bold text-slate-600 uppercase tracking-widest">
-                  {editingPinId ? "Editar pin" : "Nuevo pin"}
-                </h2>
-              </div>
-              <div>
-                <button
-                  onClick={() => setDrawerOpen(false)}
-                  aria-label="Cerrar formulario"
-                  className="p-2 rounded-md bg-rose-500"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-
-            <section>
-              <PinForm
-                key={`mobile-${editingPinId ?? "new"}`}
-                formData={formData}
-                onChange={handleFormChange}
-                onSubmit={async (d) => {
-                  await handleSubmit(d);
-                  setDrawerOpen(false);
-                }}
-                gpsStatus={gpsStatus}
-                isEditing={editingPinId !== null}
-                onCancel={handleCancelEdit}
-              />
-            </section>
-
-            <hr style={{ border: "none", borderTop: "1px solid #e2e8f0" }} />
-
-            <section>
-              <PinsList
-                pins={savedPins}
-                onDelete={handleDeletePin}
-                onEdit={handleEditPin}
-                onExport={handleExport}
-                onExportStart={() => setDrawerOpen(false)}
-              />
-            </section>
-          </div>
-        </Drawer>
-
-        {/* Floating button (mobile) */}
-        {!drawerOpen && (
-          <button
-            onClick={() => setDrawerOpen(true)}
-            aria-label="Abrir formulario"
-            className="fixed md:hidden left-1/2 -translate-x-1/2 bottom-6 bg-indigo-600 text-white rounded-full px-4 py-3 shadow-lg"
-            style={{ zIndex: 1000000 }}
-          >
-            Añadir pin
-          </button>
-        )}
-
-        {/* Right panel — map */}
-        <div className="flex-1 relative overflow-hidden">
-          <MapView
-            lat={formData.lat}
-            lng={formData.lng}
-            categoria={formData.categoria}
-            savedPins={savedPins.filter((pin) => pin.id !== editingPinId)}
-            onPositionChange={handlePositionChange}
-            onGPSStatus={(s) => setGpsStatus(s as GPSStatus)}
-            onDeletePin={handleDeletePin}
-            onEditPin={handleEditPin}
+          <GpsIndicator
+            fix={geo.fix}
+            accuracy={geo.reading?.accuracy}
+            variant="panel"
+            onReintentar={usarMiUbicacion}
           />
 
-          {/* Map hint overlay */}
-          {/* <div
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full text-xs font-medium pointer-events-none z-[1000]"
-            style={{
-              background: 'rgba(15,23,42,.72)',
-              color: '#e2e8f0',
-              backdropFilter: 'blur(4px)',
-              whiteSpace: 'nowrap',
-            }}
+          {origen === 'manual' && (
+            <div className="rounded-md px-3 py-2 text-xs" style={{ background: '#f1f5f9', color: '#334155' }}>
+              <p>Posición puesta a mano. El sensor no la va a mover.</p>
+              <button type="button" onClick={usarMiUbicacion} className="mt-1 font-semibold underline">
+                Usar mi ubicación
+              </button>
+            </div>
+          )}
+
+          {cargando && <p className="text-sm text-slate-500">Cargando formulario…</p>}
+
+          {!cargando && (desdeCache || error) && (
+            <div className="rounded-md px-3 py-2 text-xs" style={{ background: '#fef3c7', color: '#92400e' }}>
+              <p>{error}</p>
+              <button type="button" onClick={recargar} className="mt-1 font-semibold underline">
+                Reintentar
+              </button>
+            </div>
+          )}
+
+          <GeometriaPanel poligono={poligono} deshabilitado={cargando} />
+
+          <PanelDescargarMapa
+            puntos={poligono.draft}
+            posicionActual={{ lat: ubicacion.lat, lng: ubicacion.lng }}
+          />
+
+          {!cargando && (
+            <FormularioParcela
+              esquemas={esquemas}
+              id={parcelaEnEdicion?.id}
+              initial={parcelaEnEdicion}
+              ubicacion={parcelaEnEdicion ? fromGeoPoint(parcelaEnEdicion.ubicacion) : ubicacion}
+              gps={parcelaEnEdicion?.gps ?? gps}
+              geometria={poligono.geometria}
+              areaM2={poligono.areaEfectiva}
+              perimetroM={poligono.perimetroGeometria}
+              onGuardar={onGuardar}
+            />
+          )}
+        </aside>
+
+        <div className="flex-1 relative min-h-[50vh]">
+          <MapView
+            lat={ubicacion.lat}
+            lng={ubicacion.lng}
+            categoria="vivienda"
+            savedPins={[]}
+            // Mientras se traza, cada toque agrega un vértice en vez de
+            // mover el pin.
+            clickToPosition={!trazando}
+            // El GPS lo maneja el hook, que filtra por precisión: el mapa no
+            // tiene que pedir su propia lectura.
+            autoLocate={false}
+            onLocateRequest={usarMiUbicacion}
+            onPositionChange={onPositionChange}
+            onGPSStatus={() => {}}
+            onDeletePin={() => {}}
+            onEditPin={() => {}}
           >
-            Haz clic en el mapa o arrastra el marcador para posicionar el pin
-          </div> */}
+            <PolygonEditor
+              draft={poligono.draft}
+              geometria={poligono.geometria}
+              trazando={trazando}
+              onAgregar={poligono.agregar}
+              onMover={poligono.mover}
+              onQuitar={poligono.quitar}
+            />
+          </MapView>
         </div>
       </div>
     </main>
-  );
+  )
 }

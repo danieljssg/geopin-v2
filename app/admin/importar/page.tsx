@@ -50,7 +50,7 @@ export default async function ImportarPage() {
             <a href="/admin/dashboard" className="text-xs text-white underline">
               Dashboard
             </a>
-            <a href="/campo/lista" className="text-xs text-white underline">
+            <a href="/listado" className="text-xs text-white underline">
               Parcelas
             </a>
           </div>
