@@ -266,7 +266,7 @@ El plan original pone el formulario (Fase 2) antes del schema builder (Fase 3). 
 | T3 | API de parcelas: CRUD, `version` por módulo, idempotencia de sync | S15, S17 | inline | completado | `183d71a` |
 | T4 | Shell PWA: manifest, Serwist/Turbopack, fallback offline, cache de teselas | S7, S22, S27 | inline | completado | `f10555d` |
 | T5 | Cliente de campo v2: outbox Dexie, motor de sync, reintentos | S1, S2, S6 | inline | completado | `bf18ce5` |
-| T6 | Schema builder en admin + formulario renderizado desde el esquema | S11, S12, S14, S31 | inline | pendiente | — |
+| T6 | Schema builder en admin + formulario renderizado desde el esquema | S11, S12, S14, S31 | inline | completado | pendiente |
 | T7 | Geometría: dibujo de polígonos, área, perímetro, m² manual | S8, S9, S10 | inline | pendiente | — |
 | T8 | GPS: `watchPosition`, filtro 15 m, indicador, asistida/manual | S3, S4, S5 | inline | pendiente | — |
 | T9 | Dashboard: consultas al servidor, mapa con heatmap, completados vs pendientes, déficit/saturación | S19, S20 | inline | pendiente | — |
@@ -397,6 +397,46 @@ Nota de ruta: T5 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`.
 Bloqueo conocido: la cola y el motor están probados con `fake-indexeddb` y un `fetch` simulado, pero no se pudo probar contra el cluster real — sigue el bloqueo de red de L9.
 
 Próximo paso: T6 (schema builder en el admin + formulario renderizado desde el esquema, que es el que reemplaza al formulario hardcodeado).
+
+### L17 — T6 completado (2026-10-24)
+
+Entregado:
+
+- `lib/domain/schema-builder.ts` — toda la edición de esquemas, pura: `slugifyFieldKey`, `validateSchemaFields`, `addField`, `updateField`, `removeField`, `moveField`, `normalizeOrder`, `draftToSchema` y `schemasDiffer`. La UI solo dibuja y llama.
+- `lib/api/contracts.ts` — `parseSchemaSave` y `FieldDefInput`: el mismo validador que usa el servidor.
+- `app/api/esquemas/route.ts` — `GET` con cualquier sesión: sin esquema la app de campo no puede capturar nada.
+- `app/api/esquemas/[moduleId]/route.ts` — `PUT` con `esquema:editar`. El guardado es atómico sobre la lista completa de campos, así no quedan estados intermedios donde un campo existe y su vecino no.
+- `lib/server/repositories/esquemas.ts` — `saveModuleSchema`.
+- `app/login/page.tsx` — sin esto el panel administrativo no tenía puerta de entrada. Es la pieza que faltaba desde T2.
+- `app/admin/esquema/page.tsx` — guarda de sesión y de permiso; sin sesión redirige a `/login`, sin permiso explica por qué.
+- `components/admin/SchemaBuilder.tsx` — el editor: pestañas por módulo, edición de etiqueta y tipo, reordenar, borrar, opciones de las listas, y publicar con la versión nueva.
+- `components/field/FormularioParcela.tsx` — el formulario que se dibuja desde el esquema, con una pestaña por módulo y el control que corresponde a cada tipo de campo.
+- `lib/field/use-schemas.ts` — carga los esquemas con respaldo en la caché local: un levantador con el esquema viejo puede capturar; uno sin esquema no puede hacer nada.
+- `app/campo/page.tsx` — la página de campo v2: mapa para la posición, formulario desde el esquema, y al guardar la parcela entra en la cola local.
+
+Decisiones que conviene que queden escritas:
+
+- **La clave de un campo se genera de la etiqueta una sola vez y después no cambia.** Renombrar la etiqueta no puede mover los datos ya capturados. `slugifyFieldKey` es determinista: la misma etiqueta da siempre la misma clave, y si dos campos chocan la validación lo reporta como duplicado en vez de inventar un sufijo.
+- **Un módulo se valida solo si tiene algún dato.** Un levantador que no sabe de electricidad no puede quedar bloqueado por un campo obligatorio de un módulo que ni tocó; pero si empezó a llenarlo, se le exige terminarlo.
+- **La pestaña activa salta al primer módulo con errores** al intentar guardar, para que el levantador no tenga que buscarlos.
+
+Evidencia de verificación:
+
+- `pnpm test` → 183 tests, 15 archivos, todo en verde.
+- `pnpm typecheck` → limpio en los dos proyectos.
+- `pnpm build` → compila. Rutas nuevas: `/login`, `/admin/esquema`, `/campo`, `/api/esquemas` y `/api/esquemas/[moduleId]`. Serwist precachea 41 entradas.
+- `pnpm verify` contra el cluster real → el bloque del administrador de esquemas pasa entero: el borrador valida, el campo nuevo persiste, la versión sube, el orden queda contiguo y el esquema se restaura.
+
+RED observado y corregido:
+
+1. `slugifyFieldKey('123 campo')` devolvía `campo_<timestamp>`. Ese fallback hacía la función **no determinista**, lo que es un defecto real en una función que genera claves de datos: la misma etiqueta tenía que producir siempre la misma clave. Se cambió por un prefijo determinista (`campo_123_campo`) y se agregó un test de determinismo.
+2. `replaceOne` del adaptador exigía `WithoutId<SchemaDoc>`: al desestructurar `moduleId` para armar el documento se perdía un campo requerido. Se pasó el esquema completo y el `_id` sale del filtro del upsert.
+
+Nota de ruta: T6 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`.
+
+Pendiente de T6 para el cierre: la página `/` sigue siendo el prototipo v1 con el formulario hardcodeado. El cambio de `/` a `/campo` es una redirección de una línea, pero conviene hacerlo cuando el formulario v2 tenga paridad (geometría de T7 y GPS de T8).
+
+Próximo paso: T7 (geometría: dibujo de polígonos, área, perímetro, m² manual).
 
 ### L9 — El cluster está detrás de Private Link (2026-10-22)
 

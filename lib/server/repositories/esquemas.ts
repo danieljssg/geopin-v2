@@ -21,6 +21,21 @@ export async function getModuleSchema(moduleId: string): Promise<ModuleSchema | 
 }
 
 /**
+ * Publica un esquema. Reemplaza el documento del módulo.
+ *
+ * No hay historial de versiones todavía: la versión viaja en el documento y
+ * cada visita guarda la versión con la que se capturó, así que un dato viejo
+ * se puede interpretar. Guardar el historial completo es trabajo de T10, que
+ * es donde se concilian registros de distintas versiones.
+ */
+export async function saveModuleSchema(schema: ModuleSchema): Promise<ModuleSchema> {
+  // El `_id` sale del filtro: el documento de reemplazo no lo lleva, y el
+  // upsert lo toma de la igualdad del filtro.
+  await schemasCollection().replaceOne({ _id: schema.moduleId }, { ...schema }, { upsert: true })
+  return schema
+}
+
+/**
  * Valida los datos de un módulo contra su esquema publicado.
  *
  * Si el módulo no tiene esquema publicado se acepta todo: el administrador

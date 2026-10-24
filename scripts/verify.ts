@@ -3,6 +3,8 @@ import { closeMongo } from '../lib/server/cosmos'
 import { schemasCollection, usuariosCollection } from '../lib/server/collections'
 import { findParcela, deleteParcela } from '../lib/server/repositories/parcelas'
 import { writeParcela } from '../lib/server/services/parcelas'
+import { getModuleSchema, saveModuleSchema } from '../lib/server/repositories/esquemas'
+import { draftToSchema, validateSchemaFields } from '../lib/domain/schema-builder'
 import type { ParcelaCreateRequest } from '../lib/api/contracts'
 
 /**
@@ -123,6 +125,45 @@ async function main(): Promise<void> {
   await deleteParcela(PARCELA_ID)
   const despues = await findParcela(PARCELA_ID)
   verificar('la parcela de prueba se borró', despues === null)
+
+  console.log('\nAdministrador de esquemas')
+  const original = await getModuleSchema('edificacion')
+  verificar('el módulo de edificación existe', original !== null)
+
+  if (original) {
+    const campoPrueba = {
+      key: 'campo_de_verificacion',
+      label: 'Campo de verificación',
+      tipo: 'lista' as const,
+      opciones: ['Sí', 'No'],
+      requerido: false,
+      orden: original.campos.length + 1,
+    }
+
+    const borrador = [...original.campos, campoPrueba]
+    verificar('el borrador es válido', validateSchemaFields(borrador).length === 0)
+
+    const publicado = draftToSchema({
+      moduleId: 'edificacion',
+      modulo: 'edificacion',
+      campos: borrador,
+      versionActual: original.version,
+      actor: ADMIN.id,
+      now: new Date().toISOString(),
+    })
+
+    await saveModuleSchema(publicado)
+    const releido = await getModuleSchema('edificacion')
+
+    verificar('el campo nuevo persiste', releido?.campos.some((c) => c.key === campoPrueba.key) === true)
+    verificar('la versión subió', releido?.version === original.version + 1, releido?.version)
+    verificar('el orden queda contiguo', releido?.campos.every((c, i) => c.orden === i + 1) === true)
+
+    // Se restaura el esquema original para no dejar rastro.
+    await saveModuleSchema(original)
+    const restaurado = await getModuleSchema('edificacion')
+    verificar('el esquema se restaura', restaurado?.campos.length === original.campos.length)
+  }
 }
 
 main()

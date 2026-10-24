@@ -1,4 +1,4 @@
-import type { GeoPolygon, ParcelaEstado } from '@/lib/domain/types'
+import type { FieldType, GeoPolygon, ParcelaEstado } from '@/lib/domain/types'
 
 /**
  * Contrato de la API de parcelas.
@@ -466,4 +466,135 @@ export function parseListQuery(url: URL): {
   const levantamientoId = url.searchParams.get('levantamientoId')?.trim() || undefined
 
   return { levantamientoId, estado, limite, skip }
+}
+
+// ---------------------------------------------------------------------------
+// Esquemas
+// ---------------------------------------------------------------------------
+
+export interface FieldDefInput {
+  key: string
+  label: string
+  tipo: FieldType
+  opciones?: string[]
+  requerido?: boolean
+  orden: number
+}
+
+export interface SchemaSaveRequest {
+  campos: FieldDefInput[]
+}
+
+const FIELD_TYPES_VALIDOS: readonly FieldType[] = [
+  'texto',
+  'entero',
+  'decimal',
+  'booleano',
+  'lista',
+  'fecha',
+]
+
+const MAX_FIELD_KEY = 60
+const MAX_FIELD_LABEL = 120
+const MAX_FIELD_OPTIONS = 60
+const FIELD_KEY_PATTERN = /^[a-z][a-z0-9_]*$/
+
+function parseFieldDef(value: unknown, indice: number): ParseResult<FieldDefInput> {
+  if (!isRecord(value)) {
+    return { ok: false, error: `El campo en la posición ${indice + 1} no es un objeto.` }
+  }
+
+  const key = requiredString(value, 'key', MAX_FIELD_KEY)
+  if (!key.ok) return key
+  if (!FIELD_KEY_PATTERN.test(key.value)) {
+    return {
+      ok: false,
+      error: `La clave "${key.value}" solo admite minúsculas, números y guiones bajos, y tiene que empezar con una letra.`,
+    }
+  }
+
+  const label = requiredString(value, 'label', MAX_FIELD_LABEL)
+  if (!label.ok) return label
+
+  const tipo = value.tipo
+  if (typeof tipo !== 'string' || !FIELD_TYPES_VALIDOS.includes(tipo as FieldType)) {
+    return { ok: false, error: `El tipo del campo "${key.value}" no es válido.` }
+  }
+
+  const orden = requiredNumber(value, 'orden', { min: 1 })
+  if (!orden.ok) return orden
+
+  let opciones: string[] | undefined
+  if (tipo === 'lista') {
+    if (!Array.isArray(value.opciones)) {
+      return { ok: false, error: `La lista "${key.value}" necesita opciones.` }
+    }
+    opciones = []
+    for (const opcion of value.opciones) {
+      if (typeof opcion !== 'string' || opcion.trim() === '') {
+        return { ok: false, error: `La lista "${key.value}" tiene una opción vacía.` }
+      }
+      opciones.push(opcion.trim())
+    }
+    if (opciones.length === 0) {
+      return { ok: false, error: `La lista "${key.value}" necesita al menos una opción.` }
+    }
+    if (opciones.length > MAX_FIELD_OPTIONS) {
+      return {
+        ok: false,
+        error: `La lista "${key.value}" no puede superar ${MAX_FIELD_OPTIONS} opciones.`,
+      }
+    }
+    if (new Set(opciones).size !== opciones.length) {
+      return { ok: false, error: `La lista "${key.value}" tiene opciones repetidas.` }
+    }
+  } else if (value.opciones !== undefined && value.opciones !== null) {
+    return {
+      ok: false,
+      error: `El campo "${key.value}" no es de tipo lista y no admite opciones.`,
+    }
+  }
+
+  const requerido = value.requerido
+  if (requerido !== undefined && requerido !== null && typeof requerido !== 'boolean') {
+    return { ok: false, error: `"requerido" del campo "${key.value}" debe ser verdadero o falso.` }
+  }
+
+  return {
+    ok: true,
+    value: {
+      key: key.value,
+      label: label.value,
+      tipo: tipo as FieldType,
+      opciones,
+      requerido: requerido === true,
+      orden: orden.value,
+    },
+  }
+}
+
+/** Valida el cuerpo de guardado de un esquema. */
+export function parseSchemaSave(input: unknown): ParseResult<SchemaSaveRequest> {
+  if (!isRecord(input)) return { ok: false, error: 'El cuerpo de la petición debe ser un objeto.' }
+
+  const campos = input.campos
+  if (!Array.isArray(campos)) return { ok: false, error: '"campos" debe ser una lista.' }
+  if (campos.length === 0) {
+    return { ok: false, error: 'El módulo necesita al menos un campo.' }
+  }
+
+  const parseados: FieldDefInput[] = []
+  const claves = new Set<string>()
+
+  for (let indice = 0; indice < campos.length; indice += 1) {
+    const parsed = parseFieldDef(campos[indice], indice)
+    if (!parsed.ok) return parsed
+    if (claves.has(parsed.value.key)) {
+      return { ok: false, error: `La clave "${parsed.value.key}" está repetida.` }
+    }
+    claves.add(parsed.value.key)
+    parseados.push(parsed.value)
+  }
+
+  return { ok: true, value: { campos: parseados } }
 }
