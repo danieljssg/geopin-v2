@@ -505,6 +505,40 @@ Nota de ruta: T8 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`.
 
 Próximo paso: T9 (dashboard: consultas al servidor, mapa con heatmap, completados vs pendientes, déficit y saturación).
 
+### L20 — T9 completado (2026-10-24)
+
+Entregado:
+
+- `lib/domain/dashboard.ts` — el motor de análisis v2, puro: `resumirLevantamiento`, `coberturaServicios`, `equipamientoResumen`, `densidadCeldas` y `distribucionEstados`. Trabaja sobre `Parcela` con módulos, no sobre el `Pin` plano del prototipo.
+- `lib/server/repositories/levantamientos.ts` — campañas: listar, crear, borrar, y `findParcelasParaDashboard` que trae el conjunto completo (los porcentajes sobre una página mentirían).
+- `app/api/levantamientos/route.ts` — listado con sesión y alta con `levantamiento:gestionar`.
+- `app/api/dashboard/route.ts` — agregados ya calculados más los puntos del mapa.
+- `app/admin/dashboard/page.tsx` y `components/admin/DashboardV2.tsx` — avance contra el total esperado, distribución por estado, cobertura por servicio con déficit, equipamiento con saturación, y mapa.
+- `components/admin/MapaCalor.tsx` — mapa con calor de densidad y capas de completadas y pendientes.
+
+Decisiones que conviene que queden escritas:
+
+- **La cobertura se calcula sobre las parcelas que declararon el servicio**, no sobre el total. Si de 283 parcelas solo 40 declararon el acueducto, decir "14% de cobertura" sería engañoso; el porcentaje dice "de las que sabemos, cuántas tienen el servicio", y los casos sin dato se muestran aparte. Sin datos no se declara déficit: no se puede afirmar que falte un servicio que nadie relevó.
+- **"Cubierto" se define por servicio y de forma explícita.** En acueducto es "Conectado"; en drenaje es que sea subterráneo o mixto, porque "a cielo abierto" no es buena cobertura; en vialidad es que haya pavimento. Dejar todo lo que no es "Sin dato" como cubierto haría que una acequia contara como drenaje resuelto.
+- **El mapa de calor no usa plugin.** Se agrupan las parcelas en celdas de manzana (~111 m) y se dibuja un círculo por celda con radio y opacidad según el conteo. Con unos cientos de puntos se lee igual de bien que un heatmap interpolado y no suma una dependencia.
+- **El umbral de saturación de equipamiento es una heurística declarada** (100 parcelas por unidad), no una norma urbanística. Sirve para que el dashboard marque "hay muchas parcelas para las escuelas que hay" sin pretender reemplazar el cálculo del municipio.
+- **El dashboard v1 de `/dashboard` sigue existiendo.** Lee del IndexedDB del dispositivo y analiza el `Pin` plano. El v2 vive en `/admin/dashboard` y lee del servidor. Los dos conviven hasta que el v1 se retire con `lib/db.ts`.
+
+**Bug de producción encontrado por la verificación:** dos parcelas sin código catastral colisionaban en el índice `codigo_unique`. Causa: el driver de MongoDB serializa `undefined` como `null`, y un índice único **sparse** sí indexa los `null` — el sparse solo omite los campos *ausentes*, no los nulos. La segunda parcela sin código fallaba al guardarse. Se corrigió en dos niveles: `ignoreUndefined: true` en el cliente de Mongo, y `stripUndefinedDeep` aplicado en `saveParcela` para no depender solo de una opción del driver. Es exactamente el tipo de defecto que ninguna suite unitaria podía encontrar y que la primera parcela real habría destapado.
+
+Evidencia de verificación:
+
+- `pnpm test` → 256 tests, 18 archivos, todo en verde.
+- `pnpm typecheck` → limpio en los dos proyectos.
+- `pnpm build` → compila. Rutas nuevas: `/admin/dashboard`, `/api/dashboard` y `/api/levantamientos`.
+- `pnpm verify` contra el cluster real → el bloque del dashboard pasa entero: la campaña se crea y guarda su total esperado, el dashboard lee solo sus parcelas, el avance se calcula contra el total (2 de 10 → 20%, 8 faltantes), la cobertura de acueducto da 50% y queda en déficit, la de electricidad da 100% y no, el mapa de calor agrupa, y la limpieza borra todo.
+
+RED observado y corregido: el `pnpm verify` falló con `MongoServerError: Duplicate key violation ... Index 'codigo_unique'`. Ver arriba.
+
+Nota de ruta: T9 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`.
+
+Próximo paso: T11 (export desde el servidor: GeoJSON, CSV, Excel) más la vista de lista, que es lo que falta para poder cambiar `/` a `/campo`.
+
 ### L9 — El cluster está detrás de Private Link (2026-10-22)
 
 Diagnóstico del bloqueo de T2:

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { jsonEquals } from './json'
+import { jsonEquals, stripUndefinedDeep } from './json'
 
 describe('jsonEquals', () => {
   it('compara primitivos', () => {
@@ -51,5 +51,39 @@ describe('jsonEquals', () => {
   it('trata NaN como igual a sí mismo', () => {
     expect(jsonEquals(NaN, NaN)).toBe(true)
     expect(jsonEquals(NaN, 1)).toBe(false)
+  })
+})
+
+describe('stripUndefinedDeep', () => {
+  it('quita las claves con undefined', () => {
+    const limpio = stripUndefinedDeep({ a: 1, b: undefined })
+    expect(limpio).toEqual({ a: 1 })
+    expect('b' in limpio).toBe(false)
+  })
+
+  it('conserva los null explícitos', () => {
+    expect(stripUndefinedDeep({ a: null })).toEqual({ a: null })
+  })
+
+  it('entra en objetos anidados', () => {
+    const limpio = stripUndefinedDeep({ a: { b: undefined, c: 1 } })
+    expect(limpio).toEqual({ a: { c: 1 } })
+  })
+
+  it('entra en arrays', () => {
+    const limpio = stripUndefinedDeep({ a: [{ b: undefined, c: 2 }] })
+    expect(limpio).toEqual({ a: [{ c: 2 }] })
+  })
+
+  it('no toca los primitivos', () => {
+    expect(stripUndefinedDeep(5)).toBe(5)
+    expect(stripUndefinedDeep('x')).toBe('x')
+    expect(stripUndefinedDeep(true)).toBe(true)
+  })
+
+  it('quita un campo opcional ausente para que el índice sparse no lo indexe', () => {
+    // Es el caso real: dos parcelas sin código catastral.
+    const sinCodigo = stripUndefinedDeep({ _id: 'a', codigo: undefined, nombre: 'X' })
+    expect('codigo' in sinCodigo).toBe(false)
   })
 })

@@ -3,6 +3,7 @@ import type { ParcelaDoc } from '../collections'
 
 export type { ParcelaDoc }
 import type { Parcela, ParcelaEstado } from '@/lib/domain/types'
+import { stripUndefinedDeep } from '@/lib/domain/json'
 
 /**
  * Acceso a la colección de parcelas.
@@ -51,11 +52,15 @@ export async function findParcela(id: string): Promise<ParcelaDoc | null> {
  * El `_id` sale del filtro del upsert, así que el documento que se persiste
  * no lo lleva: en MongoDB el `_id` de un documento insertado por upsert se
  * toma de las igualdades del filtro.
+ *
+ * Los campos con `undefined` se omiten: un `codigo` ausente no puede viajar
+ * como `null` o chocaría con el índice único de códigos.
  */
 export async function saveParcela(doc: ParcelaDoc): Promise<ParcelaDoc> {
   const { _id, ...body } = doc
-  await parcelasCollection().replaceOne({ _id }, body, { upsert: true })
-  return { ...body, _id }
+  const limpio = stripUndefinedDeep(body)
+  await parcelasCollection().replaceOne({ _id }, limpio, { upsert: true })
+  return { ...limpio, _id }
 }
 
 export async function deleteParcela(id: string): Promise<boolean> {

@@ -23,6 +23,13 @@ export function getMongoClient(): MongoClient {
     const client = new MongoClient(env.MONGODB_URI, {
       // Cosmos no implementa los reintentos de escritura de MongoDB.
       retryWrites: false,
+      /**
+       * Sin esto, el driver serializa `undefined` como `null`. Un índice
+       * único `sparse` sí indexa los `null`, así que dos documentos con un
+       * campo opcional ausente chocan entre sí. Con `ignoreUndefined`, el
+       * campo se omite y el sparse hace lo que promete.
+       */
+      ignoreUndefined: true,
       serverSelectionTimeoutMS: 10_000,
       connectTimeoutMS: 10_000,
     })

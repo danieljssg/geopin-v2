@@ -6,6 +6,37 @@
  * idénticos y el resultado debe ser un no-op, no un conflicto.
  */
 
+/**
+ * Quita las claves con valor `undefined`, en profundidad.
+ *
+ * Importa para la base de datos: el driver de MongoDB serializa `undefined`
+ * como `null`, y un índice único `sparse` **sí** indexa los `null`. Una
+ * parcela sin código catastral escrita como `codigo: null` choca con la
+ * siguiente parcela sin código. Omitir la clave hace que el sparse funcione
+ * como se espera: no indexa lo que no existe.
+ *
+ * Los `null` explícitos se conservan: significan "vacío a propósito", que es
+ * distinto de "no se levantó".
+ */
+export function stripUndefinedDeep<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripUndefinedDeep(item)) as unknown as T
+  }
+
+  if (value !== null && typeof value === 'object') {
+    const resultado: Record<string, unknown> = {}
+
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      if (item === undefined) continue
+      resultado[key] = stripUndefinedDeep(item)
+    }
+
+    return resultado as T
+  }
+
+  return value
+}
+
 /** Compara dos valores con forma de JSON. */
 export function jsonEquals(a: unknown, b: unknown): boolean {
   if (a === b) return true

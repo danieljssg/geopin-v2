@@ -7,6 +7,13 @@ import { getModuleSchema, saveModuleSchema } from '../lib/server/repositories/es
 import { draftToSchema, validateSchemaFields } from '../lib/domain/schema-builder'
 import { closeDraft } from '../lib/domain/polygon-draft'
 import { isUsable, shouldFollowSensor } from '../lib/domain/gps'
+import { coberturaServicios, densidadCeldas, resumirLevantamiento } from '../lib/domain/dashboard'
+import {
+  createLevantamiento,
+  deleteLevantamiento,
+  findLevantamiento,
+  findParcelasParaDashboard,
+} from '../lib/server/repositories/levantamientos'
 import type { ParcelaCreateRequest } from '../lib/api/contracts'
 
 /**
@@ -245,6 +252,75 @@ async function main(): Promise<void> {
   verificar('persiste el momento de la fijación', typeof leidaGps?.gps?.fijadoEn === 'string')
 
   await deleteParcela(`${PARCELA_ID}-gps`)
+
+  console.log('\nDashboard del levantamiento')
+
+  const LEVANTAMIENTO_ID = `${PARCELA_ID}-lev`
+  await createLevantamiento({
+    id: LEVANTAMIENTO_ID,
+    nombre: 'Levantamiento de verificación',
+    ciudad: 'Caracas',
+    totalEsperado: 10,
+    creadoEn: new Date().toISOString(),
+    creadoPor: ADMIN.id,
+  })
+
+  const levantamiento = await findLevantamiento(LEVANTAMIENTO_ID)
+  verificar('el levantamiento se crea', levantamiento !== null)
+  verificar('guarda el total esperado', levantamiento?.totalEsperado === 10)
+
+  // Dos parcelas del levantamiento: una con acueducto y otra sin.
+  for (const [indice, acueducto] of (['Conectado', 'No conectado'] as const).entries()) {
+    await writeParcela(
+      {
+        ...payload([
+          {
+            moduleId: 'infraestructura',
+            baseVersion: 0,
+            schemaVersion: 1,
+            datos: { acueducto, electricidad: 'Conectado' },
+          },
+        ]),
+        id: `${LEVANTAMIENTO_ID}-p${indice}`,
+        levantamientoId: LEVANTAMIENTO_ID,
+        estado: indice === 0 ? 'completa' : 'pendiente',
+      },
+      ADMIN,
+    )
+  }
+
+  const documentos = await findParcelasParaDashboard(LEVANTAMIENTO_ID)
+  const parcelasDominio = documentos.map((documento) => {
+    const { _id, ...resto } = documento
+    return resto as unknown as Parameters<typeof resumirLevantamiento>[0][number]
+  })
+
+  verificar('el dashboard lee solo las parcelas del levantamiento', documentos.length === 2)
+
+  const resumen = resumirLevantamiento(parcelasDominio, levantamiento?.totalEsperado)
+  verificar('el avance se calcula contra el total esperado', resumen.totalEsperado === 10)
+  verificar('cuenta las levantadas', resumen.levantadas === 2)
+  verificar('calcula el avance en porcentaje', resumen.avancePct === 20, resumen.avancePct)
+  verificar('calcula las faltantes', resumen.faltantes === 8, resumen.faltantes)
+  verificar('distingue completadas de pendientes', resumen.completadas === 1 && resumen.pendientes === 1)
+
+  const cobertura = coberturaServicios(parcelasDominio)
+  const acueducto = cobertura.find((servicio) => servicio.key === 'acueducto')!
+  verificar('la cobertura de acueducto cuenta las dos declaradas', acueducto.declaradas === 2)
+  verificar('la cobertura de acueducto es del 50 por ciento', acueducto.coberturaPct === 50, acueducto.coberturaPct)
+  verificar('el acueducto queda en déficit', acueducto.enDeficit === true)
+
+  const electricidad = cobertura.find((servicio) => servicio.key === 'electricidad')!
+  verificar('la electricidad queda al 100 por ciento', electricidad.coberturaPct === 100, electricidad.coberturaPct)
+  verificar('la electricidad no queda en déficit', electricidad.enDeficit === false)
+
+  const celdas = densidadCeldas(parcelasDominio)
+  verificar('el mapa de calor agrupa las parcelas cercanas', celdas.length >= 1)
+
+  await deleteParcela(`${LEVANTAMIENTO_ID}-p0`)
+  await deleteParcela(`${LEVANTAMIENTO_ID}-p1`)
+  await deleteLevantamiento(LEVANTAMIENTO_ID)
+  verificar('el levantamiento de prueba se borra', (await findLevantamiento(LEVANTAMIENTO_ID)) === null)
 }
 
 main()
