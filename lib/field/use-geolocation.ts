@@ -30,18 +30,22 @@ export function useGeolocation(options: UseGeolocationOptions = {}): UseGeolocat
   const { enabled = true } = options
   const [reading, setReading] = useState<GpsReading | null>(null)
   const [errorCode, setErrorCode] = useState<number | null>(null)
-  const [supported, setSupported] = useState(true)
   const [intento, setIntento] = useState(0)
+
+  /**
+   * Si el navegador tiene GPS se deriva del entorno en vez de guardarlo en
+   * estado: ponerlo en estado exigía un setState dentro del efecto, que
+   * React 19 marca porque provoca un render en cascada.
+   *
+   * Durante el prerender del servidor `navigator` no existe y se asume que
+   * sí lo hay: un navegador sin geolocation es un caso excepcional.
+   */
+  const supported = typeof navigator === 'undefined' || 'geolocation' in navigator
 
   useEffect(() => {
     if (!enabled) return
 
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      setSupported(false)
-      return
-    }
-
-    setSupported(true)
+    if (!supported || !navigator.geolocation) return
 
     let watchId: number | null = null
 
@@ -68,13 +72,14 @@ export function useGeolocation(options: UseGeolocationOptions = {}): UseGeolocat
         },
       )
     } catch {
-      setSupported(false)
+      // El watch no arrancó: la lectura queda sin datos y el error se ve en
+      // el indicador.
     }
 
     return () => {
       if (watchId !== null) navigator.geolocation.clearWatch(watchId)
     }
-  }, [enabled, intento])
+  }, [enabled, intento, supported])
 
   const reiniciar = useCallback(() => {
     setReading(null)

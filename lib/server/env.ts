@@ -73,6 +73,14 @@ export function parseServerEnv(
 
   validateCosmosUri(uri)
 
+  if (tieneDolarSinCodificar(uri)) {
+    throw new EnvError(
+      'La contraseña de MONGODB_URI tiene un "$" sin codificar. Next.js expande ' +
+        '"$VARIABLE" en los archivos .env y trunca la contraseña sin avisar, ' +
+        'dejando el cluster con un "Invalid key". Codificá el "$" como "%24".',
+    )
+  }
+
   return {
     MONGODB_URI: uri,
     MONGODB_DB: db,
@@ -165,6 +173,29 @@ function validateUriCredentials(uri: string): void {
       'y eso rompe el parseo de la URI. Codificá la contraseña con ' +
       'encodeURIComponent (por ejemplo, "#" → "%23", "@" → "%40").',
   )
+}
+
+/**
+ * ¿La contraseña tiene un `$` sin codificar?
+ *
+ * El `$` es válido en una URI, pero **Next.js expande `$VARIABLE` en los
+ * archivos `.env`**: un `$` en la contraseña se reemplaza por el valor de esa
+ * variable —o por cadena vacía si no existe— y la contraseña queda
+ * truncada. El síntoma es un `Invalid key` al conectar, que no dice nada
+ * sobre la causa real.
+ *
+ * La solución es percent-encodearlo: `%24` es un `$` en una URI y no dispara
+ * la expansión. Además es lo que exige la especificación de connection
+ * string de MongoDB.
+ */
+export function tieneDolarSinCodificar(uri: string): boolean {
+  const credenciales = /^mongodb(?:\+srv)?:\/\/([^@]*)@/.exec(uri)?.[1]
+  if (!credenciales) return false
+
+  const separador = credenciales.indexOf(':')
+  if (separador === -1) return false
+
+  return credenciales.slice(separador + 1).includes('$')
 }
 
 let cached: ServerEnv | null = null

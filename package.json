@@ -14,7 +14,8 @@
     "db:indexes": "tsx --env-file-if-exists=.env.local scripts/ensure-indexes.ts",
     "verify": "tsx --env-file-if-exists=.env.local scripts/verify.ts",
     "tiles:generar": "tsx scripts/generar-tiles.ts",
-    "prueba:carga": "tsx --env-file-if-exists=.env.local scripts/prueba-carga.ts"
+    "prueba:carga": "tsx --env-file-if-exists=.env.local scripts/prueba-carga.ts",
+    "smoke": "tsx --env-file-if-exists=.env.local scripts/smoke.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -37,13 +38,21 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@babel/eslint-parser": "^7.29.9",
+    "@eslint/js": "^10.0.1",
+    "@next/eslint-plugin-next": "^16.4.3",
     "@serwist/turbopack": "^9.5.13",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "esbuild": "^0.28.2",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.4.3",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "fake-indexeddb": "^6.2.6",
+    "globals": "^17.13.0",
     "postcss": "^8.5.26",
     "serwist": "^9.5.13",
     "tailwindcss": "^4.3.3",

@@ -31,7 +31,7 @@ import { findParcela, saveParcela } from '../repositories/parcelas'
  *    el administrador resuelva campo por campo.
  *
  * Esa regla es la que hace segura la importación: reimportar el mismo
- * archivo no duplica nada, y cruzar dos archivos de、设备 distintos no pisa
+ * archivo no duplica nada, y cruzar dos archivos de dispositivos distintos no pisa
  * el trabajo del otro.
  */
 

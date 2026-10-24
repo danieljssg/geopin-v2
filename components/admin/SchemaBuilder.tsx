@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import type { FieldDef, FieldType, ModuleSchema, ModuloId } from '@/lib/domain/types'
 import {
   MODULOS,
@@ -200,9 +201,9 @@ export default function SchemaBuilder({ usuario }: { usuario: string }) {
             <span className="text-xs" style={{ color: '#93c5fd' }}>
               {usuario}
             </span>
-            <a href="/" className="text-xs text-white underline">
+            <Link href="/" className="text-xs text-white underline">
               Ir al mapa
-            </a>
+            </Link>
           </div>
         </div>
       </header>

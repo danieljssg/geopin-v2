@@ -1,7 +1,7 @@
 /**
  * Parser de CSV.
  *
- * Las planillas de campo vienen de Excel y de信息系统 que usan CRLF, comillas
+ * Las planillas de campo vienen de Excel y de sistemas que usan CRLF, comillas
  * dobles y campos con comas adentro. Un `split(',')` rompe todo eso, así que
  * el parser es propio y está testeado con los casos que de verdad aparecen.
  */
@@ -23,7 +23,7 @@ export interface ResultadoCSV {
  */
 export function parseCSV(contenido: string): ResultadoCSV {
   const errores: string[] = []
-  const sinBOM = contenido.replace(/^﻿/, '')
+  const sinBOM = contenido.replace(/^\ufeff/, '')
 
   const filas: string[][] = []
   let actual: string[] = []

@@ -247,7 +247,7 @@ export function toCSV(
     ),
   ]
 
-  return `﻿${lineas.join('\r\n')}\r\n`
+  return `\ufeff${lineas.join('\r\n')}\r\n`
 }
 
 // ---------------------------------------------------------------------------

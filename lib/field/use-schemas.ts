@@ -21,18 +21,19 @@ export interface UseSchemasResult {
 }
 
 export function useSchemas(): UseSchemasResult {
-  const [esquemas, setEsquemas] = useState<ModuleSchema[]>([])
-  const [cargando, setCargando] = useState(true)
+  const [esquemas, setEsquemas] = useState<ModuleSchema[] | null>(null)
   const [desdeCache, setDesdeCache] = useState(false)
   const [error, setError] = useState<string | undefined>()
+  // El estado de carga se deriva de los datos: poner la bandera en estado
+  // obligaba a un setState dentro del efecto (render en cascada).
+  const cargando = esquemas === null && error === undefined
   const [tick, setTick] = useState(0)
 
   useEffect(() => {
     let vivo = true
 
-    async function cargar() {
-      setCargando(true)
-      setError(undefined)
+    async function cargar(mostrarCarga = true) {
+      if (mostrarCarga) setError(undefined)
 
       try {
         const respuesta = await fetch('/api/esquemas', {
@@ -42,12 +43,12 @@ export function useSchemas(): UseSchemasResult {
 
         if (!respuesta.ok) throw new Error(`El servidor respondió ${respuesta.status}.`)
 
-        const cuerpo = (await respuesta.json()) as { esquemas: ModuleSchema[] }
+        const { esquemas: lista } = (await respuesta.json()) as { esquemas: ModuleSchema[] }
         if (!vivo) return
 
-        setEsquemas(cuerpo.esquemas)
+        setEsquemas(lista)
         setDesdeCache(false)
-        await cacheEsquemas(cuerpo.esquemas)
+        await cacheEsquemas(lista)
       } catch (caught) {
         const cache = await getCachedEsquemas()
         if (!vivo) return
@@ -62,18 +63,18 @@ export function useSchemas(): UseSchemasResult {
               : 'No se pudieron cargar los esquemas.',
         )
       } finally {
-        if (vivo) setCargando(false)
+        // Sin estado de carga: se deriva de los datos.
       }
     }
 
-    void cargar()
+    void cargar(false)
     return () => {
       vivo = false
     }
   }, [tick])
 
   return {
-    esquemas,
+    esquemas: esquemas ?? [],
     cargando,
     desdeCache,
     error,

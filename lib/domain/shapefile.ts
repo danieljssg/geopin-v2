@@ -352,7 +352,6 @@ export function construirZip(archivos: readonly ArchivoZip[]): Uint8Array {
     const offset = centrales[centrales.length - 6]
     const crc = centrales[centrales.length - 5]
     const tamano = centrales[centrales.length - 4]
-    const largoNombre = centrales[centrales.length - 3]
     const nombre = new TextEncoder().encode(archivo.nombre)
 
     escritor.uint32LE(0x02014b50)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import type { CoberturaServicio, DensidadCelda, EquipamientoResumen, ResumenLevantamiento } from '@/lib/domain/dashboard'
 import type { ParcelaEstado } from '@/lib/domain/types'
@@ -31,6 +31,30 @@ interface LevantamientoResumen {
   totalEsperado: number
 }
 
+/**
+ * Pide los datos del dashboard.
+ *
+ * Fuera del componente: el efecto solo aplica el resultado.
+ */
+async function pedirDashboard(
+  levantamientoId: string,
+): Promise<{ datos?: DashboardData; error?: string }> {
+  try {
+    const url = levantamientoId
+      ? `/api/dashboard?levantamientoId=${encodeURIComponent(levantamientoId)}`
+      : '/api/dashboard'
+
+    const respuesta = await fetch(url, { credentials: 'same-origin' })
+    if (!respuesta.ok) return { error: `El servidor respondió ${respuesta.status}.` }
+
+    return { datos: (await respuesta.json()) as DashboardData }
+  } catch (caught) {
+    return {
+      error: caught instanceof Error ? caught.message : 'No se pudieron cargar los datos.',
+    }
+  }
+}
+
 interface DashboardData {
   levantamiento: LevantamientoResumen | null
   resumen: ResumenLevantamiento
@@ -45,8 +69,12 @@ export default function DashboardV2() {
   const [levantamientos, setLevantamientos] = useState<LevantamientoResumen[]>([])
   const [seleccionado, setSeleccionado] = useState<string>('')
   const [datos, setDatos] = useState<DashboardData | null>(null)
-  const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [recarga, setRecarga] = useState(0)
+  // El estado de carga se deriva de los datos: guardar la bandera en estado
+  // obligaba a un setState dentro del efecto, que React 19 marca porque
+  // provoca un render en cascada.
+  const cargando = datos === null && error === null
 
   useEffect(() => {
     let vivo = true
@@ -55,8 +83,10 @@ export default function DashboardV2() {
       try {
         const respuesta = await fetch('/api/levantamientos', { credentials: 'same-origin' })
         if (!respuesta.ok) throw new Error(`El servidor respondió ${respuesta.status}.`)
-        const cuerpo = (await respuesta.json()) as { levantamientos: LevantamientoResumen[] }
-        if (vivo) setLevantamientos(cuerpo.levantamientos)
+        const { levantamientos: lista } = (await respuesta.json()) as {
+          levantamientos: LevantamientoResumen[]
+        }
+        if (vivo) setLevantamientos(lista)
       } catch {
         // Sin campañas el dashboard igual funciona sobre todas las parcelas.
       }
@@ -68,29 +98,23 @@ export default function DashboardV2() {
     }
   }, [])
 
-  const cargar = useCallback(async (levantamientoId: string) => {
-    setCargando(true)
-    setError(null)
-
-    try {
-      const url = levantamientoId
-        ? `/api/dashboard?levantamientoId=${encodeURIComponent(levantamientoId)}`
-        : '/api/dashboard'
-
-      const respuesta = await fetch(url, { credentials: 'same-origin' })
-      if (!respuesta.ok) throw new Error(`El servidor respondió ${respuesta.status}.`)
-
-      setDatos((await respuesta.json()) as DashboardData)
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'No se pudieron cargar los datos.')
-    } finally {
-      setCargando(false)
-    }
-  }, [])
-
+  /**
+   * El resultado se aplica en un `.then()`: un setState síncrono dentro del
+   * efecto provoca un render en cascada, que es lo que marca React 19.
+   */
   useEffect(() => {
-    void cargar(seleccionado)
-  }, [cargar, seleccionado])
+    let vivo = true
+
+    void pedirDashboard(seleccionado).then((resultado) => {
+      if (!vivo) return
+      if (resultado.datos) setDatos(resultado.datos)
+      if (resultado.error) setError(resultado.error)
+    })
+
+    return () => {
+      vivo = false
+    }
+  }, [seleccionado, recarga])
 
   const serviciosEnDeficit = useMemo(
     () => datos?.cobertura.filter((servicio) => servicio.enDeficit) ?? [],
@@ -145,7 +169,14 @@ export default function DashboardV2() {
         {error && (
           <div className="rounded-md px-3 py-2 text-sm" style={{ background: '#fee2e2', color: '#b91c1c' }}>
             <p>{error}</p>
-            <button type="button" onClick={() => void cargar(seleccionado)} className="mt-1 font-semibold underline">
+            <button
+              type="button"
+              onClick={() => {
+                setError(null)
+                setRecarga((valor) => valor + 1)
+              }}
+              className="mt-1 font-semibold underline"
+            >
               Reintentar
             </button>
           </div>

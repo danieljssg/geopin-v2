@@ -99,3 +99,22 @@ function captureError(fn: () => unknown): Error {
   }
   throw new Error('Se esperaba un error y no se lanzó ninguno.')
 }
+
+describe('el $ de las contraseñas', () => {
+  it('rechaza un $ sin codificar', () => {
+    const uri = 'mongodb+srv://usuario:Clave$ConSimbolo@cuenta.mongodb.cosmos.azure.com/?ssl=true'
+    const error = captureError(() => parseServerEnv(entorno({ MONGODB_URI: uri })))
+    expect(error.message).toMatch(/expande/i)
+    expect(error.message).toContain('%24')
+  })
+
+  it('acepta el $ percent-encoded', () => {
+    const uri = 'mongodb+srv://usuario:Clave%24ConSimbolo@cuenta.mongodb.cosmos.azure.com/?ssl=true'
+    expect(() => parseServerEnv(entorno({ MONGODB_URI: uri }))).not.toThrow()
+  })
+
+  it('no confunde el $ de otra parte de la URI', () => {
+    const uri = 'mongodb+srv://usuario:ClaveSegura@cuenta.mongodb.cosmos.azure.com/?ssl=true&appName=$APP'
+    expect(() => parseServerEnv(entorno({ MONGODB_URI: uri }))).not.toThrow()
+  })
+})

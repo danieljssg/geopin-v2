@@ -35,6 +35,13 @@ parseo de la URI. `lib/server/env.ts` lo valida y avisa.
 | `BLOB_SAS_URL` | SAS de lectura del contenedor de tiles |
 | `NEXT_PUBLIC_TILE_BASE_URL` | Ruta por la que la app pide los tiles (`/tiles`) |
 
+**`BETTER_AUTH_URL` tiene que ser exactamente el origen público**, sin barra
+final y sin puerto si el sitio no lo lleva. Better Auth solo confía en ese
+origen: si no coincide con el que manda el navegador, el login falla con
+`403 INVALID_ORIGIN` y el mensaje no dice nada sobre la causa. Un despliegue
+con la variable puesta en `http://localhost:3000` y el sitio en
+`https://geopin.example.com` deja a todo el mundo sin poder entrar.
+
 `BETTER_AUTH_SECRET` se genera con:
 
 ```bash
@@ -69,6 +76,20 @@ pnpm tiles:generar -- --bbox -66.95,10.43,-66.85,10.53 --desde ./tiles --subir
 ```bash
 pnpm verify
 ```
+
+Y contra la instancia desplegada:
+
+```bash
+SMOKE_URL=https://geopin.example.com \
+ADMIN_EMAIL=admin@example.com \
+ADMIN_PASSWORD=... \
+pnpm smoke
+```
+
+Comprueba que las rutas respondan, que el service worker y el manifiesto se
+sirvan, que las APIs exijan sesión y que el login funcione contra la base
+real. Es lo que ninguna otra verificación cubre: que el despliegue esté
+derecho.
 
 Comprueba contra el cluster real: los esquemas publicados, el administrador
 con su rol, la escritura de una parcela, la idempotencia ante un reintento,

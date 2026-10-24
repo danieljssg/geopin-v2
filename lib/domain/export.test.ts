@@ -201,13 +201,13 @@ describe('escaparCsv', () => {
 describe('toCSV', () => {
   it('emite los encabezados del núcleo y de los módulos', () => {
     const csv = toCSV([parcela({ id: 'p1' })], [ESQUEMA])
-    const primera = csv.replace(/^﻿/, '').split('\r\n')[0]
+    const primera = csv.replace(/^\ufeff/, '').split('\r\n')[0]
     expect(primera).toBe([...COLUMNAS_NUCLEO, 'edificacion.uso_general', 'edificacion.pisos'].join(','))
   })
 
   it('emite una fila por parcela', () => {
     const csv = toCSV([parcela({ id: 'p1' }), parcela({ id: 'p2' })], [ESQUEMA])
-    const lineas = csv.replace(/^﻿/, '').trim().split('\r\n')
+    const lineas = csv.replace(/^\ufeff/, '').trim().split('\r\n')
     expect(lineas).toHaveLength(3)
   })
 

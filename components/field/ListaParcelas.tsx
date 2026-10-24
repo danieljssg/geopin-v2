@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import type { ParcelaEstado } from '@/lib/domain/types'
 
@@ -28,6 +28,24 @@ interface ParcelaFila {
   actualizadoEn: string
 }
 
+/**
+ * Pide la lista al servidor.
+ *
+ * Vive fuera del componente a propósito: así el efecto solo aplica el
+ * resultado y no hay un `setState` en su cuerpo.
+ */
+async function pedirParcelas(): Promise<{ parcelas?: ParcelaFila[]; error?: string }> {
+  try {
+    const respuesta = await fetch('/api/parcelas?limite=200', { credentials: 'same-origin' })
+    if (!respuesta.ok) return { error: `El servidor respondió ${respuesta.status}.` }
+
+    const cuerpo = (await respuesta.json()) as { parcelas?: ParcelaFila[] }
+    return { parcelas: cuerpo.parcelas ?? [] }
+  } catch (caught) {
+    return { error: caught instanceof Error ? caught.message : 'No se pudo cargar la lista.' }
+  }
+}
+
 const ETIQUETAS: Record<ParcelaEstado, string> = {
   completa: 'Completada',
   pendiente: 'Pendiente',
@@ -41,38 +59,41 @@ const COLORES: Record<ParcelaEstado, { fondo: string; texto: string }> = {
 }
 
 export default function ListaParcelas() {
-  const [parcelas, setParcelas] = useState<ParcelaFila[]>([])
-  const [cargando, setCargando] = useState(true)
+  const [parcelas, setParcelas] = useState<ParcelaFila[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // El estado de carga se deriva de los datos: si todavía no hay lista, la
+  // primera carga sigue en curso. Guardarlo en estado obligaba a un setState
+  // dentro del efecto, que React 19 marca porque provoca un render en cascada.
+  const cargando = parcelas === null && error === null
   const [filtro, setFiltro] = useState<ParcelaEstado | ''>('')
   const [busqueda, setBusqueda] = useState('')
   const [eliminando, setEliminando] = useState<string | null>(null)
 
-  const cargar = useCallback(async () => {
-    setCargando(true)
-    setError(null)
+  const [recarga, setRecarga] = useState(0)
 
-    try {
-      const respuesta = await fetch('/api/parcelas?limite=200', { credentials: 'same-origin' })
-      if (!respuesta.ok) throw new Error(`El servidor respondió ${respuesta.status}.`)
-
-      const cuerpo = (await respuesta.json()) as { parcelas: ParcelaFila[] }
-      setParcelas(cuerpo.parcelas ?? [])
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'No se pudo cargar la lista.')
-    } finally {
-      setCargando(false)
-    }
-  }, [])
-
+  /**
+   * La carga inicial aplica el resultado en un `.then()`, no dentro del
+   * cuerpo del efecto: un setState síncrono ahí provoca un render en
+   * cascada, que es lo que marca React 19.
+   */
   useEffect(() => {
-    void cargar()
-  }, [cargar])
+    let vivo = true
+
+    void pedirParcelas().then((resultado) => {
+      if (!vivo) return
+      if (resultado.parcelas) setParcelas(resultado.parcelas)
+      if (resultado.error) setError(resultado.error)
+    })
+
+    return () => {
+      vivo = false
+    }
+  }, [recarga])
 
   const visibles = useMemo(() => {
     const texto = busqueda.trim().toLowerCase()
 
-    return parcelas.filter((parcela) => {
+    return (parcelas ?? []).filter((parcela) => {
       if (filtro && parcela.estado !== filtro) return false
       if (texto === '') return true
       return (
@@ -95,7 +116,7 @@ export default function ListaParcelas() {
         const cuerpo = (await respuesta.json().catch(() => ({}))) as { error?: string }
         throw new Error(cuerpo.error ?? `El servidor respondió ${respuesta.status}.`)
       }
-      setParcelas((previas) => previas.filter((parcela) => parcela.id !== id))
+      setParcelas((previas) => (previas ?? []).filter((parcela) => parcela.id !== id))
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'No se pudo eliminar.')
     } finally {
@@ -130,7 +151,7 @@ export default function ListaParcelas() {
         </select>
 
         <span className="text-xs text-slate-500">
-          {visibles.length} de {parcelas.length}
+          {visibles.length} de {parcelas?.length ?? 0}
         </span>
 
         <div className="ml-auto flex gap-2">
@@ -150,7 +171,14 @@ export default function ListaParcelas() {
       {error && (
         <div className="rounded-md px-3 py-2 text-sm" style={{ background: '#fee2e2', color: '#b91c1c' }}>
           <p>{error}</p>
-          <button type="button" onClick={() => void cargar()} className="mt-1 font-semibold underline">
+          <button
+            type="button"
+            onClick={() => {
+              setError(null)
+              setRecarga((valor) => valor + 1)
+            }}
+            className="mt-1 font-semibold underline"
+          >
             Reintentar
           </button>
         </div>
@@ -160,7 +188,7 @@ export default function ListaParcelas() {
 
       {!cargando && !error && visibles.length === 0 && (
         <p className="text-sm text-slate-500">
-          {parcelas.length === 0
+          {(parcelas?.length ?? 0) === 0
             ? 'Todavía no hay parcelas levantadas.'
             : 'Ninguna parcela coincide con el filtro.'}
         </p>

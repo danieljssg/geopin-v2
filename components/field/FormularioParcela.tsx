@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ParcelaCreateRequest } from '@/lib/api/contracts'
 import { validateModuleData } from '@/lib/domain/schema'
 import type { FieldDef, FieldError, GeoPolygon, ModuleSchema, Parcela } from '@/lib/domain/types'
@@ -74,20 +74,6 @@ export default function FormularioParcela({
     }
     return resultado
   }, [versiones, initial])
-
-  /**
-   * Cuando cambia la parcela que se está editando, el formulario se
-   * recarga. Sin esto, editar dos parcelas seguidas mostraría los datos de la
-   * primera.
-   */
-  useEffect(() => {
-    setNombre(initial?.nombre ?? '')
-    setCategoria(initial?.categoria ?? 'Vivienda')
-    setDescripcion(initial?.descripcion ?? '')
-    setValores(valoresIniciales(initial))
-    setErrores([])
-    setMensaje(null)
-  }, [initial])
 
   const ordenados = useMemo(
     () => [...esquemas].sort((a, b) => a.moduleId.localeCompare(b.moduleId)),

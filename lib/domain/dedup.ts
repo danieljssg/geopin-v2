@@ -60,9 +60,7 @@ export function detectarDuplicados(
   parcelas: readonly Parcela[],
   bufferM: number = BUFFER_DUPLICADOS_M,
 ): DuplicadoCandidato[] {
-  const grupos = new Map<number, number[]>()
-
-  //.Union-find por índice: permite la transitividad sin repetir comparaciones.
+  // Union-find por índice: permite la transitividad sin repetir comparaciones.
   const padre = parcelas.map((_, indice) => indice)
   const buscar = (indice: number): number => {
     let raiz = indice

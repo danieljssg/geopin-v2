@@ -63,9 +63,8 @@ export default function CampoPage() {
   const capas = useCapas()
   const geo = useGeolocation()
 
-  const [ubicacion, setUbicacion] = useState(CENTRO_INICIAL)
+  const [posicionManual, setPosicionManual] = useState(CENTRO_INICIAL)
   const [origen, setOrigen] = useState<OrigenPosicion>('sensor')
-  const [precision, setPrecision] = useState<number | undefined>()
   const [parcelaEnEdicion, setParcelaEnEdicion] = useState<Parcela | null>(null)
 
   const trazando = poligono.modo === 'trazando'
@@ -105,43 +104,46 @@ export default function CampoPage() {
   }, [parcelaEnEdicion?.id])
 
   /**
-   * El pin solo sigue al sensor cuando la lectura pasa el filtro de 15 m y
-   * la posición no fue puesta a mano. Es la regla de S3 y S5.
+   * El pin sigue al sensor **derivado en el render**, no guardado en estado:
+   * se mueve solo cuando la lectura pasa el filtro de 15 m y la posición no
+   * fue puesta a mano. Es la regla de S3 y S5.
+   *
+   * Con un efecto, el pin se movía en un segundo render: un estado que
+   * cambia dentro de un efecto provoca un render en cascada.
    */
-  useEffect(() => {
-    if (!shouldFollowSensor(origen, geo.reading)) return
-
-    const lectura = geo.reading!
-    setUbicacion({ lat: lectura.lat, lng: lectura.lng })
-    setPrecision(lectura.accuracy)
+  const posicionSensor = useMemo(() => {
+    if (!geo.reading || !shouldFollowSensor(origen, geo.reading)) return null
+    return {
+      lat: geo.reading.lat,
+      lng: geo.reading.lng,
+      precision: geo.reading.accuracy,
+    }
   }, [geo.reading, origen])
+
+  const ubicacion = posicionSensor ?? posicionManual
 
   /**
    * Volver al sensor es una acción explícita del levantador: es la
    * confirmación que pide S5 antes de descartar la posición manual.
    */
   const usarMiUbicacion = useCallback(() => {
+    // Con el origen en "sensor", la posición derivada vuelve a seguir al
+    // GPS en el próximo render: no hace falta escribirla a mano.
     setOrigen('sensor')
     geo.reiniciar()
-
-    if (geo.reading && shouldFollowSensor('sensor', geo.reading)) {
-      setUbicacion({ lat: geo.reading.lat, lng: geo.reading.lng })
-      setPrecision(geo.reading.accuracy)
-    }
   }, [geo])
 
   const onPositionChange = useCallback((lat: number, lng: number) => {
-    setUbicacion({ lat, lng })
+    setPosicionManual({ lat, lng })
     setOrigen('manual')
-    setPrecision(undefined)
   }, [])
 
   const gps = useMemo(
     () =>
-      precision !== undefined
-        ? { fuente: 'sensor' as const, precision }
+      posicionSensor
+        ? { fuente: 'sensor' as const, precision: posicionSensor.precision }
         : { fuente: 'manual' as const },
-    [precision],
+    [posicionSensor],
   )
 
   async function onGuardar(payload: ParcelaCreateRequest) {
@@ -219,6 +221,10 @@ export default function CampoPage() {
 
           {!cargando && (
             <FormularioParcela
+              // El `key` reinicia el formulario cuando cambia la parcela en
+              // edición: es el patrón que React recomienda para resetear
+              // estado con una prop, y evita un setState dentro de un efecto.
+              key={parcelaEnEdicion?.id ?? 'nueva'}
               esquemas={esquemas}
               id={parcelaEnEdicion?.id}
               initial={parcelaEnEdicion}

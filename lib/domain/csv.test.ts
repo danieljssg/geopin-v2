@@ -10,7 +10,7 @@ describe('parseCSV', () => {
   })
 
   it('ignora el BOM de Excel', () => {
-    const resultado = parseCSV('﻿nombre\nCasa')
+    const resultado = parseCSV('\ufeffnombre\nCasa')
     expect(resultado.encabezados).toEqual(['nombre'])
   })
 

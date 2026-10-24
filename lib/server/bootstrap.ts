@@ -1,7 +1,6 @@
 import { SEED_SCHEMAS } from '@/lib/domain/seed'
 import { getAuth } from './auth'
 import { schemasCollection, usuariosCollection } from './collections'
-import { closeMongo } from './cosmos'
 
 /**
  * Siembra de la base de datos.

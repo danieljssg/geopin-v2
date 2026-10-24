@@ -81,10 +81,11 @@ export function describeCosmosError(error: unknown): string {
     )
   }
 
-  if (/Authentication failed|Unauthorized/i.test(message)) {
+  if (/Invalid key|Authentication failed|Unauthorized/i.test(message)) {
     return (
-      'El cluster rechazó las credenciales de MONGODB_URI. Revisá el usuario, ' +
-      'la contraseña (percent-encoded) y que el usuario tenga permisos sobre la base.'
+      'El cluster rechazó las credenciales de MONGODB_URI. Si la contraseña ' +
+      'tiene un "$", va percent-encoded como "%24": Next.js expande $VARIABLE ' +
+      'en los archivos .env y trunca la contraseña sin avisar.'
     )
   }
 

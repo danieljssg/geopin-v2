@@ -36,6 +36,15 @@ export interface SyncState {
   encolar: (payload: ParcelaCreateRequest) => Promise<void>
 }
 
+/** Lee los contadores de la cola. Fuera del componente a propósito. */
+async function leerContadores(): Promise<{ pendientes: number; conflictos: number }> {
+  const [pendientes, conflictos] = await Promise.all([
+    countPending(),
+    getConflictedEntries().then((entradas) => entradas.length),
+  ])
+  return { pendientes, conflictos }
+}
+
 const SyncContext = createContext<SyncState | null>(null)
 
 export function SyncProvider({ children }: { children: ReactNode }) {
@@ -84,11 +93,26 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     [refrescar, sincronizar],
   )
 
+  /**
+   * Los contadores se aplican en un `.then()`: un setState síncrono dentro
+   * del efecto provoca un render en cascada.
+   */
   useEffect(() => {
-    void refrescar()
+    let vivo = true
+
+    void leerContadores().then(({ pendientes: p, conflictos: c }) => {
+      if (!vivo) return
+      setPendientes(p)
+      setConflictos(c)
+    })
+
     const handle = registerSyncTriggers({ runSync: sincronizar })
-    return () => handle.stop()
-  }, [refrescar, sincronizar])
+
+    return () => {
+      vivo = false
+      handle.stop()
+    }
+  }, [sincronizar])
 
   const valor = useMemo<SyncState>(
     () => ({

@@ -22,9 +22,11 @@ export interface UseCapasResult {
 }
 
 export function useCapas(): UseCapasResult {
-  const [capas, setCapas] = useState<CapaMapa[]>([])
+  const [capas, setCapas] = useState<CapaMapa[] | null>(null)
   const [avisos, setAvisos] = useState<string[]>([])
-  const [cargando, setCargando] = useState(true)
+  const [error, setError] = useState<string | undefined>()
+  // El estado de carga se deriva de los datos (render en cascada evitado).
+  const cargando = capas === null && error === undefined
   const [baseActiva, setBaseActiva] = useState('')
   const [overlaysVisibles, setOverlaysVisibles] = useState<string[]>([])
   const [opacidades, setOpacidades] = useState<Record<string, number>>({})
@@ -32,31 +34,39 @@ export function useCapas(): UseCapasResult {
   useEffect(() => {
     let vivo = true
 
-    async function cargar() {
+    async function cargar(mostrarCarga = true) {
+      if (mostrarCarga) setError(undefined)
+
       try {
         const respuesta = await fetch('/api/capas', { credentials: 'same-origin' })
         if (!respuesta.ok) throw new Error(`El servidor respondió ${respuesta.status}.`)
 
-        const cuerpo = (await respuesta.json()) as { capas: CapaMapa[]; avisos: string[] }
+        const { capas: lista, avisos: listaAvisos } = (await respuesta.json()) as {
+          capas: CapaMapa[]
+          avisos: string[]
+        }
         if (!vivo) return
 
-        setCapas(cuerpo.capas)
-        setAvisos(cuerpo.avisos ?? [])
+        setCapas(lista)
+        setAvisos(listaAvisos ?? [])
 
-        const primeraBase = cuerpo.capas.find((capa) => capa.tipo === 'base')
+        const primeraBase = lista.find((capa) => capa.tipo === 'base')
         setBaseActiva((previa) => previa || primeraBase?.id || '')
 
         const iniciales: Record<string, number> = {}
-        for (const capa of cuerpo.capas) iniciales[capa.id] = capa.opacity
+        for (const capa of lista) iniciales[capa.id] = capa.opacity
         setOpacidades(iniciales)
       } catch {
-        if (vivo) setAvisos(['No se pudo cargar la configuración de capas.'])
+        if (vivo) {
+          setError('No se pudo cargar la configuración de capas.')
+          setAvisos(['No se pudo cargar la configuración de capas.'])
+        }
       } finally {
-        if (vivo) setCargando(false)
+        // Sin estado de carga: se deriva de los datos.
       }
     }
 
-    void cargar()
+    void cargar(false)
     return () => {
       vivo = false
     }
@@ -73,7 +83,7 @@ export function useCapas(): UseCapasResult {
   }, [])
 
   return {
-    capas,
+    capas: capas ?? [],
     avisos,
     cargando,
     baseActiva,
