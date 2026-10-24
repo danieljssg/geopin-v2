@@ -13,7 +13,8 @@
     "seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
     "db:indexes": "tsx --env-file-if-exists=.env.local scripts/ensure-indexes.ts",
     "verify": "tsx --env-file-if-exists=.env.local scripts/verify.ts",
-    "tiles:generar": "tsx scripts/generar-tiles.ts"
+    "tiles:generar": "tsx scripts/generar-tiles.ts",
+    "prueba:carga": "tsx --env-file-if-exists=.env.local scripts/prueba-carga.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
