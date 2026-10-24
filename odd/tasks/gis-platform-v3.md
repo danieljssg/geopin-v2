@@ -267,7 +267,7 @@ El plan original pone el formulario (Fase 2) antes del schema builder (Fase 3). 
 | T4 | Shell PWA: manifest, Serwist/Turbopack, fallback offline, cache de teselas | S7, S22, S27 | inline | completado | `f10555d` |
 | T5 | Cliente de campo v2: outbox Dexie, motor de sync, reintentos | S1, S2, S6 | inline | completado | `bf18ce5` |
 | T6 | Schema builder en admin + formulario renderizado desde el esquema | S11, S12, S14, S31 | inline | completado | `aa5cc5b` |
-| T7 | Geometría: dibujo de polígonos, área, perímetro, m² manual | S8, S9, S10 | inline | completado | pendiente |
+| T7 | Geometría: dibujo de polígonos, área, perímetro, m² manual | S8, S9, S10 | inline | completado | `b8d15ab` |
 | T8 | GPS: `watchPosition`, filtro 15 m, indicador, asistida/manual | S3, S4, S5 | inline | pendiente | — |
 | T9 | Dashboard: consultas al servidor, mapa con heatmap, completados vs pendientes, déficit/saturación | S19, S20 | inline | pendiente | — |
 | T10 | Importación Excel/CSV, cruce, dedup buffer 2 m, resolución de conflictos | S16, S17, S18 | inline | pendiente | — |
