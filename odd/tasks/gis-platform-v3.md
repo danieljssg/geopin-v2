@@ -271,10 +271,11 @@ El plan original pone el formulario (Fase 2) antes del schema builder (Fase 3). 
 | T8 | GPS: `watchPosition`, filtro 15 m, indicador, asistida/manual | S3, S4, S5 | inline | completado | `4fb4d82` |
 | T9 | Dashboard: consultas al servidor, mapa con heatmap, completados vs pendientes, déficit/saturación | S19, S20 | inline | completado | `4a0a769` |
 | T10 | Importación Excel/CSV, cruce, dedup buffer 2 m, resolución de conflictos | S16, S17, S18 | inline | pendiente | — |
-| T11 | Export desde el servidor: GeoJSON, CSV, Excel | S21 | inline | completado | pendiente |
+| T11 | Export desde el servidor: GeoJSON, CSV, Excel | S21 | inline | completado | `eb23adb` |
 | T12 | WMS/WMTS propios, precarga de teselas, documento legal/bibliográfico | S7, S22, S23 | inline | pendiente | — |
 | T13 | Hardening: quitar `ignoreBuildErrors`, carga, despliegue, documentación | S24, S25 | inline | pendiente | — |
 | T14 | Pipeline de tiles autoalojados: extract OSM → clip al bbox del levantamiento → render → pirámide XYZ z12-z18 → blob storage | S7 | inline | pendiente | — |
+| T15 | Export Shapefile: `.shp`, `.shx`, `.dbf`, `.prj` y zip | S21 | inline | pendiente | — |
 
 Ruta de todas las tareas: **inline**. No hay razón de escritura delegada (ninguna unidad independiente de >100 líneas con superficies disjuntas en paralelo), y ninguna tarea nombra un ítem de alto riesgo que requiera verificador independiente más allá de sus propios checks.
 
