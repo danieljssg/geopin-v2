@@ -728,7 +728,21 @@ Evidencia de verificación:
 
 RED observado y corregido: el build falló con `window is not defined` al prerenderizar la raíz. `leaflet` toca `window` al importarse, así que cualquier componente que lo importe tiene que cargarse con `dynamic(ssr: false)` — el mismo criterio que el editor de polígono. Antes de eso, el primer fallo fue `LayersControl` sin capas base.
 
-### L29 — Estado final
+### L30 — Verificación de "¿está todo listo?" (2026-10-24)
+
+Ante la pregunta del usuario se hizo lo que no se había hecho: **levantar el servidor y usarlo**.
+
+Encontró tres defectos que el build, los tests y `pnpm verify` no podían ver:
+
+1. **El login devolvía 500 con `Invalid key`.** La contraseña del cluster tiene un `$` y **Next.js expande `$VARIABLE` en los archivos `.env`**: `$bmW5Wa` se reemplazaba por vacío y la contraseña quedaba truncada. `pnpm verify` sí conectaba porque usa el parser de `--env-file` de Node, que **no** expande. Se corrigió percent-encodeando como `%24` —que además es lo que exige la especificación de connection string de MongoDB— y se agregó un guarda en `parseServerEnv` que rechaza un `$` sin codificar explicando la causa.
+2. **`app/listado` devolvía 307.** Un `git mv` pisado por un heredoc dejó el código de redirección en el lugar del listado. El build compilaba y los tests pasaban: la ruta simplemente redirigía a sí misma. Recuperado del historial.
+3. **`pnpm lint` no existía en la práctica.** El script estaba, eslint no. Al instalarlo aparecieron dos incompatibilidades en cadena: `typescript-eslint` no soporta TypeScript 7 —el compilador nativo del proyecto— y el parser de Babel 8 no era compatible con el preset 7. La configuración final parsea TypeScript con **Babel** (no depende de la versión del compilador) con ESLint 9, y aplica las reglas de React, React Hooks y Next.
+
+El lint encontró problemas reales: **seis `setState` síncronos dentro de efectos** que React 19 marca como renders en cascada, dos comentarios con caracteres chinos sueltos y variables sin uso. Los `setState` se corrigieron **derivando el estado de carga de los datos y sacando el IO de los componentes**, no silenciando la regla. La regla resultó tener un falso positivo con `useCallback`: marca incluso los `setState` posteriores a un `await` cuando la función está memoizada.
+
+También se agregaron `noUnusedLocals` y `noUnusedParameters` al tsconfig —el equivalente de TypeScript a las reglas de variables sin usar— y `pnpm smoke`, que comprueba contra una instancia en marcha: rutas, APIs con y sin sesión, los cuatro formatos de export y el login contra la base real. 26 verificaciones.
+
+**Respuesta a la pregunta:** el código está listo; el despliegue no. Nada de esto está en `main`, así que Vercel no lo ha desplegado. Faltan las variables de entorno en Vercel, la pirámide de tiles renderizada y subida, y rotar las contraseñas de mockup.
 
 **Las 15 tareas del plan están completas.** Las cuatro fases funcionales —1, 2, 3 y 4— y el cierre de la quinta están terminados.
 
