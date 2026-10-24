@@ -297,6 +297,127 @@ Verbatim: `cual recomiendas objetivamente ? porque debe ser rápido los desplieg
 - **Fases 2 y 3 invertidas** (S31). El esquema se define antes que el formulario.
 - **Supuesto declarado:** el levantamiento NO exige GPS continuo con el teléfono bloqueado. Si resulta falso, la recomendación de cliente de campo se revisa; el admin y la API no cambian.
 
+### L4 — Evidencia verificada (2026-10-21)
+
+- Estado del repo: Next.js 16.3.1, React 19.2.8, TS 7.0.2, Tailwind v4, Leaflet 1.9.4 + react-leaflet 5, Dexie 4.4.5. Sin `app/api`, sin `fetch`, sin auth, sin variables de entorno. 3.899 LOC, sin tests, `next.config.mjs` con `typescript.ignoreBuildErrors: true`.
+- `lib/db.ts`: Dexie `geopin`, una tabla `pins`.
+- `lib/types.ts` / `lib/urban-options.ts`: modelo plano y fijo (11 campos + 4 listas cerradas); `lib/categories.ts`: 9 categorías fijas con normalización de legado.
+- `lib/dashboard-analytics.ts`: funciones puras sobre `Pin[]` → reusables contra resultados de API sin cambios.
+- `lib/export.ts`: exporta JSON/CSV/Excel; no importa.
+- `components/MapView.tsx`: `getCurrentPosition` de un solo disparo, sin `watchPosition`, sin leer `coords.accuracy`.
+- Azure Cosmos DB free tier (Microsoft Learn, doc 2025-06-24): **1000 RU/s y 25 GB**, se habilita al crear la cuenta, máximo 25 containers, sin serverless.
+- Cosmos DB for MongoDB: `2dsphere` sí; `$geoWithin`/`$geoIntersects`/`$near`/`$nearSphere` sí; `$center`/`$centerSphere`/`$box`/`$polygon` no; `text`/`$where`/`jsonSchema` no. El spatial index de Cosmos no equivale al motor `2dsphere` de MongoDB real, ni usando la API Mongo.
+- Cosmos DB for NoSQL: GeoJSON con spatial index por defecto, `ST_DISTANCE`/`ST_WITHIN`/`ST_INTERSECTS`; no `MultiPoint`.
+- Ninguna opción Cosmos da PostGIS: `ST_BUFFER`, `ST_UNION` y `ST_AREA` confiable no existen. El buffer de 2 m y los cálculos geométricos van en la aplicación.
+- Next.js 16: Turbopack es el bundler por defecto para dev y build; `next build --webpack` es el opt-out.
+- Serwist: `@serwist/next` 9.5.13 (webpack, peer `next >= 14`) y `@serwist/turbopack` (serwist 10+, Next ≥ 15).
+- Better Auth 1.7.12: `toNextJsHandler` para route handlers de Next.js, `mongodbAdapter` de `better-auth/adapters/mongodb`, y cliente Expo oficial (`@better-auth/expo/client` + `expo-secure-store`).
+
+### L5 — Análisis de brechas por fase del plan (2026-10-21)
+
+- **Fase 1**: el almacenamiento local ya existe (IndexedDB/Dexie) pero sin cola de sync, sin backend, sin service worker, sin precarga de tiles, sin filtro de precisión, sin indicador de exactitud, sin reconexión automática. Brecha: media-alta.
+- **Fase 2**: falta todo lo geométrico; el formulario existe pero es un scroll largo sin pestañas; faltan los servicios de acueducto/cloacas/electricidad/vialidad/telecom/aseo; la entrada flexible y las textareas ya están. Brecha: alta.
+- **Fase 3**: sin backend no hay módulos, ni schema builder, ni concurrencia. Brecha: total.
+- **Fase 4**: sin import, sin dedup, sin UI de conflictos, sin mapa ni heatmap en el dashboard, sin GeoJSON/Shapefile. Brecha: total.
+- **Fase 5**: sin fotos (descartado por S25), sin blob, sin WMS/WMTS; la atribución de OSM ya está. Brecha: alta.
+
+### L6 — Progreso
+
+**T1 completado (2026-10-21).**
+
+Entregado:
+
+- `lib/domain/types.ts` — modelo de dominio v2. `Parcela` con `ubicacion`/`geometria` en GeoJSON, `modulos: Record<string, ParcelaModuloData>` (datos por módulo con su propia versión y autoría), `version` global, `estado`, `levantamientoId`. `ModuleSchema` + `FieldDef` con los seis tipos del administrador de esquemas.
+- `lib/domain/schema.ts` — validación pura por tipo de campo, `validateModuleData` que devuelve todos los errores, `coerceFieldValue` que normaliza la entrada cruda del formulario (incluye coma decimal).
+- `lib/domain/seed.ts` — esquemas semilla de los tres módulos. Las opciones de edificación **se reutilizan de `lib/urban-options.ts`**, que queda como fuente de verdad única de las listas.
+- `lib/server/env.ts` — validación de entorno con mensajes accionables y sin filtrar secretos. Rechaza `retryWrites=true` (Cosmos no lo soporta) y `BETTER_AUTH_URL` con barra final.
+- `lib/server/cosmos.ts` — cliente `mongodb` cacheado en `globalThis` para sobrevivir al hot reload de Next.js.
+- `lib/server/collections.ts` — colecciones, tipos de documento y bootstrap de índices: `ubicacion` 2dsphere, `codigo` unique sparse, `estado`, `levantamiento`, `creadoEn`.
+- `vitest.config.mts` + `pnpm test` / `pnpm typecheck`. **El proyecto no tenía ningún runner de tests**; se agrega Vitest.
+
+Evidencia de verificación:
+
+- `pnpm test` → 31 tests, 3 archivos, todo en verde.
+- `pnpm typecheck` → limpio.
+- `pnpm build` → compila, 3 rutas prerenderizadas. La app existente no se rompió.
+
+RED observado y corregido:
+
+1. `lib/server/env.test.ts` falló al exigir `/barra final/i` en un mensaje que decía `no debe terminar en "/"`. El comportamiento era correcto; la aserción estaba atada a una redacción que no existía. Se cambió la aserción para que verifique el contrato (rechaza la URL y nombra la variable) en vez del texto.
+2. `pnpm typecheck` detectó tres errores que el build no reportaba porque `next.config.mjs` tiene `typescript.ignoreBuildErrors: true`: un typo en el nombre de la constante de colección (`COLLECTION_PARCELLAS`) y la incompatibilidad de `NodeJS.ProcessEnv` con `NODE_ENV` obligatorio en `@types/node` v26. Se corrigieron los tres. **Esto confirma que el flag actual oculta errores de tipos reales** — quitarlo es parte de T13.
+
+Excepción declarada al RED→GREEN: los módulos de T1 son nuevos, no hay comportamiento previo que pueda romperse, así que el test se escribió junto a la implementación en vez de observar RED contra código existente. El RED→GREEN estricto y el chequeo diferencial aplican desde T2 en adelante, donde se toca comportamiento existente.
+
+Nota de ruta: T1 no nombra ningún ítem de alto riesgo. `Risk: none`.
+
+**T2 completado (2026-10-21).**
+
+Confirmación del usuario (2026-10-21): *"es cierto, sólo se usa la ubicación con la app abierta"* → el supuesto de S27/L3 queda confirmado y la recomendación de PWA no se revisa.
+
+Entregado:
+
+- `lib/auth/roles.ts` — roles `encuestador` y `admin`, nueve permisos y mapa rol→permisos. `normalizeRole` cae en `encuestador` ante un valor desconocido: la dirección del fallback es lo que importa, un rol corrupto nunca escala a administrador.
+- `lib/server/auth.ts` — instancia de Better Auth sobre Cosmos DB for MongoDB, creada de forma perezosa para que importar el módulo no exija entorno configurado. `role` con `input: false` para que nadie se registre como admin.
+- `lib/server/session.ts` — `getSessionUser`, `requireSessionUser`, `requirePermission` y traducción de errores a respuesta HTTP. Reciben las cabeceras explícitamente para no atarlos al App Router.
+- `app/api/auth/[...all]/route.ts` — rutas de Better Auth con `dynamic = 'force-dynamic'`.
+- `lib/auth-client.ts` — cliente de navegador con `inferAdditionalFields<AuthInstance>()` para que `session.user.role` esté tipado sin duplicar la definición del rol.
+- `scripts/create-admin.ts` + `pnpm auth:create-admin` — alta y promoción de administradores, escribiendo el rol directo en la colección `user` porque `input: false` bloquea el signup.
+- `.env.example` — variables de entorno documentadas, incluida la nota de que el free tier se pide al crear la cuenta.
+
+Decisiones técnicas tomadas en T2:
+
+- **`transaction: false` en el adaptador de MongoDB.** Better Auth activa transacciones por defecto cuando recibe el cliente, y en Cosmos solo son válidas dentro de una misma partición: `user` y `session` viven en particiones distintas, así que cada registro fallaría. Sin este flag, el primer usuario en registrarse rompe.
+- **Sesión de 7 días** con refresco diario: un levantador puede pasar varios días sin abrir la app.
+- **Sin middleware de Next.js.** El middleware corre en Edge y no puede hablar con el driver de Mongo; la verificación de sesión va en la página o en el route handler, que es donde Better Auth la recomienda con adaptador de base de datos.
+
+Evidencia de verificación:
+
+- `pnpm test` → 49 tests, 6 archivos, todo en verde.
+- `pnpm typecheck` → limpio.
+- `pnpm build` → compila; `/api/auth/[...all]` aparece como ruta dinámica y las otras tres siguen prerenderizadas.
+
+RED observado y corregido:
+
+1. `lib/auth/roles.test.ts` falló al afirmar que un rol desconocido no concede ningún permiso. La implementación era la correcta y el test estaba mal: la política de mínimo privilegio significa caer en `encuestador`, no en cero permisos. Se reescribió la aserción para fijar la propiedad de seguridad real — un rol desconocido nunca escala a admin — y se agregó un caso para variantes de mayúsculas y espacios (`'Admin'`, `' admin'`), que tampoco deben escalar.
+2. `pnpm typecheck` detectó tres errores de tipos en T2: la anotación de retorno de `createAuth` creaba una referencia circular de tipo, `session.user.role` no existía porque `AuthInstance` estaba tipado con el genérico por defecto de `betterAuth()` en vez del tipo concreto de la instancia, y la colección `user` del script asumía `_id` como `ObjectId` cuando Better Auth lo guarda como string. Los tres corregidos.
+
+Desviación registrada: para resolver el segundo error hubo que exponer el tipo concreto de la instancia (`AuthInstance`) y usar `inferAdditionalFields` en el cliente. Eso arrastra la configuración del servidor al tipado del cliente — sin valores de entorno, solo tipos — y es el mecanismo que la propia documentación de Better Auth prescribe para proyectos de un solo repositorio.
+
+Nota de ruta: T2 toca credenciales y guards de autorización. `Risk: item 2 (security: auth, permisos y credenciales)`. La mitigación es el `input: false` sobre el rol, la validación de entorno que rechaza secretos cortos y la suite de roles; los checks de T2 son los 49 tests más el typecheck y el build.
+
+Bloqueo conocido: T2 no se pudo probar contra una cuenta real de Cosmos porque no hay credenciales en este entorno. El smoke test `lib/server/auth.test.ts` valida que la configuración se construye sin tocar la red, pero el primer `pnpm auth:create-admin` contra la cuenta real es la prueba pendiente.
+
+Próximo paso: T3 (API de parcelas: CRUD, `version` por módulo, idempotencia de sync).
+
+**T2bis completado (2026-10-21), commit `a8f749d`.** Ajustes pedidos por el usuario tras la T2.
+
+Entregado:
+
+- `lib/server/bootstrap.ts` — siembra única: `seedSchemas()` crea los esquemas que faltan, actualiza los que siguen siendo del seed y **preserva los que un administrador ya editó**; `ensureAdmin()` crea o promueve el administrador. `seed()` orquesta ambas cosas y omite el admin si no hay credenciales.
+- `scripts/seed.ts` + `pnpm seed` — siembra desde el entorno. `ADMIN_PASSWORD` va por variable de entorno y no por argumento: los argumentos quedan en el historial del shell y en la lista de procesos.
+- `scripts/ensure-indexes.ts` + `pnpm db:indexes` — bootstrap de índices fuera del arranque de la app.
+- `lib/server/collections.ts` — `ensureIndexes()` ahora crea cada índice por separado y **devuelve los fallos en lugar de lanzar**. Hay dos motores distintos detrás del nombre "Cosmos DB for MongoDB" con capacidades de índice diferentes (la API RU no admite `sparse`, vCore sí): un índice no soportado no puede tumbar el resto.
+- Se eliminó `scripts/create-admin.ts`: queda un solo camino para crear administradores.
+- `.env.example` — variables del cluster vCore con sus tres restricciones y las del administrador inicial.
+
+Corrección de seguridad: la URI real se había pegado en `.env.example`, que está versionado. Se movió a `.env.local` (ignorado por git) antes de que llegara a un commit, y `.env.example` volvió a ser genérico.
+
+Invariante de rol reforzado con dos tests que fallan si alguien toca la configuración: `auth.options.user.additionalFields.role.input` tiene que ser `false`, y su `defaultValue` tiene que ser `encuestador`. El primero es el que importa — con `input: true`, cualquiera que se registrara con `role: "admin"` en el body se quedaría como administrador.
+
+Evidencia de verificación:
+
+- `pnpm test` → 54 tests, 6 archivos, todo en verde.
+- `pnpm typecheck` → limpio.
+- `pnpm build` → compila.
+
+Error propio detectado y corregido: al agregar el bloque de tests del rol por defecto, sobrescribí `lib/auth/roles.test.ts` completo y perdí los 10 tests que ya existían. Lo detectó la caída del conteo global (49 → 44). Se restauró el archivo con los 13 tests y el conteo volvió a cuadrar. Lalesson: contar los tests por archivo, no solo mirar que la suite pase.
+
+Nota de ruta: T2bis no nombra ningún ítem de alto riesgo nuevo. `Risk: item 2 (security: credenciales movidas a un archivo ignorado por git y credenciales de administrador por entorno)`.
+
+Bloqueo conocido sin cambios: la contraseña de la URI está enmascarada como `<password>`, así que la conexión a la cuenta real sigue sin probarse. Con la contraseña real en `.env.local`, `pnpm db:indexes` y `pnpm seed` cierran el bloqueo.
+
+Próximo paso: T3 (API de parcelas: CRUD, `version` por módulo, idempotencia de sync).
+
 ### L7 — Decisiones del usuario sobre tiles y base de datos (2026-10-21)
 
 - **MBTiles autoalojados, área de 10 × 10 km por levantamiento.** Decisión: *"creo que sería mejor tener los mbtiles autoalojados para radios de 10x10km (ya tengo un blob storage setteado) porque siendo venezuela, dudo mucho que los mapas u ortofotos estén actualizados o incluso que sean accesibles de alguna manera 'pública'"*. Es la decisión correcta por dos razones que se refuerzan: la política de OSMF prohíbe el uso offline en sus servidores públicos, y la hipótesis de que exista una ortofoto pública y actualizada en Venezuela es, con acierto, dudosa. Pipeline en T14.
@@ -308,6 +429,64 @@ Verbatim: `cual recomiendas objetivamente ? porque debe ser rápido los desplieg
 La URI real con usuario y cuenta se pegó primero en `.env.example`, que **sí está versionado**. Se movió a `.env.local` — que está en `.gitignore` — y `.env.example` volvió a una plantilla genérica. No llegó a ningún commit: el contenido commiteado era el genérico. El `BETTER_AUTH_SECRET` faltaba y se generó uno de 48 bytes en `.env.local`.
 
 **La contraseña de la URI quedó enmascarada como `<password>`**, así que la conexión a la cuenta real todavía no se pudo probar.
+
+### L9 — El cluster está detrás de Private Link (2026-10-22)
+
+Diagnóstico del bloqueo de T2:
+
+| Comprobación | Resultado |
+| --- | --- |
+| DNS del cluster | El SRV resuelve a `fc-a1be8b57cee6-000.global.**privatelink**.mongocluster.cosmos.azure.com` |
+| TCP a `20.65.94.153:10260` | Timeout (también 443 y 27017) |
+| Egreso general (github, npm, learn.microsoft, google) | Funciona |
+| Lectura de la URI con la contraseña real | Imposible: la contraseña está enmascarada |
+
+El cluster existe y su DNS es correcto, pero el endpoint se anuncia por el nombre `privatelink` y no acepta conexiones desde esta red. Dos causas candidatas: Private Link con acceso público deshabilitado, o una regla de firewall que no incluye esta IP. Con la contraseña real el handshake fallaría igual por tiempo de espera, no por autenticación.
+
+**Consecuencia de arquitectura que hay que decidir:** si el acceso público del cluster está deshabilitado, **Vercel tampoco va a poder llegar a la base**. El Next.js tendría que correr dentro de la VNet — Azure App Service o Container Apps con integración de red privada — en lugar del pipeline actual de v0 → Vercel. Esto no cambia el diseño de la app: la PWA es offline-first igual, pero cambia dónde vive el servidor.
+
+Pendiente de confirmación: si desde la red del usuario el cluster responde, el problema es solo el firewall de esta red. Si tampoco responde, hay que habilitar acceso público con lista de IPs o desplegar dentro de la VNet.
+
+**Resuelto (2026-10-22).** El usuario pasó la URI de un cluster distinto, `docdb-cluster-20261022-1356`, que resuelve por SRV a `fc-f199b6141d76-000.global.mongocluster.cosmos.azure.com` — **sin** `privatelink` en el nombre. Es un endpoint público: Vercel lo puede alcanzar y no hace falta mover el despliegue dentro de una VNet. La conexión, los índices y la siembra funcionan.
+
+### L10 — T3 completado (2026-10-22)
+
+Entregado:
+
+- `lib/domain/sync.ts` — la lógica de concurrencia, **pura y testeable sin base de datos**: `applyModuleUpdates()` decide por módulo entre `aplicado`, `ignorado` y `conflicto`. Reglas: (a) cada módulo tiene su propia versión, así que dos encuestadores sobre módulos distintos de la misma parcela no colisionan — el requisito de concurrencia de la Fase 3; (b) el cliente declara la versión que leyó (`baseVersion`) y si coincide la escritura se aplica y la versión sube; (c) **un reintento no es un conflicto**: si la versión no coincide pero los datos son idénticos a los guardados, la escritura ya se aplicó y se devuelve `ignorado`; (d) un conflicto real no pisa nada y devuelve el estado actual para resolverlo.
+- `lib/domain/json.ts` — `jsonEquals()`, que es lo que permite distinguir el reintento del conflicto.
+- `lib/domain/parcela.ts` — conversión `lat/lng` ↔ GeoJSON `[lng, lat]`, y cálculo de área y perímetro con la fórmula del trapecio sobre proyección equirectangular.
+- `lib/api/contracts.ts` — contrato de la API: tipos de petición y respuesta más los validadores. Los usa el servidor y los usará el cliente de campo de T5, así que hay una sola definición de qué es una petición válida.
+- `lib/server/repositories/parcelas.ts` y `esquemas.ts` — acceso a las colecciones y validación de los datos de cada módulo contra el esquema publicado.
+- `lib/server/services/parcelas.ts` — servicio de escritura compartido por `POST /api/parcelas` y `POST /api/sync`, para que las reglas no se dupliquen.
+- `lib/server/http.ts` — `apiRoute()` traduce los errores de autenticación a su código HTTP y deja cualquier otro como 500 sin filtrar detalles.
+- `app/api/parcelas/route.ts` — listado con filtros y alta idempotente por el id que genera el cliente.
+- `app/api/parcelas/[id]/route.ts` — lectura, actualización parcial con detección de conflicto y borrado. Un管理员 borra lo que sea; un encuestador solo lo que creó.
+- `app/api/sync/route.ts` — sincronización por lotes de hasta 100 parcelas. Cada parcela se procesa por separado: un error en una no detiene al resto.
+
+Decisiones que conviene que queden escritas:
+
+- **Los campos núcleo son de última escritura gana; los de módulo tienen versión.** Nombre, ubicación y estado son compartidos entre encuestadores y no tienen versión propia. Los datos de cada módulo sí, y ahí es donde se detectan los conflictos.
+- **Un `PATCH` con conflicto devuelve 409 con el estado actual**, pero los módulos que no chocaron ya quedaron aplicados. El cuerpo trae siempre `resultados` y `conflictos` para que la app sepa qué pasó sin adivinar por el código HTTP.
+- **La validación contra el esquema no bloquea si el módulo no tiene esquema publicado.** El administrador puede agregar un módulo a la app antes de publicar su esquema, y frenar la captura en campo por eso sería peor que el dato sin validar.
+
+Evidencia de verificación:
+
+- `pnpm test` → 103 tests, 10 archivos, todo en verde. El conteo por archivo cuadra: 10 + 13 + 17 + 24 + 4 + 6 + 7 + 7 + 7 + 8 = 103.
+- `pnpm typecheck` → limpio.
+- `pnpm build` → compila; aparecen `/api/parcelas`, `/api/parcelas/[id]` y `/api/sync` como rutas dinámicas.
+
+RED observado y corregido:
+
+1. `parseParcelaPatch({ nombre: 'Nuevo nombre' })` falló. El bug era real: `parseCore` validaba los campos del núcleo como obligatorios también en el modo parcial, así que un PATCH de un solo campo se rechazaba por `ubicacion` ausente. Se reescribió `parseCore` para validar solo los campos presentes, y el caso `requireAll` conserva sus defaults (`descripcion` vacío, `estado` pendiente).
+2. `pnpm typecheck` detectó tres errores: `SessionUser` usa `name` y no `nombre`, `ParcelaDoc` no estaba reexportado desde el repositorio, y `useGeoPoint` no era el nombre correcto. Los tres corregidos.
+3. `polygonAreaM2` se validó contra un cuadrado de 0,001° × 0,001° en el ecuador, donde un grado mide exactamente los 111.132,92 m de la fórmula: el área esperada es el producto de los lados y el perímetro, el cuádruplo del lado.
+
+Nota de ruta: T3 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`. La concurrencia y la idempotencia están resueltas en módulos puros con cobertura de tests, y la autorización la aplica `requirePermission` en cada ruta.
+
+Bloqueo conocido: sin acceso de red al cluster no se pudo probar la API contra la base real. La lógica de negocio está cubierta por tests unitarios; el camino de ida y vuelta a Cosmos queda pendiente.
+
+Próximo paso: T4 (shell PWA: manifest, `@serwist/turbopack`, fallback offline, tiles configurables).
 
 ### L11 — Despliegue en Vercel (2026-10-22)
 
@@ -398,6 +577,51 @@ Nota de ruta: T5 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`.
 Bloqueo conocido: la cola y el motor están probados con `fake-indexeddb` y un `fetch` simulado, pero no se pudo probar contra el cluster real — sigue el bloqueo de red de L9.
 
 Próximo paso: T6 (schema builder en el admin + formulario renderizado desde el esquema, que es el que reemplaza al formulario hardcodeado).
+
+### L15 — Verificación de ida y vuelta contra el cluster real (2026-10-22)
+
+Se agregó `pnpm verify` (`scripts/verify.ts`), una prueba que ejercita el backend real de punta a punta. Contra el cluster:
+
+```
+Esquemas
+  ✓ los tres módulos están publicados
+  ✓ cada módulo tiene sus campos
+Administrador
+  ✓ existe al menos un administrador
+  ✓ tiene rol admin
+  ✓ el admin tiene email
+Autenticación
+  ✓ la instancia de Better Auth está construida
+Escritura de parcela
+  ✓ la parcela se crea
+  ✓ el módulo queda en versión 1
+  ✓ se puede leer del cluster
+  ✓ guarda la ubicación
+  ✓ guarda el dato del módulo
+  ✓ guarda la autoría
+Idempotencia
+  ✓ reenviar lo mismo no lo duplica
+  ✓ la versión no se mueve
+Concurrencia
+  ✓ la primera edición se aplica
+  ✓ la versión sube a 2
+  ✓ una edición con versión vieja entra en conflicto
+  ✓ el conflicto trae el detalle
+  ✓ un módulo distinto no colisiona
+  ✓ el módulo nuevo queda en versión 1
+Limpieza
+  ✓ la parcela de prueba se borró
+```
+
+Esto cierra los bloqueos que arrastraban desde T2: la creación de la cuenta de Cosmos, los índices, la siembra, el alta del administrador y las dos propiedades que el plan pedía y que no se podían probar sin base de datos — la **idempotencia** y la **concurrencia por módulo**.
+
+**Bug encontrado por la verificación.** El seeder informaba "Administrador: creado" y el usuario se quedaba con el rol `encuestador`. Causa: el driver de MongoDB guarda el `_id` del usuario como `ObjectId`, pero Better Auth devuelve el id como string hexadecimal, así que el `updateOne({ _id })` no casaba con nada y **se iba en silencio**. El update ahora va por email, que es único y estable, y comprueba que `matchedCount` no sea cero: un update que no aplica nada tiene que dar error, no pasar inadvertido.
+
+### L16 — Credenciales
+
+La URI con la contraseña real se escribió en **`.env.local`**, no en `.env`. Motivo: `.env` no estaba en `.gitignore` —solo lo estaba `.env*.local`— así que escribir ahí las credenciales las exponía al próximo `git add -A`. El `.gitignore` ahora ignora `.env` y `.env.*` con la excepción explícita de `!.env.example`.
+
+El valor de la URI va entrecomillado en el archivo porque el parser de `.env` de Node corta en el primer `#` y el shell expande el `$` de la contraseña si el archivo se sourcea. La contraseña contiene un `$` y llega intacta: verificado.
 
 ### L17 — T6 completado (2026-10-24)
 
@@ -702,7 +926,7 @@ El pico estimado es de **70 RU/s** contra un techo de 1000 RU/s: el margen es am
 
 **La estimación de RU de lectura estaba mal y se corrigió durante la medición.** Un `find` que devuelve 300 documentos no cuesta 1 RU por documento: se factura por los datos devueltos, unos 15 RU en total. Contarlo documento por documento multiplicaba el costo por veinte y daba un pico que rozaba el techo del free tier sin que el cluster lo estuviera sintiendo. Recién con la cifra correcta se puede afirmar que el presupuesto aguanta.
 
-### L28 — T12 completado (2026-10-24)
+### L27 — T12 completado (2026-10-24)
 
 Cierra S22 y S23.
 
@@ -728,7 +952,7 @@ Evidencia de verificación:
 
 RED observado y corregido: el build falló con `window is not defined` al prerenderizar la raíz. `leaflet` toca `window` al importarse, así que cualquier componente que lo importe tiene que cargarse con `dynamic(ssr: false)` — el mismo criterio que el editor de polígono. Antes de eso, el primer fallo fue `LayersControl` sin capas base.
 
-### L30 — Verificación de "¿está todo listo?" (2026-10-24)
+### L28 — Verificación de "¿está todo listo?" (2026-10-24)
 
 Ante la pregunta del usuario se hizo lo que no se había hecho: **levantar el servidor y usarlo**.
 
@@ -743,7 +967,7 @@ El lint encontró problemas reales: **seis `setState` síncronos dentro de efect
 También se agregaron `noUnusedLocals` y `noUnusedParameters` al tsconfig —el equivalente de TypeScript a las reglas de variables sin usar— y `pnpm smoke`, que comprueba contra una instancia en marcha: rutas, APIs con y sin sesión, los cuatro formatos de export y el login contra la base real. 26 verificaciones.
 
 **Respuesta a la pregunta:** el código está listo; el despliegue no. Nada de esto está en `main`, así que Vercel no lo ha desplegado. Faltan las variables de entorno en Vercel, la pirámide de tiles renderizada y subida, y rotar las contraseñas de mockup.
-
+### L29 — Estado final
 **Las 15 tareas del plan están completas.** Las cuatro fases funcionales —1, 2, 3 y 4— y el cierre de la quinta están terminados.
 
 Lo que queda fuera del código y depende de operaciones:
@@ -752,228 +976,3 @@ Lo que queda fuera del código y depende de operaciones:
 - Configurar las variables de entorno en Vercel.
 - Conseguir el convenio de uso de la ortofoto municipal, si se va a superponer.
 - En iOS, el equipo de campo tiene que agregar la PWA a la pantalla de inicio: sin eso no hay service worker ni mapa sin conexión.
-
-### L9 — El cluster está detrás de Private Link (2026-10-22)
-
-Diagnóstico del bloqueo de T2:
-
-| Comprobación | Resultado |
-| --- | --- |
-| DNS del cluster | El SRV resuelve a `fc-a1be8b57cee6-000.global.**privatelink**.mongocluster.cosmos.azure.com` |
-| TCP a `20.65.94.153:10260` | Timeout (también 443 y 27017) |
-| Egreso general (github, npm, learn.microsoft, google) | Funciona |
-| Lectura de la URI con la contraseña real | Imposible: la contraseña está enmascarada |
-
-El cluster existe y su DNS es correcto, pero el endpoint se anuncia por el nombre `privatelink` y no acepta conexiones desde esta red. Dos causas candidatas: Private Link con acceso público deshabilitado, o una regla de firewall que no incluye esta IP. Con la contraseña real el handshake fallaría igual por tiempo de espera, no por autenticación.
-
-**Consecuencia de arquitectura que hay que decidir:** si el acceso público del cluster está deshabilitado, **Vercel tampoco va a poder llegar a la base**. El Next.js tendría que correr dentro de la VNet — Azure App Service o Container Apps con integración de red privada — en lugar del pipeline actual de v0 → Vercel. Esto no cambia el diseño de la app: la PWA es offline-first igual, pero cambia dónde vive el servidor.
-
-Pendiente de confirmación: si desde la red del usuario el cluster responde, el problema es solo el firewall de esta red. Si tampoco responde, hay que habilitar acceso público con lista de IPs o desplegar dentro de la VNet.
-
-**Resuelto (2026-10-22).** El usuario pasó la URI de un cluster distinto, `docdb-cluster-20261022-1356`, que resuelve por SRV a `fc-f199b6141d76-000.global.mongocluster.cosmos.azure.com` — **sin** `privatelink` en el nombre. Es un endpoint público: Vercel lo puede alcanzar y no hace falta mover el despliegue dentro de una VNet. La conexión, los índices y la siembra funcionan.
-
-### L15 — Verificación de ida y vuelta contra el cluster real (2026-10-22)
-
-Se agregó `pnpm verify` (`scripts/verify.ts`), una prueba que ejercita el backend real de punta a punta. Contra el cluster:
-
-```
-Esquemas
-  ✓ los tres módulos están publicados
-  ✓ cada módulo tiene sus campos
-Administrador
-  ✓ existe al menos un administrador
-  ✓ tiene rol admin
-  ✓ el admin tiene email
-Autenticación
-  ✓ la instancia de Better Auth está construida
-Escritura de parcela
-  ✓ la parcela se crea
-  ✓ el módulo queda en versión 1
-  ✓ se puede leer del cluster
-  ✓ guarda la ubicación
-  ✓ guarda el dato del módulo
-  ✓ guarda la autoría
-Idempotencia
-  ✓ reenviar lo mismo no lo duplica
-  ✓ la versión no se mueve
-Concurrencia
-  ✓ la primera edición se aplica
-  ✓ la versión sube a 2
-  ✓ una edición con versión vieja entra en conflicto
-  ✓ el conflicto trae el detalle
-  ✓ un módulo distinto no colisiona
-  ✓ el módulo nuevo queda en versión 1
-Limpieza
-  ✓ la parcela de prueba se borró
-```
-
-Esto cierra los bloqueos que arrastraban desde T2: la creación de la cuenta de Cosmos, los índices, la siembra, el alta del administrador y las dos propiedades que el plan pedía y que no se podían probar sin base de datos — la **idempotencia** y la **concurrencia por módulo**.
-
-**Bug encontrado por la verificación.** El seeder informaba "Administrador: creado" y el usuario se quedaba con el rol `encuestador`. Causa: el driver de MongoDB guarda el `_id` del usuario como `ObjectId`, pero Better Auth devuelve el id como string hexadecimal, así que el `updateOne({ _id })` no casaba con nada y **se iba en silencio**. El update ahora va por email, que es único y estable, y comprueba que `matchedCount` no sea cero: un update que no aplica nada tiene que dar error, no pasar inadvertido.
-
-### L16 — Credenciales
-
-La URI con la contraseña real se escribió en **`.env.local`**, no en `.env`. Motivo: `.env` no estaba en `.gitignore` —solo lo estaba `.env*.local`— así que escribir ahí las credenciales las exponía al próximo `git add -A`. El `.gitignore` ahora ignora `.env` y `.env.*` con la excepción explícita de `!.env.example`.
-
-El valor de la URI va entrecomillado en el archivo porque el parser de `.env` de Node corta en el primer `#` y el shell expande el `$` de la contraseña si el archivo se sourcea. La contraseña contiene un `$` y llega intacta: verificado.
-
-### L10 — T3 completado (2026-10-22)
-
-Entregado:
-
-- `lib/domain/sync.ts` — la lógica de concurrencia, **pura y testeable sin base de datos**: `applyModuleUpdates()` decide por módulo entre `aplicado`, `ignorado` y `conflicto`. Reglas: (a) cada módulo tiene su propia versión, así que dos encuestadores sobre módulos distintos de la misma parcela no colisionan — el requisito de concurrencia de la Fase 3; (b) el cliente declara la versión que leyó (`baseVersion`) y si coincide la escritura se aplica y la versión sube; (c) **un reintento no es un conflicto**: si la versión no coincide pero los datos son idénticos a los guardados, la escritura ya se aplicó y se devuelve `ignorado`; (d) un conflicto real no pisa nada y devuelve el estado actual para resolverlo.
-- `lib/domain/json.ts` — `jsonEquals()`, que es lo que permite distinguir el reintento del conflicto.
-- `lib/domain/parcela.ts` — conversión `lat/lng` ↔ GeoJSON `[lng, lat]`, y cálculo de área y perímetro con la fórmula del trapecio sobre proyección equirectangular.
-- `lib/api/contracts.ts` — contrato de la API: tipos de petición y respuesta más los validadores. Los usa el servidor y los usará el cliente de campo de T5, así que hay una sola definición de qué es una petición válida.
-- `lib/server/repositories/parcelas.ts` y `esquemas.ts` — acceso a las colecciones y validación de los datos de cada módulo contra el esquema publicado.
-- `lib/server/services/parcelas.ts` — servicio de escritura compartido por `POST /api/parcelas` y `POST /api/sync`, para que las reglas no se dupliquen.
-- `lib/server/http.ts` — `apiRoute()` traduce los errores de autenticación a su código HTTP y deja cualquier otro como 500 sin filtrar detalles.
-- `app/api/parcelas/route.ts` — listado con filtros y alta idempotente por el id que genera el cliente.
-- `app/api/parcelas/[id]/route.ts` — lectura, actualización parcial con detección de conflicto y borrado. Un管理员 borra lo que sea; un encuestador solo lo que creó.
-- `app/api/sync/route.ts` — sincronización por lotes de hasta 100 parcelas. Cada parcela se procesa por separado: un error en una no detiene al resto.
-
-Decisiones que conviene que queden escritas:
-
-- **Los campos núcleo son de última escritura gana; los de módulo tienen versión.** Nombre, ubicación y estado son compartidos entre encuestadores y no tienen versión propia. Los datos de cada módulo sí, y ahí es donde se detectan los conflictos.
-- **Un `PATCH` con conflicto devuelve 409 con el estado actual**, pero los módulos que no chocaron ya quedaron aplicados. El cuerpo trae siempre `resultados` y `conflictos` para que la app sepa qué pasó sin adivinar por el código HTTP.
-- **La validación contra el esquema no bloquea si el módulo no tiene esquema publicado.** El administrador puede agregar un módulo a la app antes de publicar su esquema, y frenar la captura en campo por eso sería peor que el dato sin validar.
-
-Evidencia de verificación:
-
-- `pnpm test` → 103 tests, 10 archivos, todo en verde. El conteo por archivo cuadra: 10 + 13 + 17 + 24 + 4 + 6 + 7 + 7 + 7 + 8 = 103.
-- `pnpm typecheck` → limpio.
-- `pnpm build` → compila; aparecen `/api/parcelas`, `/api/parcelas/[id]` y `/api/sync` como rutas dinámicas.
-
-RED observado y corregido:
-
-1. `parseParcelaPatch({ nombre: 'Nuevo nombre' })` falló. El bug era real: `parseCore` validaba los campos del núcleo como obligatorios también en el modo parcial, así que un PATCH de un solo campo se rechazaba por `ubicacion` ausente. Se reescribió `parseCore` para validar solo los campos presentes, y el caso `requireAll` conserva sus defaults (`descripcion` vacío, `estado` pendiente).
-2. `pnpm typecheck` detectó tres errores: `SessionUser` usa `name` y no `nombre`, `ParcelaDoc` no estaba reexportado desde el repositorio, y `useGeoPoint` no era el nombre correcto. Los tres corregidos.
-3. `polygonAreaM2` se validó contra un cuadrado de 0,001° × 0,001° en el ecuador, donde un grado mide exactamente los 111.132,92 m de la fórmula: el área esperada es el producto de los lados y el perímetro, el cuádruplo del lado.
-
-Nota de ruta: T3 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`. La concurrencia y la idempotencia están resueltas en módulos puros con cobertura de tests, y la autorización la aplica `requirePermission` en cada ruta.
-
-Bloqueo conocido: sin acceso de red al cluster no se pudo probar la API contra la base real. La lógica de negocio está cubierta por tests unitarios; el camino de ida y vuelta a Cosmos queda pendiente.
-
-Próximo paso: T4 (shell PWA: manifest, `@serwist/turbopack`, fallback offline, tiles configurables).
-
-### L4 — Evidencia verificada (2026-10-21)
-
-- Estado del repo: Next.js 16.3.1, React 19.2.8, TS 7.0.2, Tailwind v4, Leaflet 1.9.4 + react-leaflet 5, Dexie 4.4.5. Sin `app/api`, sin `fetch`, sin auth, sin variables de entorno. 3.899 LOC, sin tests, `next.config.mjs` con `typescript.ignoreBuildErrors: true`.
-- `lib/db.ts`: Dexie `geopin`, una tabla `pins`.
-- `lib/types.ts` / `lib/urban-options.ts`: modelo plano y fijo (11 campos + 4 listas cerradas); `lib/categories.ts`: 9 categorías fijas con normalización de legado.
-- `lib/dashboard-analytics.ts`: funciones puras sobre `Pin[]` → reusables contra resultados de API sin cambios.
-- `lib/export.ts`: exporta JSON/CSV/Excel; no importa.
-- `components/MapView.tsx`: `getCurrentPosition` de un solo disparo, sin `watchPosition`, sin leer `coords.accuracy`.
-- Azure Cosmos DB free tier (Microsoft Learn, doc 2025-06-24): **1000 RU/s y 25 GB**, se habilita al crear la cuenta, máximo 25 containers, sin serverless.
-- Cosmos DB for MongoDB: `2dsphere` sí; `$geoWithin`/`$geoIntersects`/`$near`/`$nearSphere` sí; `$center`/`$centerSphere`/`$box`/`$polygon` no; `text`/`$where`/`jsonSchema` no. El spatial index de Cosmos no equivale al motor `2dsphere` de MongoDB real, ni usando la API Mongo.
-- Cosmos DB for NoSQL: GeoJSON con spatial index por defecto, `ST_DISTANCE`/`ST_WITHIN`/`ST_INTERSECTS`; no `MultiPoint`.
-- Ninguna opción Cosmos da PostGIS: `ST_BUFFER`, `ST_UNION` y `ST_AREA` confiable no existen. El buffer de 2 m y los cálculos geométricos van en la aplicación.
-- Next.js 16: Turbopack es el bundler por defecto para dev y build; `next build --webpack` es el opt-out.
-- Serwist: `@serwist/next` 9.5.13 (webpack, peer `next >= 14`) y `@serwist/turbopack` (serwist 10+, Next ≥ 15).
-- Better Auth 1.7.12: `toNextJsHandler` para route handlers de Next.js, `mongodbAdapter` de `better-auth/adapters/mongodb`, y cliente Expo oficial (`@better-auth/expo/client` + `expo-secure-store`).
-
-### L5 — Análisis de brechas por fase del plan (2026-10-21)
-
-- **Fase 1**: el almacenamiento local ya existe (IndexedDB/Dexie) pero sin cola de sync, sin backend, sin service worker, sin precarga de tiles, sin filtro de precisión, sin indicador de exactitud, sin reconexión automática. Brecha: media-alta.
-- **Fase 2**: falta todo lo geométrico; el formulario existe pero es un scroll largo sin pestañas; faltan los servicios de acueducto/cloacas/electricidad/vialidad/telecom/aseo; la entrada flexible y las textareas ya están. Brecha: alta.
-- **Fase 3**: sin backend no hay módulos, ni schema builder, ni concurrencia. Brecha: total.
-- **Fase 4**: sin import, sin dedup, sin UI de conflictos, sin mapa ni heatmap en el dashboard, sin GeoJSON/Shapefile. Brecha: total.
-- **Fase 5**: sin fotos (descartado por S25), sin blob, sin WMS/WMTS; la atribución de OSM ya está. Brecha: alta.
-
-### L6 — Progreso
-
-**T1 completado (2026-10-21).**
-
-Entregado:
-
-- `lib/domain/types.ts` — modelo de dominio v2. `Parcela` con `ubicacion`/`geometria` en GeoJSON, `modulos: Record<string, ParcelaModuloData>` (datos por módulo con su propia versión y autoría), `version` global, `estado`, `levantamientoId`. `ModuleSchema` + `FieldDef` con los seis tipos del administrador de esquemas.
-- `lib/domain/schema.ts` — validación pura por tipo de campo, `validateModuleData` que devuelve todos los errores, `coerceFieldValue` que normaliza la entrada cruda del formulario (incluye coma decimal).
-- `lib/domain/seed.ts` — esquemas semilla de los tres módulos. Las opciones de edificación **se reutilizan de `lib/urban-options.ts`**, que queda como fuente de verdad única de las listas.
-- `lib/server/env.ts` — validación de entorno con mensajes accionables y sin filtrar secretos. Rechaza `retryWrites=true` (Cosmos no lo soporta) y `BETTER_AUTH_URL` con barra final.
-- `lib/server/cosmos.ts` — cliente `mongodb` cacheado en `globalThis` para sobrevivir al hot reload de Next.js.
-- `lib/server/collections.ts` — colecciones, tipos de documento y bootstrap de índices: `ubicacion` 2dsphere, `codigo` unique sparse, `estado`, `levantamiento`, `creadoEn`.
-- `vitest.config.mts` + `pnpm test` / `pnpm typecheck`. **El proyecto no tenía ningún runner de tests**; se agrega Vitest.
-
-Evidencia de verificación:
-
-- `pnpm test` → 31 tests, 3 archivos, todo en verde.
-- `pnpm typecheck` → limpio.
-- `pnpm build` → compila, 3 rutas prerenderizadas. La app existente no se rompió.
-
-RED observado y corregido:
-
-1. `lib/server/env.test.ts` falló al exigir `/barra final/i` en un mensaje que decía `no debe terminar en "/"`. El comportamiento era correcto; la aserción estaba atada a una redacción que no existía. Se cambió la aserción para que verifique el contrato (rechaza la URL y nombra la variable) en vez del texto.
-2. `pnpm typecheck` detectó tres errores que el build no reportaba porque `next.config.mjs` tiene `typescript.ignoreBuildErrors: true`: un typo en el nombre de la constante de colección (`COLLECTION_PARCELLAS`) y la incompatibilidad de `NodeJS.ProcessEnv` con `NODE_ENV` obligatorio en `@types/node` v26. Se corrigieron los tres. **Esto confirma que el flag actual oculta errores de tipos reales** — quitarlo es parte de T13.
-
-Excepción declarada al RED→GREEN: los módulos de T1 son nuevos, no hay comportamiento previo que pueda romperse, así que el test se escribió junto a la implementación en vez de observar RED contra código existente. El RED→GREEN estricto y el chequeo diferencial aplican desde T2 en adelante, donde se toca comportamiento existente.
-
-Nota de ruta: T1 no nombra ningún ítem de alto riesgo. `Risk: none`.
-
-**T2 completado (2026-10-21).**
-
-Confirmación del usuario (2026-10-21): *"es cierto, sólo se usa la ubicación con la app abierta"* → el supuesto de S27/L3 queda confirmado y la recomendación de PWA no se revisa.
-
-Entregado:
-
-- `lib/auth/roles.ts` — roles `encuestador` y `admin`, nueve permisos y mapa rol→permisos. `normalizeRole` cae en `encuestador` ante un valor desconocido: la dirección del fallback es lo que importa, un rol corrupto nunca escala a administrador.
-- `lib/server/auth.ts` — instancia de Better Auth sobre Cosmos DB for MongoDB, creada de forma perezosa para que importar el módulo no exija entorno configurado. `role` con `input: false` para que nadie se registre como admin.
-- `lib/server/session.ts` — `getSessionUser`, `requireSessionUser`, `requirePermission` y traducción de errores a respuesta HTTP. Reciben las cabeceras explícitamente para no atarlos al App Router.
-- `app/api/auth/[...all]/route.ts` — rutas de Better Auth con `dynamic = 'force-dynamic'`.
-- `lib/auth-client.ts` — cliente de navegador con `inferAdditionalFields<AuthInstance>()` para que `session.user.role` esté tipado sin duplicar la definición del rol.
-- `scripts/create-admin.ts` + `pnpm auth:create-admin` — alta y promoción de administradores, escribiendo el rol directo en la colección `user` porque `input: false` bloquea el signup.
-- `.env.example` — variables de entorno documentadas, incluida la nota de que el free tier se pide al crear la cuenta.
-
-Decisiones técnicas tomadas en T2:
-
-- **`transaction: false` en el adaptador de MongoDB.** Better Auth activa transacciones por defecto cuando recibe el cliente, y en Cosmos solo son válidas dentro de una misma partición: `user` y `session` viven en particiones distintas, así que cada registro fallaría. Sin este flag, el primer usuario en registrarse rompe.
-- **Sesión de 7 días** con refresco diario: un levantador puede pasar varios días sin abrir la app.
-- **Sin middleware de Next.js.** El middleware corre en Edge y no puede hablar con el driver de Mongo; la verificación de sesión va en la página o en el route handler, que es donde Better Auth la recomienda con adaptador de base de datos.
-
-Evidencia de verificación:
-
-- `pnpm test` → 49 tests, 6 archivos, todo en verde.
-- `pnpm typecheck` → limpio.
-- `pnpm build` → compila; `/api/auth/[...all]` aparece como ruta dinámica y las otras tres siguen prerenderizadas.
-
-RED observado y corregido:
-
-1. `lib/auth/roles.test.ts` falló al afirmar que un rol desconocido no concede ningún permiso. La implementación era la correcta y el test estaba mal: la política de mínimo privilegio significa caer en `encuestador`, no en cero permisos. Se reescribió la aserción para fijar la propiedad de seguridad real — un rol desconocido nunca escala a admin — y se agregó un caso para variantes de mayúsculas y espacios (`'Admin'`, `' admin'`), que tampoco deben escalar.
-2. `pnpm typecheck` detectó tres errores de tipos en T2: la anotación de retorno de `createAuth` creaba una referencia circular de tipo, `session.user.role` no existía porque `AuthInstance` estaba tipado con el genérico por defecto de `betterAuth()` en vez del tipo concreto de la instancia, y la colección `user` del script asumía `_id` como `ObjectId` cuando Better Auth lo guarda como string. Los tres corregidos.
-
-Desviación registrada: para resolver el segundo error hubo que exponer el tipo concreto de la instancia (`AuthInstance`) y usar `inferAdditionalFields` en el cliente. Eso arrastra la configuración del servidor al tipado del cliente — sin valores de entorno, solo tipos — y es el mecanismo que la propia documentación de Better Auth prescribe para proyectos de un solo repositorio.
-
-Nota de ruta: T2 toca credenciales y guards de autorización. `Risk: item 2 (security: auth, permisos y credenciales)`. La mitigación es el `input: false` sobre el rol, la validación de entorno que rechaza secretos cortos y la suite de roles; los checks de T2 son los 49 tests más el typecheck y el build.
-
-Bloqueo conocido: T2 no se pudo probar contra una cuenta real de Cosmos porque no hay credenciales en este entorno. El smoke test `lib/server/auth.test.ts` valida que la configuración se construye sin tocar la red, pero el primer `pnpm auth:create-admin` contra la cuenta real es la prueba pendiente.
-
-Próximo paso: T3 (API de parcelas: CRUD, `version` por módulo, idempotencia de sync).
-
-**T2bis completado (2026-10-21), commit `a8f749d`.** Ajustes pedidos por el usuario tras la T2.
-
-Entregado:
-
-- `lib/server/bootstrap.ts` — siembra única: `seedSchemas()` crea los esquemas que faltan, actualiza los que siguen siendo del seed y **preserva los que un administrador ya editó**; `ensureAdmin()` crea o promueve el administrador. `seed()` orquesta ambas cosas y omite el admin si no hay credenciales.
-- `scripts/seed.ts` + `pnpm seed` — siembra desde el entorno. `ADMIN_PASSWORD` va por variable de entorno y no por argumento: los argumentos quedan en el historial del shell y en la lista de procesos.
-- `scripts/ensure-indexes.ts` + `pnpm db:indexes` — bootstrap de índices fuera del arranque de la app.
-- `lib/server/collections.ts` — `ensureIndexes()` ahora crea cada índice por separado y **devuelve los fallos en lugar de lanzar**. Hay dos motores distintos detrás del nombre "Cosmos DB for MongoDB" con capacidades de índice diferentes (la API RU no admite `sparse`, vCore sí): un índice no soportado no puede tumbar el resto.
-- Se eliminó `scripts/create-admin.ts`: queda un solo camino para crear administradores.
-- `.env.example` — variables del cluster vCore con sus tres restricciones y las del administrador inicial.
-
-Corrección de seguridad: la URI real se había pegado en `.env.example`, que está versionado. Se movió a `.env.local` (ignorado por git) antes de que llegara a un commit, y `.env.example` volvió a ser genérico.
-
-Invariante de rol reforzado con dos tests que fallan si alguien toca la configuración: `auth.options.user.additionalFields.role.input` tiene que ser `false`, y su `defaultValue` tiene que ser `encuestador`. El primero es el que importa — con `input: true`, cualquiera que se registrara con `role: "admin"` en el body se quedaría como administrador.
-
-Evidencia de verificación:
-
-- `pnpm test` → 54 tests, 6 archivos, todo en verde.
-- `pnpm typecheck` → limpio.
-- `pnpm build` → compila.
-
-Error propio detectado y corregido: al agregar el bloque de tests del rol por defecto, sobrescribí `lib/auth/roles.test.ts` completo y perdí los 10 tests que ya existían. Lo detectó la caída del conteo global (49 → 44). Se restauró el archivo con los 13 tests y el conteo volvió a cuadrar. Lalesson: contar los tests por archivo, no solo mirar que la suite pase.
-
-Nota de ruta: T2bis no nombra ningún ítem de alto riesgo nuevo. `Risk: item 2 (security: credenciales movidas a un archivo ignorado por git y credenciales de administrador por entorno)`.
-
-Bloqueo conocido sin cambios: la contraseña de la URI está enmascarada como `<password>`, así que la conexión a la cuenta real sigue sin probarse. Con la contraseña real en `.env.local`, `pnpm db:indexes` y `pnpm seed` cierran el bloqueo.
-
-Próximo paso: T3 (API de parcelas: CRUD, `version` por módulo, idempotencia de sync).
-
