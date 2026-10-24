@@ -135,11 +135,13 @@ function GPSDetector({ onPositionChange, onGPSStatus }: GPSDetectorProps) {
 
 interface MapClickHandlerProps {
   onPositionChange: (lat: number, lng: number) => void
+  enabled: boolean
 }
 
-function MapClickHandler({ onPositionChange }: MapClickHandlerProps) {
+function MapClickHandler({ onPositionChange, enabled }: MapClickHandlerProps) {
   useMapEvents({
     click(e) {
+      if (!enabled) return
       onPositionChange(e.latlng.lat, e.latlng.lng)
     },
   })
@@ -257,6 +259,14 @@ export interface MapViewProps {
   onGPSStatus: (status: 'searching' | 'found' | 'error' | 'denied') => void
   onDeletePin: (id: string) => void
   onEditPin: (pin: Pin) => void
+  /**
+   * Si es `false`, un clic en el mapa no mueve el pin. Se usa mientras se
+   * traza el polígono de la parcela: cada toque tiene que agregar un vértice,
+   * no reubicar el marcador.
+   */
+  clickToPosition?: boolean
+  /** Capas y controles que se dibujan dentro del mapa. */
+  children?: React.ReactNode
 }
 
 export default function MapView({
@@ -268,6 +278,8 @@ export default function MapView({
   onGPSStatus,
   onDeletePin,
   onEditPin,
+  clickToPosition = true,
+  children,
 }: MapViewProps) {
   const hasValidPosition = lat !== 0 || lng !== 0
 
@@ -307,8 +319,9 @@ export default function MapView({
       </LayersControl>
 
       <GPSDetector onPositionChange={onPositionChange} onGPSStatus={onGPSStatus} />
-      <MapClickHandler onPositionChange={onPositionChange} />
+      <MapClickHandler onPositionChange={onPositionChange} enabled={clickToPosition} />
       <MapActionControls onPositionChange={onPositionChange} onGPSStatus={onGPSStatus} />
+      {children}
 
       {/* Active / draggable marker */}
       {hasValidPosition && (

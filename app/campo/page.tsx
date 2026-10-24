@@ -5,20 +5,21 @@ import dynamic from 'next/dynamic'
 import type { ParcelaCreateRequest } from '@/lib/api/contracts'
 import type { MapViewProps } from '@/components/MapView'
 import FormularioParcela from '@/components/field/FormularioParcela'
+import GeometriaPanel from '@/components/field/GeometriaPanel'
 import SyncStatus from '@/components/field/SyncStatus'
 import { useSync } from '@/components/field/SyncProvider'
 import { useSchemas } from '@/lib/field/use-schemas'
+import { usePoligono } from '@/lib/field/use-poligono'
 
 /**
  * Página de campo v2.
  *
- * Sustituye al formulario hardcodeado: los campos salen del esquema
- * publicado, cada módulo es una pestaña, y al guardar la parcela entra en la
- * cola local en vez de esperar a la red. La sincronización la dispara el
- * SyncProvider.
+ * Los campos salen del esquema publicado, la geometría se traza sobre el
+ * mapa y al guardar la parcela entra en la cola local en vez de esperar a la
+ * red.
  *
- * La posición se toma del mismo `MapView` que usa el prototipo: el mapa no
- * cambia, lo que cambia es de dónde salen los campos.
+ * El estado del polígono vive acá y no dentro del formulario porque lo
+ * comparten los dos lados: el panel de geometría y el propio mapa.
  */
 
 const MapView = dynamic<MapViewProps>(() => import('@/components/MapView'), {
@@ -30,22 +31,37 @@ const MapView = dynamic<MapViewProps>(() => import('@/components/MapView'), {
   ),
 })
 
+/**
+ * El editor de polígono también se carga solo en el cliente: usa Leaflet y no
+ * puede evaluarse durante el prerender del servidor.
+ */
+const PolygonEditor = dynamic(() => import('@/components/field/PolygonEditor'), {
+  ssr: false,
+})
+
 export default function CampoPage() {
   const { esquemas, cargando, desdeCache, error, recargar } = useSchemas()
   const { encolar } = useSync()
+  const poligono = usePoligono()
 
   const [ubicacion, setUbicacion] = useState({ lat: 10.4806, lng: -66.9036 })
   const [gps, setGps] = useState<{ fuente: 'sensor' | 'manual'; precision?: number }>({
     fuente: 'manual',
   })
 
+  const trazando = poligono.modo === 'trazando'
+
   async function onGuardar(payload: ParcelaCreateRequest) {
     await encolar(payload)
+    poligono.limpiar()
   }
 
   return (
     <main className="h-screen flex flex-col overflow-hidden bg-slate-50">
-      <header className="flex flex-wrap items-center gap-3 px-3 py-3 shadow-sm z-20 shrink-0 sm:px-5" style={{ background: '#1e3a5f' }}>
+      <header
+        className="flex flex-wrap items-center gap-3 px-3 py-3 shadow-sm z-20 shrink-0 sm:px-5"
+        style={{ background: '#1e3a5f' }}
+      >
         <div>
           <h1 className="font-bold text-base leading-none text-white tracking-tight">GeoPin</h1>
           <p className="hidden text-xs leading-none mt-0.5 sm:block" style={{ color: '#93c5fd' }}>
@@ -59,11 +75,14 @@ export default function CampoPage() {
       </header>
 
       <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
-        <aside className="w-full md:w-[400px] shrink-0 overflow-y-auto p-4" style={{ borderRight: '1px solid #e2e8f0' }}>
+        <aside
+          className="w-full md:w-[400px] shrink-0 overflow-y-auto p-4 space-y-4"
+          style={{ borderRight: '1px solid #e2e8f0' }}
+        >
           {cargando && <p className="text-sm text-slate-500">Cargando formulario…</p>}
 
           {!cargando && (desdeCache || error) && (
-            <div className="mb-3 rounded-md px-3 py-2 text-xs" style={{ background: '#fef3c7', color: '#92400e' }}>
+            <div className="rounded-md px-3 py-2 text-xs" style={{ background: '#fef3c7', color: '#92400e' }}>
               <p>{error}</p>
               <button type="button" onClick={recargar} className="mt-1 font-semibold underline">
                 Reintentar
@@ -71,11 +90,16 @@ export default function CampoPage() {
             </div>
           )}
 
+          <GeometriaPanel poligono={poligono} deshabilitado={cargando} />
+
           {!cargando && (
             <FormularioParcela
               esquemas={esquemas}
               ubicacion={ubicacion}
               gps={gps}
+              geometria={poligono.geometria}
+              areaM2={poligono.areaEfectiva}
+              perimetroM={poligono.perimetroGeometria}
               onGuardar={onGuardar}
             />
           )}
@@ -87,6 +111,9 @@ export default function CampoPage() {
             lng={ubicacion.lng}
             categoria="vivienda"
             savedPins={[]}
+            // Mientras se traza, cada toque agrega un vértice en vez de
+            // mover el pin.
+            clickToPosition={!trazando}
             onPositionChange={(lat, lng) => {
               setUbicacion({ lat, lng })
               setGps((previo) => ({ ...previo, fuente: 'manual' }))
@@ -96,7 +123,16 @@ export default function CampoPage() {
             }}
             onDeletePin={() => {}}
             onEditPin={() => {}}
-          />
+          >
+            <PolygonEditor
+              draft={poligono.draft}
+              geometria={poligono.geometria}
+              trazando={trazando}
+              onAgregar={poligono.agregar}
+              onMover={poligono.mover}
+              onQuitar={poligono.quitar}
+            />
+          </MapView>
         </div>
       </div>
     </main>

@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import type { ParcelaCreateRequest } from '@/lib/api/contracts'
 import { validateModuleData } from '@/lib/domain/schema'
-import type { FieldDef, FieldError, ModuleSchema } from '@/lib/domain/types'
+import type { FieldDef, FieldError, GeoPolygon, ModuleSchema } from '@/lib/domain/types'
 
 /**
  * Formulario de parcela renderizado desde el esquema publicado.
@@ -26,6 +26,11 @@ export interface FormularioParcelaProps {
   gps: { fuente: 'sensor' | 'manual'; precision?: number }
   /** Versión que el servidor tiene de cada módulo. `0` para una parcela nueva. */
   versiones?: Record<string, number>
+  /** Polígono ya cerrado, si el levantador lo trazó. */
+  geometria?: GeoPolygon | null
+  /** Área efectiva: la del polígono o la escrita a mano. */
+  areaM2?: number
+  perimetroM?: number
   onGuardar: (payload: ParcelaCreateRequest) => Promise<void>
 }
 
@@ -37,6 +42,9 @@ export default function FormularioParcela({
   ubicacion,
   gps,
   versiones = {},
+  geometria,
+  areaM2,
+  perimetroM,
   onGuardar,
 }: FormularioParcelaProps) {
   const [nombre, setNombre] = useState('')
@@ -112,6 +120,11 @@ export default function FormularioParcela({
         ubicacion,
         gps,
         estado: 'pendiente',
+        // La geometría va con la parcela, no con un módulo: es la misma
+        // parcela la que tiene contorno, más allá de qué se levantó de ella.
+        geometria: geometria ?? undefined,
+        areaM2,
+        perimetroM,
         modulos,
       }
 

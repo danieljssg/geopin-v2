@@ -267,7 +267,7 @@ El plan original pone el formulario (Fase 2) antes del schema builder (Fase 3). 
 | T4 | Shell PWA: manifest, Serwist/Turbopack, fallback offline, cache de teselas | S7, S22, S27 | inline | completado | `f10555d` |
 | T5 | Cliente de campo v2: outbox Dexie, motor de sync, reintentos | S1, S2, S6 | inline | completado | `bf18ce5` |
 | T6 | Schema builder en admin + formulario renderizado desde el esquema | S11, S12, S14, S31 | inline | completado | `aa5cc5b` |
-| T7 | Geometría: dibujo de polígonos, área, perímetro, m² manual | S8, S9, S10 | inline | pendiente | — |
+| T7 | Geometría: dibujo de polígonos, área, perímetro, m² manual | S8, S9, S10 | inline | completado | pendiente |
 | T8 | GPS: `watchPosition`, filtro 15 m, indicador, asistida/manual | S3, S4, S5 | inline | pendiente | — |
 | T9 | Dashboard: consultas al servidor, mapa con heatmap, completados vs pendientes, déficit/saturación | S19, S20 | inline | pendiente | — |
 | T10 | Importación Excel/CSV, cruce, dedup buffer 2 m, resolución de conflictos | S16, S17, S18 | inline | pendiente | — |
@@ -437,6 +437,41 @@ Nota de ruta: T6 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`.
 Pendiente de T6 para el cierre: la página `/` sigue siendo el prototipo v1 con el formulario hardcodeado. El cambio de `/` a `/campo` es una redirección de una línea, pero conviene hacerlo cuando el formulario v2 tenga paridad (geometría de T7 y GPS de T8).
 
 Próximo paso: T7 (geometría: dibujo de polígonos, área, perímetro, m² manual).
+
+### L18 — T7 completado (2026-10-24)
+
+Entregado:
+
+- `lib/domain/polygon-draft.ts` — el borrador de polígono, puro: agregar, mover y quitar vértices, deshacer, cerrar, y el cálculo de área y perímetro. Incluye la detección de contornos que se cruzan y la tolerancia de 1 cm para los toques duplicados que produce el dedo en móvil.
+- `lib/field/use-poligono.ts` — el hook que envuelve el borrador y aplica la regla de precedencia de S10: mientras hay polígono el área es la calculada; si no hay polígono vale el valor escrito a mano.
+- `components/field/PolygonEditor.tsx` — el trazado sobre el mapa. Vértices arrastrables, toque para quitar, contorno punteado mientras se dibuja y punto de partida marcado.
+- `components/field/GeometriaPanel.tsx` — el panel: lectura viva de área y perímetro mientras se dibuja, cierre del polígono, y el campo de m² manual cuando no hay trazado.
+- `components/MapView.tsx` — dos props nuevas: `clickToPosition` para que un toque no mueva el pin mientras se traza, y `children` para dibujar capas dentro del mapa.
+- `components/field/FormularioParcela.tsx` — acepta geometría, área y perímetro, y los manda en el payload.
+- `app/campo/page.tsx` — el estado del polígono vive acá porque lo comparten el panel y el mapa.
+
+Decisiones que conviene que queden escritas:
+
+- **Se implementa sobre `react-leaflet`, no sobre `leaflet-draw`.** Ese plugin es de 2018, su interfaz es de escritorio y no tiene deshacer. Acá hacen falta objetivos táctiles grandes, edición de vértices y deshacer, que son justo lo que no trae.
+- **El cruce de lados se chequea antes que el área.** Un contorno cruzado suele dar área cero porque las dos partes se cancelan; reportarlo como "vértices alineados" manda al usuario a buscar el problema donde no está.
+- **La tolerancia de 1 cm rechaza el vértice duplicado en vez de aceptarlo.** Sin eso, el temblor del dedo acumula vértices casi idénticos que rompen el área y hacen imposible editar el polígono.
+- **El polígono reemplaza el valor manual, pero avisando.** Si el levantador ya escribió los m² a mano y después traza, el panel pide confirmación antes de descartar el valor.
+
+Evidencia de verificación:
+
+- `pnpm test` → 209 tests, 16 archivos, todo en verde.
+- `pnpm typecheck` → limpio en los dos proyectos.
+- `pnpm build` → compila, `/campo` se prerenderiza sin tocar Leaflet en el servidor.
+- `pnpm verify` contra el cluster real → el bloque de geometría pasa entero: el cuadrado se cierra, el anillo tiene cinco puntos y cierra con el primero, el área y el perímetro coinciden con el lado conocido, la parcela con geometría se guarda, la geometría persiste como `Polygon` y el contorno cruzado se rechaza.
+
+RED observado y corregido:
+
+1. El test del contorno cruzado falló con el mensaje "área despreciable" en vez de "se cruzan". El chequeo de área iba antes que el de cruce, y el lazo tiene área cero porque los dos triángulos se cancelan. Se invirtió el orden para que el diagnóstico sea el específico.
+2. `next build` falló en `/campo` porque `PolygonEditor` importaba `leaflet` en el servidor. Se carga con `dynamic(..., { ssr: false })` igual que el mapa.
+
+Nota de ruta: T7 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`.
+
+Próximo paso: T8 (GPS: `watchPosition`, filtro de 15 m, indicador de precisión, asistida/manual). Con T7 y T8 cerrados, el formulario v2 tiene paridad con el v1 y se puede cambiar `/` a `/campo`.
 
 ### L9 — El cluster está detrás de Private Link (2026-10-22)
 

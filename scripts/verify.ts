@@ -5,6 +5,7 @@ import { findParcela, deleteParcela } from '../lib/server/repositories/parcelas'
 import { writeParcela } from '../lib/server/services/parcelas'
 import { getModuleSchema, saveModuleSchema } from '../lib/server/repositories/esquemas'
 import { draftToSchema, validateSchemaFields } from '../lib/domain/schema-builder'
+import { closeDraft } from '../lib/domain/polygon-draft'
 import type { ParcelaCreateRequest } from '../lib/api/contracts'
 
 /**
@@ -164,6 +165,58 @@ async function main(): Promise<void> {
     const restaurado = await getModuleSchema('edificacion')
     verificar('el esquema se restaura', restaurado?.campos.length === original.campos.length)
   }
+
+  console.log('\nGeometría de la parcela')
+
+  // Cuadrado de 0,001° sobre el ecuador: 111,13 m de lado.
+  const LADO = 111_132.92 * 0.001
+  const borrador = [
+    { lng: 0, lat: 0 },
+    { lng: 0.001, lat: 0 },
+    { lng: 0.001, lat: 0.001 },
+    { lng: 0, lat: 0.001 },
+  ]
+
+  const cierre = closeDraft(borrador)
+  verificar('un cuadrado se cierra', cierre.ok === true)
+  if (cierre.ok) {
+    verificar('el anillo tiene cinco puntos', cierre.geometria.coordinates[0].length === 5)
+    verificar(
+      'el anillo cierra con el primer vértice',
+      JSON.stringify(cierre.geometria.coordinates[0][0]) ===
+        JSON.stringify(cierre.geometria.coordinates[0][4]),
+    )
+    verificar('el área coincide con el lado al cuadrado', Math.abs(cierre.areaM2 - LADO * LADO) < 1)
+    verificar('el perímetro coincide con cuatro lados', Math.abs(cierre.perimetroM - LADO * 4) < 0.1)
+
+    const conGeometria = await writeParcela(
+      {
+        ...payload([modulo('edificacion', 0, { uso_general: 'Residencial' })]),
+        id: `${PARCELA_ID}-geo`,
+        geometria: cierre.geometria,
+        areaM2: cierre.areaM2,
+        perimetroM: cierre.perimetroM,
+      },
+      ADMIN,
+    )
+    verificar('la parcela con geometría se guarda', conGeometria.estado === 'creado', conGeometria.estado)
+
+    const leida = await findParcela(`${PARCELA_ID}-geo`)
+    verificar('la geometría persiste como Polygon', leida?.geometria?.type === 'Polygon')
+    verificar('el área persiste', Math.abs((leida?.areaM2 ?? 0) - cierre.areaM2) < 0.01)
+    verificar('el perímetro persiste', Math.abs((leida?.perimetroM ?? 0) - cierre.perimetroM) < 0.01)
+
+    await deleteParcela(`${PARCELA_ID}-geo`)
+  }
+
+  // El lazo se rechaza: los lados se cruzan y el área no tiene sentido.
+  const lazo = closeDraft([
+    { lng: 0, lat: 0 },
+    { lng: 0.002, lat: 0.002 },
+    { lng: 0.002, lat: 0 },
+    { lng: 0, lat: 0.002 },
+  ])
+  verificar('un contorno cruzado se rechaza', lazo.ok === false)
 }
 
 main()
