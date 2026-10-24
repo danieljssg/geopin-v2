@@ -8,6 +8,7 @@ import { draftToSchema, validateSchemaFields } from '../lib/domain/schema-builde
 import { closeDraft } from '../lib/domain/polygon-draft'
 import { isUsable, shouldFollowSensor } from '../lib/domain/gps'
 import { prepararHojas, toCSV, toGeoJSON } from '../lib/domain/export'
+import { analizarImportacion, aplicarImportacion } from '../lib/server/services/importacion'
 import type { Parcela } from '../lib/domain/types'
 import * as XLSX from 'xlsx'
 import { coberturaServicios, densidadCeldas, resumirLevantamiento } from '../lib/domain/dashboard'
@@ -383,6 +384,58 @@ async function main(): Promise<void> {
   const primeraFila = XLSX.utils.sheet_to_json(releido.Sheets.Parcelas, { header: 1 })[0] as string[]
   verificar('el Excel se puede volver a leer', releido.SheetNames.includes('Parcelas'))
   verificar('el Excel conserva los encabezados', primeraFila.includes('nombre'))
+
+  console.log('\nImportación de archivos de campo')
+
+  const codigoA = `IMP-${Date.now()}`
+  const codigoB = `${codigoA}-B`
+
+  const csvImportacion = [
+    'Código,Nombre,Latitud,Longitud,Área (m²),Descripción',
+    `${codigoA},"Casa del parque, con patio",10.4806,-66.9036,250.5,Vista al parque`,
+    `${codigoB},Bodega,10.4807,-66.9037,,Sin área declarada`,
+    ',Fila sin código,10.4808,-66.9038,,No se puede importar',
+  ].join('\r\n')
+
+  const contenido = Buffer.from(csvImportacion, 'utf-8').toString('base64')
+
+  const analisis = await analizarImportacion(contenido, 'csv')
+  verificar('la previsualización no crea nada', analisis.creadas === 0)
+  verificar('la previsualización cuenta las filas', analisis.resumen.filas === 3)
+  verificar('reconoce dos filas importables', analisis.resumen.nuevas === 2, analisis.resumen)
+  verificar('reporta la fila sin código como error', analisis.resumen.conErrores === 1, analisis.resumen)
+  verificar('reconoce el área con el alias de la planilla', analisis.filas[0].accion === 'nueva')
+  verificar('mapea el área con unidades', analisis.filas[0].codigo === codigoA)
+
+  const aplicacion = await aplicarImportacion(contenido, 'csv', ADMIN)
+  verificar('la importación crea las parcelas nuevas', aplicacion.creadas === 2, aplicacion.creadas)
+
+  const guardadaImportada = await findParcela(
+    (await findParcelasParaDashboard()).find((p) => p.codigo === codigoA)?._id ?? '',
+  )
+  verificar('la parcela importada se puede leer', guardadaImportada !== null)
+  verificar('la parcela importada conserva el nombre con coma', guardadaImportada?.nombre.includes('parque') === true)
+  verificar('la parcela importada guarda el área', guardadaImportada?.areaM2 === 250.5, guardadaImportada?.areaM2)
+  verificar('la parcela importada guarda la descripción', guardadaImportada?.descripcion === 'Vista al parque')
+
+  // Idempotencia: el mismo archivo otra vez no crea nada nuevo.
+  const segunda = await aplicarImportacion(contenido, 'csv', ADMIN)
+  verificar('reimportar el mismo archivo no crea nada', segunda.creadas === 0, segunda.creadas)
+  verificar('reimportar marca las filas como ya existentes', segunda.resumen.actualizadas === 2, segunda.resumen)
+
+  const totalConEseCodigo = (await findParcelasParaDashboard()).filter(
+    (parcela) => parcela.codigo === codigoA,
+  ).length
+  verificar('no hay parcelas duplicadas con el mismo código', totalConEseCodigo === 1, totalConEseCodigo)
+
+  // Limpieza: se borra exactamente lo que se creó, por id.
+  for (const id of aplicacion.idsCreadas) {
+    await deleteParcela(id)
+  }
+  const remanentes = (await findParcelasParaDashboard()).filter(
+    (parcela) => parcela.codigo === codigoA || parcela.codigo === codigoB,
+  )
+  verificar('las parcelas importadas se borran', remanentes.length === 0, remanentes.length)
 }
 
 main()

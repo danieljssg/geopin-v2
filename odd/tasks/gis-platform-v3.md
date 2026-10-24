@@ -270,7 +270,7 @@ El plan original pone el formulario (Fase 2) antes del schema builder (Fase 3). 
 | T7 | Geometría: dibujo de polígonos, área, perímetro, m² manual | S8, S9, S10 | inline | completado | `b8d15ab` |
 | T8 | GPS: `watchPosition`, filtro 15 m, indicador, asistida/manual | S3, S4, S5 | inline | completado | `4fb4d82` |
 | T9 | Dashboard: consultas al servidor, mapa con heatmap, completados vs pendientes, déficit/saturación | S19, S20 | inline | completado | `4a0a769` |
-| T10 | Importación Excel/CSV, cruce, dedup buffer 2 m, resolución de conflictos | S16, S17, S18 | inline | pendiente | — |
+| T10 | Importación Excel/CSV, cruce, dedup buffer 2 m, resolución de conflictos | S16, S17, S18 | inline | completado | pendiente |
 | T11 | Export desde el servidor: GeoJSON, CSV, Excel | S21 | inline | completado | `eb23adb` |
 | T12 | WMS/WMTS propios, precarga de teselas, documento legal/bibliográfico | S7, S22, S23 | inline | pendiente | — |
 | T13 | Hardening: quitar `ignoreBuildErrors`, carga, despliegue, documentación | S24, S25 | inline | pendiente | — |
@@ -576,6 +576,47 @@ Nota de ruta: T11 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`.
 **Con T11, el formulario v2 ya tiene la paridad del v1** (captura, geometría, GPS, listado, edición, borrado y exportación). El cambio de `/` a `/campo` queda a una redirección, más borrar `lib/db.ts` y la base vieja `geopin`.
 
 Próximo paso: T10 (importación Excel/CSV, cruce, dedup con buffer de 2 m y resolución de conflictos) o T15 (Shapefile).
+
+### L22 — T10 completado (2026-10-24)
+
+Entregado:
+
+- `lib/domain/csv.ts` — parser de CSV propio, con BOM de Excel, CRLF, comillas dobles escapadas y saltos de línea dentro de un campo. Un `split(',')` rompe todo eso.
+- `lib/domain/import.ts` — mapeo de encabezados con alias, normalización y conversión de filas. Las planillas de campo no traen nuestras columnas: traen "Código Catastral", "Área (m²)", "Observaciones". Los alias cubren las variantes y las columnas desconocidas se ignoran avisando.
+- `lib/domain/dedup.ts` — detección de duplicados por proximidad con buffer de 2 m y por código, con Haversine y agrupación transitiva.
+- `lib/domain/merge.ts` — propuesta de fusión campo por campo y aplicación de la resolución.
+- `lib/server/services/importacion.ts` — el servicio: analiza, cruza contra la base, detecta duplicados y aplica.
+- `app/api/import/route.ts` — `POST` con el archivo en base64 y el flag `aplicar`.
+- `app/api/parcelas/[id]/fusionar/route.ts` — resolución de un conflicto.
+- `app/admin/importar/page.tsx` y `components/admin/Importador.tsx` — la interfaz: subir archivo, previsualizar y resolver.
+
+Las tres decisiones que hacen segura la importación:
+
+- **La previsualización no escribe nada.** El primer paso es siempre un informe: cuántas filas se crearían, cuántas ya existen, cuántas son duplicadas y cuántas tienen error. Solo después se aplica.
+- **Al aplicar, solo se crean las parcelas nuevas.** Las que ya existen **no se sobrescriben**: sus diferencias quedan como conflictos para que el administrador elija campo por campo. Es lo que garantiza que cruzar dos archivos de levantadores distintos no pise el trabajo del otro.
+- **El código de parcela es obligatorio en una importación.** La idempotencia se apoya en el código: es la identidad catastral que permite reconocer la misma parcela en dos archivos. Una fila sin código no se puede deduplicar nunca, y reimportar el mismo archivo la volvería a crear como una parcela distinta. Es mejor que la importación la rechace.
+
+El buffer de 2 m se calcula **en la aplicación**, no con un `ST_BUFFER` de la base: Cosmos no lo tiene. La agrupación es **transitiva**: si A está a 1,5 m de B y B a 1,5 m de C, los tres son un grupo aunque A y C estén a 3 m — que es lo que corresponde cuando dos personas capturaron la misma esquina desde lados distintos.
+
+Evidencia de verificación:
+
+- `pnpm test` → 334 tests, 21 archivos, todo en verde.
+- `pnpm typecheck` → limpio en los dos proyectos.
+- `pnpm build` → compila. Rutas nuevas: `/admin/importar`, `/api/import`, `/api/parcelas/[id]/fusionar`.
+- `pnpm verify` contra el cluster real → el bloque de importación pasa: la previsualización no crea nada, reconoce dos filas importables y una sin código como error, mapea el área con el alias "Área (m²)", la importación crea las parcelas nuevas conservando el nombre con coma y el área, **reimportar el mismo archivo no crea nada** y marca las filas como ya existentes, y no quedan parcelas duplicadas con el mismo código.
+
+RED observado y corregido:
+
+1. `mapearEncabezados` dejaba que dos columnas pisen el mismo campo: el guard buscaba el campo como clave del mapa, pero las claves del mapa son las columnas. Se corrigió con un conjunto de campos ya asignados.
+2. `normalizarEncabezado("Área (m²)")` devolvía "area_m": el superíndice se perdía en la limpieza. Ahora los superíndices se traducen a su dígito.
+3. Shadowing en `merge.ts`: una variable local tapaba la función del mismo nombre y rompía la fusión con un error de inicialización.
+4. **La fila sin código se importaba.** La verificación lo detectó: la fila sin código catastral se aceptaba y creaba una parcela que nunca podía deduplicarse. Ahora es un error.
+
+Nota de ruta: T10 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`.
+
+**Con T10, la Fase 4 del plan está completa.** Queda pendiente mudar la raíz de `/` a `/campo` y borrar `lib/db.ts` y la base vieja `geopin`.
+
+Próximo paso: T15 (Shapefile) o T14 (pipeline de MBTiles).
 
 ### L9 — El cluster está detrás de Private Link (2026-10-22)
 
