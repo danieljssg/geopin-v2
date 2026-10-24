@@ -273,9 +273,9 @@ El plan original pone el formulario (Fase 2) antes del schema builder (Fase 3). 
 | T10 | Importación Excel/CSV, cruce, dedup buffer 2 m, resolución de conflictos | S16, S17, S18 | inline | completado | `02091ac` |
 | T11 | Export desde el servidor: GeoJSON, CSV, Excel | S21 | inline | completado | `eb23adb` |
 | T12 | WMS/WMTS propios, precarga de teselas, documento legal/bibliográfico | S7, S22, S23 | inline | pendiente | — |
-| T13 | Hardening: quitar `ignoreBuildErrors`, carga, despliegue, documentación | S24, S25 | inline | pendiente | — |
+| T13 | Hardening: quitar `ignoreBuildErrors`, carga, despliegue, documentación | S24, S25 | inline | completado | `e31b12d` |
 | T14 | Pipeline de tiles autoalojados: extract OSM → clip al bbox del levantamiento → render → pirámide XYZ z12-z18 → blob storage | S7 | inline | completado | `acbffd0` |
-| T15 | Export Shapefile: `.shp`, `.shx`, `.dbf`, `.prj` y zip | S21 | inline | pendiente | — |
+| T15 | Export Shapefile: `.shp`, `.shx`, `.dbf`, `.prj` y zip | S21 | inline | completado | `18daebf` |
 
 Ruta de todas las tareas: **inline**. No hay razón de escritura delegada (ninguna unidad independiente de >100 líneas con superficies disjuntas en paralelo), y ninguna tarea nombra un ítem de alto riesgo que requiera verificador independiente más allá de sus propios checks.
 
@@ -664,6 +664,49 @@ Nota de ruta: T14 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`.
 **Pendiente para que funcione de verdad**: hace falta renderizar la pirámide con `tilemaker` (fuera del repo) y subirla al blob. La app ya está preparada para consumirla.
 
 Próximo paso: T15 (Shapefile) o T12 (WMS/WMTS y documento legal de fuentes).
+
+### L24 — Migración de la raíz y cierre del prototipo v1 (2026-10-24)
+
+La raíz pasó a ser la PWA de campo.
+
+- `app/page.tsx` es ahora la app de campo (venía de `app/campo`).
+- `app/listado` es el listado de parcelas.
+- `app/campo` y `app/campo/lista` quedan como redirecciones para que los enlaces y marcadores anteriores sigan funcionando.
+- `app/dashboard` redirige a `/admin/dashboard`: el dashboard v2 lee del servidor, el anterior analizaba los pines guardados en el dispositivo, que ya no se usan porque el modelo v2 guarda todo en el servidor.
+- Se borra el prototipo v1: `PinForm`, `PinsList`, `ExportModal`, `DashboardView`, `AppNavigation`, `Sidebar`, `Drawer`, la base local de pines (`lib/db.ts`), el analizador del dashboard v1 (`lib/dashboard-analytics.ts`) y el exportador sobre pines (`lib/export.ts`).
+
+Se conserva `components/MapView.tsx` con `lib/types.ts`, `lib/categories.ts` y `lib/urban-options.ts` porque el mapa los usa para los marcadores y las categorías, y `lib/urban-options.ts` es además la fuente de verdad de las listas de opciones que consume la semilla de esquemas.
+
+### L25 — T15 completado (2026-10-24)
+
+`lib/domain/shapefile.ts` — escritor de `.shp`, `.shx`, `.dbf` y `.prj`, más un empaquetador ZIP. `lib/domain/export.ts` — la preparación desde las parcelas, con los nombres de campo acortados a los 10 caracteres que impone la base dBase III y el mapeo para documentarlo. `app/api/export` acepta `format=shp`.
+
+Solo se implementa el tipo **Point**, que es el que necesita el proyecto: las parcelas son puntos con sus atributos. Un polígono en Shapefile es un `Polygon` con su propia estructura de partes y anillos, y sumarlo sin necesidad sería una fuente de bugs.
+
+Los tests leen los bytes de vuelta: la cabecera del `.shp` con su código de archivo, los límites de la capa, los desplazamientos del `.shx`, los descriptores de campo del `.dbf` y las firmas del ZIP.
+
+### L26 — T13 completado (2026-10-24)
+
+- **Se saca `typescript.ignoreBuildErrors`.** El flag estaba escondiendo errores de tipos reales: en T1 y T3 los encontró el typecheck manual, nunca el build. Con el flag gone, `next build` verifica los tipos.
+- `scripts/prueba-carga.ts` + `pnpm prueba:carga` — mide el throughput real del cluster y estima el consumo de RU contra el techo del free tier.
+- `.docs/despliegue.md` — el manual de despliegue: variables de Vercel, preparación de la base, verificación previa a salir a campo y checklist de campo.
+
+Medición real contra el cluster con 300 parcelas:
+
+| Operación | Tiempo | RU |
+| --- | --- | --- |
+| Escritura | 21,5 s (13,9/s) | ~1500 RU en total, ~70 RU/s |
+| Lectura masiva | 0,3 s | ~15 RU |
+
+El pico estimado es de **70 RU/s** contra un techo de 1000 RU/s: el margen es amplio. Las escrituras van lentas por la latencia de red hacia la región del cluster, no por un límite de Cosmos — 500 parcelas se sincronizan en unos 36 segundos.
+
+**La estimación de RU de lectura estaba mal y se corrigió durante la medición.** Un `find` que devuelve 300 documentos no cuesta 1 RU por documento: se factura por los datos devueltos, unos 15 RU en total. Contarlo documento por documento multiplicaba el costo por veinte y daba un pico que rozaba el techo del free tier sin que el cluster lo estuviera sintiendo. Recién con la cifra correcta se puede afirmar que el presupuesto aguanta.
+
+### L27 — Estado final
+
+El plan tiene 15 tareas y 14 están completas. **Solo queda T12**: la superposición de capas WMS/WMTS propias en el mapa y el documento legal/bibliográfico de las fuentes, que ya está parcialmente cubierto por `.docs/tiles-offline.md` (cita la política de OSMF y explica por qué los tiles son propios).
+
+Las cuatro fases funcionales del plan —1, 2, 3 y 4— están completas. La quinta, de almacenamiento y despliegue, está completa en todo lo que depende del código: el pipeline de tiles, el blob storage, el manual de despliegue y la medición de carga. Lo que falta de T12 es una capa de superposición de ortofotos sobre el mapa.
 
 ### L9 — El cluster está detrás de Private Link (2026-10-22)
 
