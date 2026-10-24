@@ -272,7 +272,7 @@ El plan original pone el formulario (Fase 2) antes del schema builder (Fase 3). 
 | T9 | Dashboard: consultas al servidor, mapa con heatmap, completados vs pendientes, déficit/saturación | S19, S20 | inline | completado | `4a0a769` |
 | T10 | Importación Excel/CSV, cruce, dedup buffer 2 m, resolución de conflictos | S16, S17, S18 | inline | completado | `02091ac` |
 | T11 | Export desde el servidor: GeoJSON, CSV, Excel | S21 | inline | completado | `eb23adb` |
-| T12 | WMS/WMTS propios, precarga de teselas, documento legal/bibliográfico | S7, S22, S23 | inline | pendiente | — |
+| T12 | WMS/WMTS propios, precarga de teselas, documento legal/bibliográfico | S7, S22, S23 | inline | completado | `9c61759` |
 | T13 | Hardening: quitar `ignoreBuildErrors`, carga, despliegue, documentación | S24, S25 | inline | completado | `e31b12d` |
 | T14 | Pipeline de tiles autoalojados: extract OSM → clip al bbox del levantamiento → render → pirámide XYZ z12-z18 → blob storage | S7 | inline | completado | `acbffd0` |
 | T15 | Export Shapefile: `.shp`, `.shx`, `.dbf`, `.prj` y zip | S21 | inline | completado | `18daebf` |
@@ -702,11 +702,42 @@ El pico estimado es de **70 RU/s** contra un techo de 1000 RU/s: el margen es am
 
 **La estimación de RU de lectura estaba mal y se corrigió durante la medición.** Un `find` que devuelve 300 documentos no cuesta 1 RU por documento: se factura por los datos devueltos, unos 15 RU en total. Contarlo documento por documento multiplicaba el costo por veinte y daba un pico que rozaba el techo del free tier sin que el cluster lo estuviera sintiendo. Recién con la cifra correcta se puede afirmar que el presupuesto aguanta.
 
-### L27 — Estado final
+### L28 — T12 completado (2026-10-24)
 
-El plan tiene 15 tareas y 14 están completas. **Solo queda T12**: la superposición de capas WMS/WMTS propias en el mapa y el documento legal/bibliográfico de las fuentes, que ya está parcialmente cubierto por `.docs/tiles-offline.md` (cita la política de OSMF y explica por qué los tiles son propios).
+Cierra S22 y S23.
 
-Las cuatro fases funcionales del plan —1, 2, 3 y 4— están completas. La quinta, de almacenamiento y despliegue, está completa en todo lo que depende del código: el pipeline de tiles, el blob storage, el manual de despliegue y la medición de carga. Lo que falta de T12 es una capa de superposición de ortofotos sobre el mapa.
+- `lib/map/capas.ts` — el modelo de capas: las **base** se muestran de a una (el fondo) y las **superposiciones** se apilan con su propia opacidad, que es como se superpone una ortofoto sin tapar los nombres de las calles.
+- `app/api/capas` + `lib/field/use-capas.ts` — la configuración viene del **servidor**, no del bundle: agregar una ortofoto municipal es cambiar `CAPAS_SUPERPUESTAS` y recargar, sin recompilar. Un JSON mal formado no rompe el mapa, avisa.
+- `components/field/CapaSuperpuesta.tsx` — agrega la capa de forma imperativa, porque `react-leaflet` v5 no tiene componente para WMS: sus opciones (`layers`, `transparent`) no existen en `TileLayerOptions`. La opacidad se cambia con `setOpacity` y **no recreando la capa**, para que el mapa no parpadee en cada movimiento del deslizador.
+- `components/field/PanelCapas.tsx` — el panel: base elegida de a una, superposiciones con casilla y control de opacidad, y la atribución de cada superposición activa en texto plano.
+- `components/MapView.tsx` — las capas base salen de la configuración.
+- `.docs/fuentes-cartograficas.md` — el documento legal y bibliográfico: licencia, atribución y uso permitido de cada fuente, con la fecha de consulta (24 de octubre de 2026).
+
+Decisiones que conviene que queden escritas:
+
+- **Las capas base nunca pueden quedar vacías.** `LayersControl` de Leaflet lanza si no tiene ninguna, y antes de que llegue la configuración del servidor el array está vacío: el respaldo a las capas de siempre es explícito.
+- **Un JSON de capas mal formado no rompe el mapa.** Se avisa y se sigue con las capas base: un error de configuración no puede dejar al equipo de campo sin mapa.
+- **La ODbL es copyleft.** Si se distribuye una obra derivada —un shapefile, un GeoJSON publicado— hay que mantener la licencia y la atribución. Por eso las exportaciones la llevan.
+- **Una ortofoto municipal se rige por su convenio, no por la política de OSMF.** Antes de superponer una hay que confirmar el permiso de uso con el organismo que la provee.
+
+Evidencia de verificación:
+
+- `pnpm test` → 393 tests, 25 archivos, todo en verde.
+- `pnpm typecheck` → limpio en los dos proyectos.
+- `pnpm build` → compila. Ruta nueva: `/api/capas`.
+
+RED observado y corregido: el build falló con `window is not defined` al prerenderizar la raíz. `leaflet` toca `window` al importarse, así que cualquier componente que lo importe tiene que cargarse con `dynamic(ssr: false)` — el mismo criterio que el editor de polígono. Antes de eso, el primer fallo fue `LayersControl` sin capas base.
+
+### L29 — Estado final
+
+**Las 15 tareas del plan están completas.** Las cuatro fases funcionales —1, 2, 3 y 4— y el cierre de la quinta están terminados.
+
+Lo que queda fuera del código y depende de operaciones:
+
+- Renderizar la pirámide con `tilemaker` + `mb-util` y subirla al blob.
+- Configurar las variables de entorno en Vercel.
+- Conseguir el convenio de uso de la ortofoto municipal, si se va a superponer.
+- En iOS, el equipo de campo tiene que agregar la PWA a la pantalla de inicio: sin eso no hay service worker ni mapa sin conexión.
 
 ### L9 — El cluster está detrás de Private Link (2026-10-22)
 
