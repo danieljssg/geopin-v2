@@ -1,9 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ParcelaCreateRequest } from '@/lib/api/contracts'
 import { validateModuleData } from '@/lib/domain/schema'
-import type { FieldDef, FieldError, GeoPolygon, ModuleSchema } from '@/lib/domain/types'
+import type { FieldDef, FieldError, GeoPolygon, ModuleSchema, Parcela } from '@/lib/domain/types'
 
 /**
  * Formulario de parcela renderizado desde el esquema publicado.
@@ -22,6 +22,8 @@ export interface FormularioParcelaProps {
   esquemas: ModuleSchema[]
   /** Id de la parcela. Si no viene, se genera uno nuevo al guardar. */
   id?: string
+  /** Parcela que se está editando: precarga el formulario. */
+  initial?: Parcela | null
   ubicacion: { lat: number; lng: number }
   gps: { fuente: 'sensor' | 'manual'; precision?: number }
   /** Versión que el servidor tiene de cada módulo. `0` para una parcela nueva. */
@@ -39,21 +41,53 @@ type Valores = Record<string, Record<string, unknown>>
 export default function FormularioParcela({
   esquemas,
   id,
+  initial,
   ubicacion,
   gps,
-  versiones = {},
+  versiones,
   geometria,
   areaM2,
   perimetroM,
   onGuardar,
 }: FormularioParcelaProps) {
-  const [nombre, setNombre] = useState('')
-  const [categoria, setCategoria] = useState('Vivienda')
-  const [descripcion, setDescripcion] = useState('')
-  const [valores, setValores] = useState<Valores>({})
+  const [nombre, setNombre] = useState(initial?.nombre ?? '')
+  const [categoria, setCategoria] = useState(initial?.categoria ?? 'Vivienda')
+  const [descripcion, setDescripcion] = useState(initial?.descripcion ?? '')
+  const [valores, setValores] = useState<Valores>(() => valoresIniciales(initial))
   const [errores, setErrores] = useState<FieldError[]>([])
   const [guardando, setGuardando] = useState(false)
   const [mensaje, setMensaje] = useState<string | null>(null)
+
+  /**
+   * Las versiones que el servidor tiene de cada módulo. Si se está editando,
+   * salen de la propia parcela: son las que el cliente debe mandar como
+   * `baseVersion` para que el servidor detecte el conflicto si alguien más
+   * editó ese módulo mientras tanto.
+   */
+  const versionesEfectivas = useMemo<Record<string, number>>(() => {
+    if (versiones) return versiones
+    if (!initial) return {}
+
+    const resultado: Record<string, number> = {}
+    for (const [moduleId, modulo] of Object.entries(initial.modulos ?? {})) {
+      resultado[moduleId] = modulo.version
+    }
+    return resultado
+  }, [versiones, initial])
+
+  /**
+   * Cuando cambia la parcela que se está editando, el formulario se
+   * recarga. Sin esto, editar dos parcelas seguidas mostraría los datos de la
+   * primera.
+   */
+  useEffect(() => {
+    setNombre(initial?.nombre ?? '')
+    setCategoria(initial?.categoria ?? 'Vivienda')
+    setDescripcion(initial?.descripcion ?? '')
+    setValores(valoresIniciales(initial))
+    setErrores([])
+    setMensaje(null)
+  }, [initial])
 
   const ordenados = useMemo(
     () => [...esquemas].sort((a, b) => a.moduleId.localeCompare(b.moduleId)),
@@ -107,13 +141,13 @@ export default function FormularioParcela({
           moduleId: esquema.moduleId,
           // La versión que el servidor tiene es la base de la comparación;
           // sin ella, cada edición parecería un conflicto.
-          baseVersion: versiones[esquema.moduleId] ?? 0,
+          baseVersion: versionesEfectivas[esquema.moduleId] ?? 0,
           schemaVersion: esquema.version,
           datos: limpiar(valores[esquema.moduleId] ?? {}),
         }))
 
       const payload: ParcelaCreateRequest = {
-        id: id ?? nuevoId(),
+        id: id ?? initial?.id ?? nuevoId(),
         nombre: nombre.trim(),
         descripcion: descripcion.trim(),
         categoria,
@@ -387,4 +421,15 @@ function limpiar(datos: Record<string, unknown>): Record<string, unknown> {
 function nuevoId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+/** Los datos de los módulos de una parcela, listos para editar. */
+function valoresIniciales(parcela: Parcela | null | undefined): Valores {
+  if (!parcela?.modulos) return {}
+
+  const resultado: Valores = {}
+  for (const [moduleId, modulo] of Object.entries(parcela.modulos)) {
+    resultado[moduleId] = { ...modulo.datos }
+  }
+  return resultado
 }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import type { ParcelaCreateRequest } from '@/lib/api/contracts'
 import type { MapViewProps } from '@/components/MapView'
+import type { Parcela } from '@/lib/domain/types'
 import FormularioParcela from '@/components/field/FormularioParcela'
 import GeometriaPanel from '@/components/field/GeometriaPanel'
 import GpsIndicator from '@/components/field/GpsIndicator'
@@ -13,6 +14,7 @@ import { useSchemas } from '@/lib/field/use-schemas'
 import { usePoligono } from '@/lib/field/use-poligono'
 import { useGeolocation } from '@/lib/field/use-geolocation'
 import { shouldFollowSensor, type OrigenPosicion } from '@/lib/domain/gps'
+import { fromGeoPoint } from '@/lib/domain/parcela'
 
 /**
  * Página de campo v2.
@@ -52,8 +54,43 @@ export default function CampoPage() {
   const [ubicacion, setUbicacion] = useState(CENTRO_INICIAL)
   const [origen, setOrigen] = useState<OrigenPosicion>('sensor')
   const [precision, setPrecision] = useState<number | undefined>()
+  const [parcelaEnEdicion, setParcelaEnEdicion] = useState<Parcela | null>(null)
 
   const trazando = poligono.modo === 'trazando'
+
+  /**
+   * Si la URL trae `?parcela=<id>`, se edita esa parcela: se precarga el
+   * formulario, su geometría y las versiones de cada módulo, que son las que
+   * permiten al servidor detectar el conflicto si otro Companero editó el
+   * mismo módulo mientras tanto.
+   */
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('parcela')
+    if (!id) return
+
+    let vivo = true
+
+    void fetch(`/api/parcelas/${encodeURIComponent(id)}`, { credentials: 'same-origin' })
+      .then((respuesta) => (respuesta.ok ? respuesta.json() : null))
+      .then((cuerpo: { parcela?: Parcela } | null) => {
+        if (vivo && cuerpo?.parcela) setParcelaEnEdicion(cuerpo.parcela)
+      })
+      .catch(() => {})
+
+    return () => {
+      vivo = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!parcelaEnEdicion) return
+    poligono.cargar(
+      parcelaEnEdicion.geometria ?? null,
+      parcelaEnEdicion.areaM2 !== undefined ? String(parcelaEnEdicion.areaM2) : '',
+    )
+    // Solo al cambiar de parcela: recargar en cada render borraría el trazado.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parcelaEnEdicion?.id])
 
   /**
    * El pin solo sigue al sensor cuando la lectura pasa el filtro de 15 m y
@@ -114,9 +151,19 @@ export default function CampoPage() {
         </div>
         <GpsIndicator fix={geo.fix} accuracy={geo.reading?.accuracy} />
         <SyncStatus />
-        <a href="/admin/esquema" className="ml-auto text-xs text-white underline">
-          Esquemas
-        </a>
+        <div className="ml-auto flex items-center gap-3">
+          {parcelaEnEdicion && (
+            <span className="text-xs" style={{ color: '#93c5fd' }}>
+              Editando: {parcelaEnEdicion.nombre}
+            </span>
+          )}
+          <a href="/campo/lista" className="text-xs text-white underline">
+            Listado
+          </a>
+          <a href="/admin/esquema" className="text-xs text-white underline">
+            Esquemas
+          </a>
+        </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
@@ -156,8 +203,10 @@ export default function CampoPage() {
           {!cargando && (
             <FormularioParcela
               esquemas={esquemas}
-              ubicacion={ubicacion}
-              gps={gps}
+              id={parcelaEnEdicion?.id}
+              initial={parcelaEnEdicion}
+              ubicacion={parcelaEnEdicion ? fromGeoPoint(parcelaEnEdicion.ubicacion) : ubicacion}
+              gps={parcelaEnEdicion?.gps ?? gps}
               geometria={poligono.geometria}
               areaM2={poligono.areaEfectiva}
               perimetroM={poligono.perimetroGeometria}

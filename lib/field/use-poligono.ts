@@ -50,7 +50,7 @@ export interface UsePoligonoResult {
   cancelar: () => void
   terminar: () => boolean
   setAreaManual: (valor: string) => void
-  cargar: (geometria: GeoPolygon | null) => void
+  cargar: (geometria: GeoPolygon | null, areaManual?: string) => void
 }
 
 export function usePoligono(): UsePoligonoResult {
@@ -135,11 +135,18 @@ export function usePoligono(): UsePoligonoResult {
     setError(undefined)
   }, [])
 
-  const cargar = useCallback((nueva: GeoPolygon | null) => {
+  /**
+   * Carga la geometría de una parcela que se va a editar.
+   *
+   * Si la parcela no tiene polígono, su área manual se restaura: sin esto,
+   * editar una parcela que se levantó escribiendo los m² perdería el valor.
+   */
+  const cargar = useCallback((nueva: GeoPolygon | null, areaManualExistente = '') => {
     if (!nueva) {
       setGeometria(null)
       setAreaGeometria(undefined)
       setPerimetroGeometria(undefined)
+      setAreaManualState(areaManualExistente)
       return
     }
 
@@ -149,6 +156,7 @@ export function usePoligono(): UsePoligonoResult {
     setGeometria(nueva)
     setAreaGeometria(draftAreaM2(vertices))
     setPerimetroGeometria(draftPerimeterM(vertices))
+    setAreaManualState('')
   }, [])
 
   const areaBorrador = useMemo(() => draftAreaM2(draft), [draft])

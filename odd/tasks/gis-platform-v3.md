@@ -271,7 +271,7 @@ El plan original pone el formulario (Fase 2) antes del schema builder (Fase 3). 
 | T8 | GPS: `watchPosition`, filtro 15 m, indicador, asistida/manual | S3, S4, S5 | inline | completado | `4fb4d82` |
 | T9 | Dashboard: consultas al servidor, mapa con heatmap, completados vs pendientes, déficit/saturación | S19, S20 | inline | completado | `4a0a769` |
 | T10 | Importación Excel/CSV, cruce, dedup buffer 2 m, resolución de conflictos | S16, S17, S18 | inline | pendiente | — |
-| T11 | Export desde el servidor: GeoJSON, CSV, Excel | S21 | inline | pendiente | — |
+| T11 | Export desde el servidor: GeoJSON, CSV, Excel | S21 | inline | completado | pendiente |
 | T12 | WMS/WMTS propios, precarga de teselas, documento legal/bibliográfico | S7, S22, S23 | inline | pendiente | — |
 | T13 | Hardening: quitar `ignoreBuildErrors`, carga, despliegue, documentación | S24, S25 | inline | pendiente | — |
 | T14 | Pipeline de tiles autoalojados: extract OSM → clip al bbox del levantamiento → render → pirámide XYZ z12-z18 → blob storage | S7 | inline | pendiente | — |
@@ -538,6 +538,43 @@ RED observado y corregido: el `pnpm verify` falló con `MongoServerError: Duplic
 Nota de ruta: T9 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`.
 
 Próximo paso: T11 (export desde el servidor: GeoJSON, CSV, Excel) más la vista de lista, que es lo que falta para poder cambiar `/` a `/campo`.
+
+### L21 — T11 completado (2026-10-24)
+
+Entregado:
+
+- `lib/domain/export.ts` — los exportadores, puros: `toGeoJSON`, `toCSV`, `prepararHojas`, más el escapado de CSV y la normalización del sentido de los anillos.
+- `app/api/export/route.ts` — `GET ?format=geojson|csv|xlsx&levantamientoId=`. Exporta **todo el levantamiento**, no lo que el navegador de quien exporta tiene en su cache.
+- `components/field/ListaParcelas.tsx` y `app/campo/lista/page.tsx` — el listado con filtro por estado, búsqueda por nombre o código, y los botones de exportar.
+- `components/field/FormularioParcela.tsx` — prop `initial` para precargar una parcela existente, con su geometría y las versiones de cada módulo.
+- `app/campo/page.tsx` — lee `?parcela=<id>` y precarga la edición. Editar pasa por la misma cola que capturar: el `id` es el mismo y el `baseVersion` de cada módulo es el que tiene el servidor.
+
+El GeoJSON cumple RFC 7946 en los tres puntos que se incumplen seguido:
+
+- **Sin miembro `crs`.** La versión 6 de la norma lo quitó: el sistema de referencia es siempre WGS 84, y ponerlo rompe la lectura en algunos visores.
+- **Coordenadas en `[longitud, latitud]`**, al revés de como las maneja el resto de la app.
+- **Anillo exterior en sentido antihorario** (regla de la mano derecha). Un polígono exportado al revés se ve del lado equivocado en QGIS. La corrección invierte el anillo cuando el área con signo da negativa.
+
+El CSV escapa como corresponde: entrecomilla lo que tiene coma, comilla o salto de línea, y duplica las comillas internas. Va con BOM para que Excel reconozca el UTF-8. El Excel usa `aoa_to_sheet` y no `json_to_sheet`, para que la hoja lleve la fila de encabezados, que es la que define el orden de las columnas.
+
+Las columnas de los módulos se derivan **del esquema publicado y no de los datos**: si un campo existe en el esquema pero ninguna parcela lo tiene, la columna tiene que estar igual para que la planilla sea estable entre exportaciones.
+
+**Shapefile queda pendiente** (T15). Es un formato binario —`.shp`, `.shx`, `.dbf`, `.prj` y un zip— queQcarga una implementación propia. QGIS y ArcGIS abren GeoJSON de forma nativa, así que el valor de pasarlo a `.shp` es bajo mientras el cliente no lo pida explícitamente. Se hace como unidad aparte con su propio conjunto de tests, en vez de metido en la del export.
+
+Evidencia de verificación:
+
+- `pnpm test` → 280 tests, 19 archivos, todo en verde.
+- `pnpm typecheck` → limpio en los dos proyectos.
+- `pnpm build` → compila. Rutas nuevas: `/api/export`, `/campo/lista`.
+- `pnpm verify` contra el cluster real → el bloque de exportación pasa: el GeoJSON es una FeatureCollection sin `crs`, con longitud primero, el CSV escapa comas y comillas y arranca con BOM, y el Excel se puede volver a leer conservando los encabezados.
+
+RED observado y corregido: el test del GeoJSON falló porque las propiedades no traían latitud y longitud. Se agregaron: la geometría es la ubicación canónica, pero repetirla en los atributos hace que el archivo sirva también para las herramientas que solo leen la tabla de propiedades.
+
+Nota de ruta: T11 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`.
+
+**Con T11, el formulario v2 ya tiene la paridad del v1** (captura, geometría, GPS, listado, edición, borrado y exportación). El cambio de `/` a `/campo` queda a una redirección, más borrar `lib/db.ts` y la base vieja `geopin`.
+
+Próximo paso: T10 (importación Excel/CSV, cruce, dedup con buffer de 2 m y resolución de conflictos) o T15 (Shapefile).
 
 ### L9 — El cluster está detrás de Private Link (2026-10-22)
 

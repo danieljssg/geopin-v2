@@ -7,6 +7,9 @@ import { getModuleSchema, saveModuleSchema } from '../lib/server/repositories/es
 import { draftToSchema, validateSchemaFields } from '../lib/domain/schema-builder'
 import { closeDraft } from '../lib/domain/polygon-draft'
 import { isUsable, shouldFollowSensor } from '../lib/domain/gps'
+import { prepararHojas, toCSV, toGeoJSON } from '../lib/domain/export'
+import type { Parcela } from '../lib/domain/types'
+import * as XLSX from 'xlsx'
 import { coberturaServicios, densidadCeldas, resumirLevantamiento } from '../lib/domain/dashboard'
 import {
   createLevantamiento,
@@ -321,6 +324,65 @@ async function main(): Promise<void> {
   await deleteParcela(`${LEVANTAMIENTO_ID}-p1`)
   await deleteLevantamiento(LEVANTAMIENTO_ID)
   verificar('el levantamiento de prueba se borra', (await findLevantamiento(LEVANTAMIENTO_ID)) === null)
+
+  console.log('\nExportación')
+
+  const paraExportar: Parcela[] = [
+    {
+      id: 'exp-1',
+      nombre: 'Casa, con patio',
+      descripcion: 'Tiene "comillas" y una coma',
+      categoria: 'Vivienda',
+      ubicacion: { type: 'Point', coordinates: [-66.9036, 10.4806] },
+      gps: { fuente: 'sensor', precision: 8 },
+      estado: 'completa',
+      modulos: {
+        edificacion: {
+          version: 1,
+          schemaVersion: 1,
+          datos: { uso_general: 'Residencial' },
+          actualizadoEn: '',
+          actualizadoPor: 'u1',
+        },
+      },
+      version: 1,
+      creadoEn: '2026-10-24T10:00:00.000Z',
+      creadoPor: 'u1',
+      actualizadoEn: '2026-10-24T10:00:00.000Z',
+      actualizadoPor: 'u1',
+    },
+  ]
+
+  const geojson = toGeoJSON(paraExportar, []) as unknown as Record<string, unknown>
+  verificar('el GeoJSON es una FeatureCollection', geojson.type === 'FeatureCollection')
+  verificar('el GeoJSON no lleva el miembro crs', geojson.crs === undefined)
+
+  const feature = (geojson.features as Array<{ geometry: { coordinates: number[] }; properties: Record<string, unknown> }>)[0]
+  verificar('el GeoJSON pone longitud primero', feature.geometry.coordinates[0] === -66.9036)
+  verificar('el GeoJSON pone latitud segundo', feature.geometry.coordinates[1] === 10.4806)
+  verificar('el GeoJSON incluye la latitud en las propiedades', feature.properties.latitud === 10.4806)
+
+  const csv = toCSV(paraExportar, [])
+  verificar('el CSV escapa las comas', csv.includes('"Casa, con patio"'))
+  verificar('el CSV escapa las comillas dobles', csv.includes('""comillas""'))
+  verificar('el CSV empieza con BOM', csv.charCodeAt(0) === 0xfeff)
+  verificar('el CSV trae la fila de encabezados', csv.includes('id,codigo,nombre'))
+
+  const hojas = prepararHojas(paraExportar, [])
+  verificar('la hoja de Excel trae los encabezados', hojas[0].encabezados.includes('nombre'))
+  verificar('la hoja de Excel trae una fila por parcela', hojas[0].filas.length === 1)
+
+  const libro = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(
+    libro,
+    XLSX.utils.aoa_to_sheet([hojas[0].encabezados, ...hojas[0].filas]),
+    hojas[0].nombre,
+  )
+  const buffer = XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' })
+  const releido = XLSX.read(buffer, { type: 'buffer' })
+  const primeraFila = XLSX.utils.sheet_to_json(releido.Sheets.Parcelas, { header: 1 })[0] as string[]
+  verificar('el Excel se puede volver a leer', releido.SheetNames.includes('Parcelas'))
+  verificar('el Excel conserva los encabezados', primeraFila.includes('nombre'))
 }
 
 main()
