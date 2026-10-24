@@ -10,6 +10,7 @@ import {
   type PrecacheEntry,
   type SerwistGlobalConfig,
 } from 'serwist'
+import { CACHE_TILES_PROPIOS } from '@/lib/map/prefetch'
 
 /// <reference lib="webworker" />
 
@@ -38,7 +39,6 @@ declare const self: ServiceWorkerGlobalScope
  *    el cierre de sesión y para leakear credenciales al disco.
  */
 
-const CACHE_TILES_PROPIOS = 'geopin-tiles-propios-v1'
 const CACHE_TILES_TERCEROS = 'geopin-tiles-terceros-v1'
 const CACHE_API = 'geopin-api-v1'
 

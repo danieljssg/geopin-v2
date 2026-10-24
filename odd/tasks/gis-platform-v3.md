@@ -274,7 +274,7 @@ El plan original pone el formulario (Fase 2) antes del schema builder (Fase 3). 
 | T11 | Export desde el servidor: GeoJSON, CSV, Excel | S21 | inline | completado | `eb23adb` |
 | T12 | WMS/WMTS propios, precarga de teselas, documento legal/bibliográfico | S7, S22, S23 | inline | pendiente | — |
 | T13 | Hardening: quitar `ignoreBuildErrors`, carga, despliegue, documentación | S24, S25 | inline | pendiente | — |
-| T14 | Pipeline de tiles autoalojados: extract OSM → clip al bbox del levantamiento → render → pirámide XYZ z12-z18 → blob storage | S7 | inline | pendiente | — |
+| T14 | Pipeline de tiles autoalojados: extract OSM → clip al bbox del levantamiento → render → pirámide XYZ z12-z18 → blob storage | S7 | inline | completado | pendiente |
 | T15 | Export Shapefile: `.shp`, `.shx`, `.dbf`, `.prj` y zip | S21 | inline | pendiente | — |
 
 Ruta de todas las tareas: **inline**. No hay razón de escritura delegada (ninguna unidad independiente de >100 líneas con superficies disjuntas en paralelo), y ninguna tarea nombra un ítem de alto riesgo que requiera verificador independiente más allá de sus propios checks.
@@ -617,6 +617,53 @@ Nota de ruta: T10 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`.
 **Con T10, la Fase 4 del plan está completa.** Queda pendiente mudar la raíz de `/` a `/campo` y borrar `lib/db.ts` y la base vieja `geopin`.
 
 Próximo paso: T15 (Shapefile) o T14 (pipeline de MBTiles).
+
+### L23 — T14 completado (2026-10-24)
+
+Entregado:
+
+- `lib/map/prefetch.ts` — la descarga del área al caché del service worker, con concurrencia, progreso y tolerancia a fallos: un tile que no se puede bajar no impide que bajen los demás.
+- `lib/field/use-descargar-mapa.ts` — el hook con el estado de la descarga y la cancelación.
+- `components/field/PanelDescargarMapa.tsx` — el panel del campo: muestra el volumen **antes** de descargar y el progreso tile a tile.
+- `app/tiles/[z]/[x]/[y]/route.ts` — los tiles se sirven desde el propio origen de la app, leyendo del blob.
+- `lib/server/blob.ts` — acceso al blob por SAS.
+- `scripts/generar-tiles.ts` + `pnpm tiles:generar` — el pipeline: calcula la pirámide, escribe el manifiesto, y sube los tiles al blob con la CLI de Azure o con la SAS.
+- `.docs/tiles-offline.md` — el manual operativo del pipeline.
+
+Decisiones que conviene que queden escritas:
+
+- **Los tiles se sirven desde el origen de la app, no directo del blob.** El service worker cachea por origen: si los tiles vinieran del blob, la app en producción y la de desarrollo cachearían en cachés distintos. Además el contenedor no queda expuesto: la SAS la usa el servidor y el cliente nunca la ve.
+- **La ruta va antes de la cadena de consulta de la SAS.** La SAS siempre termina con sus parámetros, así que concatenar la ruta al final rompería la firma y el blob rechazaría la petición.
+- **La clave del caché de un tile es la URL absoluta.** Es la que usa el service worker al buscar. Guardarlo con la URL relativa haría que el service worker no encontrara nunca los tiles y el mapa no funcionaría offline.
+- **La matemática de teselas es la misma en el cliente y en el generador** (`lib/map/tiles.ts`). El botón de descarga y la pirámide generada no pueden divergir.
+- **El renderizado de tiles no se implementa en el repositorio.** El script arma el comando exacto de `tilemaker` + `mb-util` y sube lo que ya esté renderizado. Un renderer de tiles en el repo sería una dependencia pesada y poco portable; así el pipeline se reproduce en cualquier máquina.
+- **El precacheo se limita a z16** (~10 MB). Los niveles finos se piden bajo demanda: bajarlos de entrada son ~150 MB de datos móviles.
+
+Volumen real del área de 10 × 10 km, medido con el script:
+
+```
+Área: -66.95,10.43,-66.85,10.53
+Niveles: z12 a z18
+Teselas: 7455 (unos 142.2 MB)
+```
+
+Evidencia de verificación:
+
+- `pnpm test` → 351 tests, 23 archivos, todo en verde.
+- `pnpm typecheck` → limpio en los dos proyectos.
+- `pnpm build` → compila. Ruta nueva: `/tiles/[z]/[x]/[y]`, dinámica.
+- `pnpm tiles:generar -- --bbox ... --dry-run` → imprime el plan y el comando de renderizado; un bbox inválido se rechaza.
+
+RED observado y corregido:
+
+1. `new Request('/tiles/12/1/2.png')` con URL relativa no funciona fuera del navegador, y además la clave del caché tiene que ser absoluta para que el service worker la encuentre. Se resolvió con `urlAbsoluta()`.
+2. `tilesDelArea` recibía los argumentos de zoom posicionales cuando su firma toma un solo objeto.
+
+Nota de ruta: T14 no nombra ningún ítem de alto riesgo nuevo. `Risk: none`.
+
+**Pendiente para que funcione de verdad**: hace falta renderizar la pirámide con `tilemaker` (fuera del repo) y subirla al blob. La app ya está preparada para consumirla.
+
+Próximo paso: T15 (Shapefile) o T12 (WMS/WMTS y documento legal de fuentes).
 
 ### L9 — El cluster está detrás de Private Link (2026-10-22)
 

@@ -7,6 +7,7 @@ import type { MapViewProps } from '@/components/MapView'
 import type { Parcela } from '@/lib/domain/types'
 import FormularioParcela from '@/components/field/FormularioParcela'
 import GeometriaPanel from '@/components/field/GeometriaPanel'
+import PanelDescargarMapa from '@/components/field/PanelDescargarMapa'
 import GpsIndicator from '@/components/field/GpsIndicator'
 import SyncStatus from '@/components/field/SyncStatus'
 import { useSync } from '@/components/field/SyncProvider'
@@ -199,6 +200,11 @@ export default function CampoPage() {
           )}
 
           <GeometriaPanel poligono={poligono} deshabilitado={cargando} />
+
+          <PanelDescargarMapa
+            puntos={poligono.draft}
+            posicionActual={{ lat: ubicacion.lat, lng: ubicacion.lng }}
+          />
 
           {!cargando && (
             <FormularioParcela
