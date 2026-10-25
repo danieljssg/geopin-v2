@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tilesForBounds, type Bounds, type TileCoordinate } from '../lib/map/tiles'
 
@@ -10,14 +10,16 @@ import { tilesForBounds, type Bounds, type TileCoordinate } from '../lib/map/til
  * que la app de campo pueda descargar el mapa del levantamiento y usarlo sin
  * conexión.
  *
- * El paso de renderizado usa herramientas externas (tilemaker o tile-server).
- * Este script no las implementa: arma el comando exacto que hay que correr y
- * sube lo que ya esté renderizado. Así el pipeline se puede reproducir en
- * cualquier máquina, sin meter un renderer de tiles en el repositorio.
+ * El paso de renderizado lo hace un tile server (imágenes
+ * `overv/openstreetmap-tile-server`): tilemaker produce teselas **vectoriales**
+ * y la app sirve PNG, así que el render del ráster no se puede hacer con
+ * herramientas stack-free. Este script no implementa el render: arma el
+ * comando exacto que hay que correr, y `scripts/descargar-tiles-render.ts`
+ * baja la pirámide del server propio para que acá se suba tal cual está.
  *
  * Uso:
- *   pnpm tiles:generar -- --bbox -66.95,10.43,-66.85,10.53 --zoom 12,18
- *   pnpm tiles:generar -- --bbox ... --desde ./tiles --subir
+ *   pnpm tiles:generar -- --bbox -66.95,10.43,-66.85,10.53 --zoom 12,16
+ *   pnpm tiles:generar -- --bbox -66.95,10.43,-66.85,10.53 --zoom 12,16 --desde ./tiles-render --subir
  */
 
 interface Argumentos {
@@ -119,16 +121,22 @@ function comandoDisponible(comando: string): boolean {
 function comandoRender(bbox: Bounds, zoomMin: number, zoomMax: number, salida: string): string {
   const { west, south, east, north } = bbox
   return [
-    '# Con tilemaker (recomendado):',
-    `tilemaker --output=${salida}.mbtiles \\`,
-    `  --bbox=${west},${south},${east},${north} \\`,
-    `  --minzoom=${zoomMin} --maxzoom=${zoomMax} \\`,
-    '  --layers=water,roads,building,landuse,transit,boundary \\',
-    '  --config=tilemaker.json \\',
-    '  datos.osm.pbf',
+    '# Pirámide ráster con el server de tiles OSM en Docker: tilemaker produce',
+    '# teselas vectoriales y la app sirve PNG, así que el render va por acá.',
     '',
-    '# Después, exportar la pirámide a PNG:',
-    `mb-util --image_format=png --silent -o ${salida} ${salida}.mbtiles`,
+    '# 1. Extract y recorte al área (sin recorte, el import procesa todo el país):',
+    'curl -O https://download.geofabrik.de/south-america/venezuela-latest.osm.pbf',
+    `osmium extract --bbox=${west},${south},${east},${north} venezuela-latest.osm.pbf -o ${salida}.osm.pbf`,
+    '',
+    '# 2. Importar el extract al server y levantarlo:',
+    'docker volume create osm-data',
+    `docker run --rm -v "$PWD/${salida}.osm.pbf:/data/region.osm.pbf" \\`,
+    '  -v osm-data:/data/database/ overv/openstreetmap-tile-server import',
+    'docker run -d --name osm-tiles -p 8080:80 \\',
+    '  -v osm-data:/data/database/ overv/openstreetmap-tile-server run',
+    '',
+    '# 3. Bajar la pirámide del server propio (el plan es el mismo de este script):',
+    `pnpm tiles:descargar -- --bbox ${west},${south},${east},${north} --zoom ${zoomMin},${zoomMax}`,
   ].join('\n')
 }
 
@@ -184,34 +192,71 @@ async function subirConSas(
 
   console.log(`Subiendo ${tiles.length} tiles con la SAS…`)
 
-  for (const [indice, tile] of tiles.entries()) {
-    const ruta = `tiles/${tile.z}/${tile.x}/${tile.y}.png`
-    const origen = join(directorio, ruta)
+  let subidas = 0
+  let fallidas = 0
+  let procesadas = 0
 
-    const contenido = await import('node:fs/promises').then((fs) => fs.readFile(origen))
-    const url = `${limpio}/${ruta}${consulta ? `?${consulta}` : ''}`
+  /**
+   * Subida en paralelo: una pirámide estatal son decenas de miles de PUT y
+   * en serie el tiempo se vuelve absurdo. Azure acepta varias conexiones por
+   * cliente sin problema; 8 anda bien en una conexión doméstica.
+   */
+  const concurrencia = 8
+  const cola = [...tiles]
 
-    const respuesta = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'image/png',
-        'x-ms-blob-type': 'BlockBlob',
-        'x-ms-version': '2021-08-06',
-      },
-      body: new Uint8Array(contenido),
-    })
+  const trabajadores = Array.from(
+    { length: Math.min(concurrencia, cola.length) },
+    async () => {
+      while (cola.length > 0) {
+        const tile = cola.shift()
+        if (!tile) return
 
-    if (!respuesta.ok) {
-      console.error(`Falló la subida de ${ruta}: ${respuesta.status}`)
-      return false
-    }
+        const ruta = `tiles/${tile.z}/${tile.x}/${tile.y}.png`
+        const origen = join(directorio, ruta)
 
-    if ((indice + 1) % 50 === 0) {
-      console.log(`  ${indice + 1}/${tiles.length}`)
-    }
-  }
+        let contenido: Buffer
+        try {
+          contenido = await import('node:fs/promises').then((fs) => fs.readFile(origen))
+        } catch {
+          // La pirámide no tiene esa tesela: se anota y se sigue, porque una
+          // tesela que falta no puede impedir que las demás se suban.
+          fallidas += 1
+          procesadas += 1
+          continue
+        }
 
-  return true
+        const url = `${limpio}/${ruta}${consulta ? `?${consulta}` : ''}`
+
+        const respuesta = await fetch(url, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'image/png',
+            'x-ms-blob-type': 'BlockBlob',
+            'x-ms-version': '2021-08-06',
+          },
+          body: new Uint8Array(contenido),
+        })
+
+        if (!respuesta.ok) {
+          console.error(`Falló la subida de ${ruta}: ${respuesta.status}`)
+          fallidas += 1
+        } else {
+          subidas += 1
+        }
+
+        procesadas += 1
+
+        if (procesadas % 500 === 0) {
+          console.log(`  ${procesadas}/${tiles.length} (fallidas ${fallidas})`)
+        }
+      }
+    },
+  )
+
+  await Promise.all(trabajadores)
+
+  console.log(`Subidas ${subidas} de ${tiles.length} teselas${fallidas > 0 ? `, fallidas ${fallidas}` : ''}.`)
+  return subidas > 0
 }
 
 async function main(): Promise<void> {
@@ -266,6 +311,29 @@ async function main(): Promise<void> {
   if (!argumentos.subir) {
     console.log('\nFalta --subir: los tiles quedaron solo en el disco.')
     process.exit(0)
+  }
+
+  /**
+   * El plan y lo renderizado tienen que coincidir: la subida no arregla
+   * huecos. Si no hay nada, el mensaje tiene que decir qué falta y no un
+   * ENOENT crudo del primer archivo.
+   */
+  const desde = argumentos.desde
+  const faltantes = tiles.filter(
+    (tile) => !existsSync(join(desde, `tiles/${tile.z}/${tile.x}/${tile.y}.png`)),
+  )
+
+  if (faltantes.length === tiles.length) {
+    console.error(`No hay teselas renderizadas en ${desde}.`)
+    console.error('\nPara generarlas:')
+    console.error(comandoRender(bbox, argumentos.zoomMin, argumentos.zoomMax, salida))
+    process.exit(1)
+  }
+
+  if (faltantes.length > 0) {
+    console.warn(
+      `Faltan ${faltantes.length} de ${tiles.length} teselas en ${argumentos.desde}; se suben las que haya.`,
+    )
   }
 
   const subidoConCli = await subirConAzureCli(argumentos.desde, tiles.length)

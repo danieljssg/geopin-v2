@@ -19,5 +19,10 @@ node_modules
 # TypeScript build artifacts
 *.tsbuildinfo
 
+# Artefactos del pipeline de tiles (pirámide renderizada y manifiesto)
+tiles-render/
+tiles-manifest/
+*.osm.pbf
+
 # Archivos generados por next dev
 next-env.d.ts
