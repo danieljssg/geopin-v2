@@ -3,6 +3,17 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn } from '@/lib/auth-client'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 /**
  * Inicio de sesión.
@@ -42,64 +53,51 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-6 bg-slate-50">
-      <form
-        onSubmit={onSubmit}
-        className="w-full max-w-sm rounded-lg bg-white p-6 shadow-sm"
-        style={{ border: '1px solid #e2e8f0' }}
-      >
-        <h1 className="text-lg font-bold text-slate-900">Iniciar sesión</h1>
-        <p className="mt-1 text-sm text-slate-500">GeoPin — levantamiento GIS</p>
+    <main className="bg-background flex min-h-screen items-center justify-center px-6">
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle>Iniciar sesión</CardTitle>
+          <CardDescription>GeoPin — levantamiento GIS</CardDescription>
+        </CardHeader>
 
-        <div className="mt-5 space-y-4">
-          <div>
-            <label htmlFor="email" className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
-              Correo
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              autoComplete="username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
-              style={{ borderColor: '#cbd5e1' }}
-            />
-          </div>
+        <CardContent>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Correo</Label>
+              <Input
+                id="email"
+                type="email"
+                required
+                autoComplete="username"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
 
-          <div>
-            <label htmlFor="password" className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
-              Contraseña
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
-              style={{ borderColor: '#cbd5e1' }}
-            />
-          </div>
-        </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Contraseña</Label>
+              <Input
+                id="password"
+                type="password"
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
 
-        {error && (
-          <p role="alert" className="mt-4 rounded-md px-3 py-2 text-sm" style={{ background: '#fee2e2', color: '#b91c1c' }}>
-            {error}
-          </p>
-        )}
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-        <button
-          type="submit"
-          disabled={enviando}
-          className="mt-5 w-full rounded-md px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-          style={{ background: '#1e3a5f' }}
-        >
-          {enviando ? 'Entrando…' : 'Entrar'}
-        </button>
-      </form>
+            <Button type="submit" disabled={enviando} className="w-full">
+              {enviando ? 'Entrando…' : 'Entrar'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </main>
   )
 }

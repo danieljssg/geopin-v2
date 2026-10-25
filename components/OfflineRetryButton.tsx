@@ -1,5 +1,7 @@
 'use client'
 
+import { Button } from '@/components/ui/button'
+
 /**
  * Botón de reintento de la página offline.
  *
@@ -8,13 +10,8 @@
  */
 export default function OfflineRetryButton() {
   return (
-    <button
-      type="button"
-      onClick={() => window.location.reload()}
-      className="rounded-md px-5 py-2.5 text-sm font-semibold text-white"
-      style={{ background: '#1e3a5f' }}
-    >
+    <Button type="button" onClick={() => window.location.reload()}>
       Reintentar
-    </button>
+    </Button>
   )
 }
