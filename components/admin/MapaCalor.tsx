@@ -29,6 +29,7 @@ export interface MapaCalorProps {
   centro?: [number, number]
 }
 
+// color funcional de mapa: Leaflet no consume tokens CSS acá
 const COLOR_ESTADO: Record<ParcelaEstado, string> = {
   completa: '#16a34a',
   pendiente: '#ea580c',
@@ -57,7 +58,7 @@ export default function MapaCalor({ celdas, puntos, centro }: MapaCalorProps) {
     <MapContainer
       center={centroMapa}
       zoom={puntos.length > 0 ? 13 : 6}
-      style={{ height: '100%', width: '100%' }}
+      className="h-full w-full"
       scrollWheelZoom
     >
       <TileLayer
@@ -76,6 +77,7 @@ export default function MapaCalor({ celdas, puntos, centro }: MapaCalorProps) {
                   center={[celda.lat, celda.lng]}
                   radius={60 + intensidad * 180}
                   pathOptions={{
+                    // color funcional de mapa: Leaflet no consume tokens CSS acá
                     color: '#dc2626',
                     weight: 0,
                     fillColor: '#ef4444',
@@ -99,6 +101,7 @@ export default function MapaCalor({ celdas, puntos, centro }: MapaCalorProps) {
                   center={[punto.lat, punto.lng]}
                   radius={5}
                   pathOptions={{
+                    // color funcional de mapa: Leaflet no consume tokens CSS acá
                     color: '#ffffff',
                     weight: 1.5,
                     fillColor: COLOR_ESTADO.completa,
@@ -125,6 +128,7 @@ export default function MapaCalor({ celdas, puntos, centro }: MapaCalorProps) {
                   center={[punto.lat, punto.lng]}
                   radius={5}
                   pathOptions={{
+                    // color funcional de mapa: Leaflet no consume tokens CSS acá
                     color: '#ffffff',
                     weight: 1.5,
                     fillColor: COLOR_ESTADO[punto.estado],

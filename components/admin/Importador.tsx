@@ -1,6 +1,19 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import type { CampoEnConflicto } from '@/lib/domain/merge'
 
 /**
@@ -46,11 +59,11 @@ const ETIQUETAS: Record<Accion, string> = {
   error: 'Error',
 }
 
-const COLORES: Record<Accion, { fondo: string; texto: string }> = {
-  nueva: { fondo: '#dcfce7', texto: '#166534' },
-  actualizada: { fondo: '#fef3c7', texto: '#92400e' },
-  duplicada: { fondo: '#ffedd5', texto: '#9a3412' },
-  error: { fondo: '#fee2e2', texto: '#b91c1c' },
+const VARIANTE_ACCION: Record<Accion, 'default' | 'secondary' | 'outline' | 'destructive'> = {
+  nueva: 'default',
+  actualizada: 'secondary',
+  duplicada: 'outline',
+  error: 'destructive',
 }
 
 export default function Importador() {
@@ -152,168 +165,176 @@ export default function Importador() {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-lg bg-white p-5" style={{ border: '1px solid #e2e8f0' }}>
-        <h2 className="text-base font-bold text-slate-900">Importar archivo de campo</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          CSV o Excel. La primera vez solo se previsualiza: nada se escribe hasta que
-          confirmes.
-        </p>
+      <Card>
+        <CardHeader>
+          <CardTitle>Importar archivo de campo</CardTitle>
+          <CardDescription>
+            CSV o Excel. La primera vez solo se previsualiza: nada se escribe hasta que
+            confirmes.
+          </CardDescription>
+        </CardHeader>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <input
-            type="file"
-            accept=".csv,.xlsx,.xls"
-            onChange={(event) => {
-              const archivo = event.target.files?.[0] ?? null
-              archivoRef.current = archivo
-              setNombreArchivo(archivo?.name ?? '')
-              setResultado(null)
-              if (archivo) void enviar(archivo, false)
-            }}
-            className="text-sm"
-          />
+        <CardContent>
+          <div className="flex flex-wrap items-center gap-3">
+            <Input
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              onChange={(event) => {
+                const archivo = event.target.files?.[0] ?? null
+                archivoRef.current = archivo
+                setNombreArchivo(archivo?.name ?? '')
+                setResultado(null)
+                if (archivo) void enviar(archivo, false)
+              }}
+            />
 
-          {cargando && <span className="text-sm text-slate-500">Procesando…</span>}
-        </div>
-
-        {error && (
-          <div className="mt-3 rounded-md px-3 py-2 text-sm" style={{ background: '#fee2e2', color: '#b91c1c' }}>
-            {error}
+            {cargando && <span className="text-sm text-muted-foreground">Procesando…</span>}
           </div>
-        )}
-      </section>
+
+          {error && (
+            <Alert variant="destructive" className="mt-3">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
 
       {resultado && (
         <>
-          <section className="rounded-lg bg-white p-5" style={{ border: '1px solid #e2e8f0' }}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-bold text-slate-900">
-                  {nombreArchivo || 'Archivo'} — {resultado.resumen.filas} filas
-                </h2>
-                <p className="mt-1 text-xs text-slate-500">
-                  {resultado.resumen.nuevas} nuevas · {resultado.resumen.actualizadas}{' '}
-                  ya existen · {resultado.resumen.duplicadas} duplicadas ·{' '}
-                  {resultado.resumen.conErrores} con error
-                </p>
-              </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                {nombreArchivo || 'Archivo'} — {resultado.resumen.filas} filas
+              </CardTitle>
+              <CardDescription>
+                {resultado.resumen.nuevas} nuevas · {resultado.resumen.actualizadas}{' '}
+                ya existen · {resultado.resumen.duplicadas} duplicadas ·{' '}
+                {resultado.resumen.conErrores} con error
+              </CardDescription>
 
               {!aplicado && resultado.resumen.nuevas > 0 && (
-                <button
-                  type="button"
-                  disabled={cargando}
-                  onClick={() => {
-                    const archivo = archivoRef.current
-                    if (archivo) void enviar(archivo, true).then(() => setAplicado(true))
-                  }}
-                  className="rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
-                  style={{ background: '#1d4ed8' }}
-                >
-                  Crear {resultado.resumen.nuevas} parcelas
-                </button>
+                <CardAction>
+                  <Button
+                    type="button"
+                    disabled={cargando}
+                    onClick={() => {
+                      const archivo = archivoRef.current
+                      if (archivo) void enviar(archivo, true).then(() => setAplicado(true))
+                    }}
+                  >
+                    Crear {resultado.resumen.nuevas} parcelas
+                  </Button>
+                </CardAction>
               )}
 
               {aplicado && (
-                <span
-                  className="rounded-full px-3 py-1.5 text-sm font-semibold"
-                  style={{ background: '#dcfce7', color: '#166534' }}
-                >
-                  {resultado.creadas} parcelas creadas
-                </span>
+                <CardAction>
+                  <Badge>{resultado.creadas} parcelas creadas</Badge>
+                </CardAction>
               )}
-            </div>
+            </CardHeader>
 
-            {resultado.avisos.length > 0 && (
-              <ul className="mt-3 space-y-1 rounded-md px-3 py-2 text-sm" style={{ background: '#fef3c7', color: '#92400e' }}>
-                {resultado.avisos.map((aviso, indice) => (
-                  <li key={indice}>{aviso}</li>
-                ))}
-              </ul>
-            )}
+            <CardContent>
+              {resultado.avisos.length > 0 && (
+                <Alert>
+                  <AlertDescription>
+                    <ul className="space-y-1">
+                      {resultado.avisos.map((aviso, indice) => (
+                        <li key={indice}>{aviso}</li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
 
-            {resultado.columnasDesconocidas.length > 0 && (
-              <p className="mt-3 text-xs text-slate-500">
-                Columnas ignoradas (no se reconocen):{' '}
-                {resultado.columnasDesconocidas.join(', ')}
-              </p>
-            )}
-          </section>
+              {resultado.columnasDesconocidas.length > 0 && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Columnas ignoradas (no se reconocen):{' '}
+                  {resultado.columnasDesconocidas.join(', ')}
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
           {conflictosPendientes.length > 0 && (
-            <section className="rounded-lg bg-white p-5" style={{ border: '1px solid #e2e8f0' }}>
-              <h2 className="text-base font-bold text-slate-900">
-                Conflictos por resolver ({conflictosPendientes.length})
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Estas parcelas ya existen y el archivo trae datos distintos. Elegí qué
-                valor se conserva en cada campo.
-              </p>
+            <Card>
+              <CardHeader>
+                <CardTitle>Conflictos por resolver ({conflictosPendientes.length})</CardTitle>
+                <CardDescription>
+                  Estas parcelas ya existen y el archivo trae datos distintos. Elegí qué
+                  valor se conserva en cada campo.
+                </CardDescription>
+              </CardHeader>
 
-              <div className="mt-4 space-y-4">
+              <CardContent className="space-y-4">
                 {conflictosPendientes.map((fila) => (
-                  <div key={fila.fila} className="rounded-md p-3" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                    <p className="text-sm font-semibold text-slate-800">
-                      Fila {fila.fila} — {fila.nombre ?? 'sin nombre'}{' '}
-                      {fila.codigo && `(${fila.codigo})`}
-                    </p>
+                  <Card key={fila.fila} size="sm">
+                    <CardContent>
+                      <p className="text-sm font-semibold">
+                        Fila {fila.fila} — {fila.nombre ?? 'sin nombre'}{' '}
+                        {fila.codigo && `(${fila.codigo})`}
+                      </p>
 
-                    <div className="mt-2 space-y-2">
-                      {fila.conflictos.map((conflicto) => {
-                        const eleccion = resueltos[conflicto.campo] ?? 'existente'
-                        return (
-                          <div key={conflicto.campo} className="flex flex-wrap items-center gap-2 text-xs">
-                            <span className="font-semibold text-slate-600">{conflicto.campo}</span>
+                      <div className="mt-2 space-y-2">
+                        {fila.conflictos.map((conflicto) => {
+                          const eleccion = resueltos[conflicto.campo] ?? 'existente'
+                          return (
+                            <div key={conflicto.campo} className="flex flex-wrap items-center gap-2 text-xs">
+                              <span className="font-semibold text-muted-foreground">{conflicto.campo}</span>
 
-                            <label className="flex items-center gap-1">
-                              <input
-                                type="radio"
-                                name={`${fila.fila}-${conflicto.campo}`}
-                                checked={eleccion === 'existente'}
-                                onChange={() =>
-                                  setResueltos((previo) => ({ ...previo, [conflicto.campo]: 'existente' }))
-                                }
-                              />
-                              Actual: <strong>{formatear(conflicto.valorExistente)}</strong>
-                            </label>
+                              <label className="flex items-center gap-1">
+                                <input
+                                  type="radio"
+                                  name={`${fila.fila}-${conflicto.campo}`}
+                                  checked={eleccion === 'existente'}
+                                  onChange={() =>
+                                    setResueltos((previo) => ({ ...previo, [conflicto.campo]: 'existente' }))
+                                  }
+                                />
+                                Actual: <strong>{formatear(conflicto.valorExistente)}</strong>
+                              </label>
 
-                            <label className="flex items-center gap-1">
-                              <input
-                                type="radio"
-                                name={`${fila.fila}-${conflicto.campo}`}
-                                checked={eleccion === 'entrante'}
-                                onChange={() =>
-                                  setResueltos((previo) => ({ ...previo, [conflicto.campo]: 'entrante' }))
-                                }
-                              />
-                              Archivo: <strong>{formatear(conflicto.valorEntrante)}</strong>
-                            </label>
-                          </div>
-                        )
-                      })}
-                    </div>
+                              <label className="flex items-center gap-1">
+                                <input
+                                  type="radio"
+                                  name={`${fila.fila}-${conflicto.campo}`}
+                                  checked={eleccion === 'entrante'}
+                                  onChange={() =>
+                                    setResueltos((previo) => ({ ...previo, [conflicto.campo]: 'entrante' }))
+                                  }
+                                />
+                                Archivo: <strong>{formatear(conflicto.valorEntrante)}</strong>
+                              </label>
+                            </div>
+                          )
+                        })}
+                      </div>
 
-                    <button
-                      type="button"
-                      onClick={() => void resolver(fila)}
-                      disabled={resolviendo === fila.parcelaExistenteId}
-                      className="mt-3 rounded-md px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
-                      style={{ background: '#1e3a5f' }}
-                    >
-                      {resolviendo === fila.parcelaExistenteId ? 'Resolviendo…' : 'Aplicar resolución'}
-                    </button>
-                  </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="mt-3"
+                        onClick={() => void resolver(fila)}
+                        disabled={resolviendo === fila.parcelaExistenteId}
+                      >
+                        {resolviendo === fila.parcelaExistenteId ? 'Resolviendo…' : 'Aplicar resolución'}
+                      </Button>
+                    </CardContent>
+                  </Card>
                 ))}
-              </div>
-            </section>
+              </CardContent>
+            </Card>
           )}
 
-          <section className="rounded-lg bg-white p-5" style={{ border: '1px solid #e2e8f0' }}>
-            <h2 className="text-base font-bold text-slate-900">Detalle de las filas</h2>
+          <Card>
+            <CardHeader>
+              <CardTitle>Detalle de las filas</CardTitle>
+            </CardHeader>
 
-            <div className="mt-3 overflow-x-auto">
+            <CardContent className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                  <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
                     <th className="py-2 pr-2">Fila</th>
                     <th className="py-2 pr-2">Acción</th>
                     <th className="py-2 pr-2">Nombre</th>
@@ -322,33 +343,27 @@ export default function Importador() {
                   </tr>
                 </thead>
                 <tbody>
-                  {resultado.filas.map((fila) => {
-                    const colores = COLORES[fila.accion]
-                    return (
-                      <tr key={fila.fila} style={{ borderTop: '1px solid #f1f5f9' }}>
-                        <td className="py-1.5 pr-2 text-slate-400">{fila.fila}</td>
-                        <td className="py-1.5 pr-2">
-                          <span
-                            className="rounded-full px-2 py-0.5 text-xs font-semibold"
-                            style={{ background: colores.fondo, color: colores.texto }}
-                          >
-                            {ETIQUETAS[fila.accion]}
-                          </span>
-                        </td>
-                        <td className="py-1.5 pr-2 text-slate-700">{fila.nombre ?? '—'}</td>
-                        <td className="py-1.5 pr-2 text-slate-500">{fila.codigo ?? '—'}</td>
-                        <td className="py-1.5 text-xs text-slate-600">
-                          {fila.errores.join(' ')}
-                          {fila.conflictos.length > 0 &&
-                            ` ${fila.conflictos.length} campo(s) en conflicto.`}
-                        </td>
-                      </tr>
-                    )
-                  })}
+                  {resultado.filas.map((fila) => (
+                    <tr key={fila.fila} className="border-t">
+                      <td className="py-1.5 pr-2 text-muted-foreground">{fila.fila}</td>
+                      <td className="py-1.5 pr-2">
+                        <Badge variant={VARIANTE_ACCION[fila.accion]}>
+                          {ETIQUETAS[fila.accion]}
+                        </Badge>
+                      </td>
+                      <td className="py-1.5 pr-2">{fila.nombre ?? '—'}</td>
+                      <td className="py-1.5 pr-2 text-muted-foreground">{fila.codigo ?? '—'}</td>
+                      <td className="py-1.5 text-xs text-muted-foreground">
+                        {fila.errores.join(' ')}
+                        {fila.conflictos.length > 0 &&
+                          ` ${fila.conflictos.length} campo(s) en conflicto.`}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
-            </div>
-          </section>
+            </CardContent>
+          </Card>
         </>
       )}
     </div>

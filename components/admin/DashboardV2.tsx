@@ -2,6 +2,27 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
+
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button, buttonVariants } from '@/components/ui/button'
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { CoberturaServicio, DensidadCelda, EquipamientoResumen, ResumenLevantamiento } from '@/lib/domain/dashboard'
 import type { ParcelaEstado } from '@/lib/domain/types'
 import type { PuntoMapa } from './MapaCalor'
@@ -18,8 +39,8 @@ import type { PuntoMapa } from './MapaCalor'
 const MapaCalor = dynamic(() => import('./MapaCalor'), {
   ssr: false,
   loading: () => (
-    <div className="h-full w-full flex items-center justify-center" style={{ background: '#f1f5f9' }}>
-      <p className="text-sm text-slate-500 font-medium">Cargando mapa…</p>
+    <div className="flex h-full w-full items-center justify-center bg-muted">
+      <p className="text-sm font-medium text-muted-foreground">Cargando mapa…</p>
     </div>
   ),
 })
@@ -127,12 +148,12 @@ export default function DashboardV2() {
   )
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <header className="px-4 py-4 sm:px-6" style={{ background: '#1e3a5f' }}>
+    <main className="min-h-screen bg-muted">
+      <header className="bg-primary px-4 py-4 text-primary-foreground sm:px-6">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-base font-bold text-white">Dashboard del levantamiento</h1>
-            <p className="text-xs" style={{ color: '#93c5fd' }}>
+            <h1 className="text-base font-bold">Dashboard del levantamiento</h1>
+            <p className="text-xs text-primary-foreground/70">
               {datos?.levantamiento
                 ? `${datos.levantamiento.nombre} — ${datos.levantamiento.ciudad}`
                 : 'Todas las parcelas levantadas'}
@@ -141,22 +162,42 @@ export default function DashboardV2() {
 
           <div className="flex items-center gap-3">
             {levantamientos.length > 0 && (
-              <select
-                aria-label="Levantamiento"
+              <Select
                 value={seleccionado}
-                onChange={(event) => setSeleccionado(event.target.value)}
-                className="rounded-md px-2 py-1.5 text-xs"
-                style={{ background: '#ffffff', color: '#1e3a5f' }}
+                onValueChange={(valor) => setSeleccionado(valor as string)}
               >
-                <option value="">Todas las parcelas</option>
-                {levantamientos.map((levantamiento) => (
-                  <option key={levantamiento.id} value={levantamiento.id}>
-                    {levantamiento.nombre}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger
+                  aria-label="Levantamiento"
+                  size="sm"
+                  className="bg-background text-foreground"
+                >
+                  <SelectValue>
+                    {(valor) =>
+                      valor
+                        ? levantamientos.find((levantamiento) => levantamiento.id === valor)?.nombre
+                        : 'Todas las parcelas'
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Todas las parcelas</SelectItem>
+                  {levantamientos.map((levantamiento) => (
+                    <SelectItem key={levantamiento.id} value={levantamiento.id}>
+                      {levantamiento.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
-            <a href="/admin/esquema" className="text-xs text-white underline">
+            <a
+              href="/admin/esquema"
+              className={buttonVariants({
+                variant: 'ghost',
+                size: 'sm',
+                className:
+                  'text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground',
+              })}
+            >
               Esquemas
             </a>
           </div>
@@ -164,175 +205,170 @@ export default function DashboardV2() {
       </header>
 
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 space-y-6">
-        {cargando && <p className="text-sm text-slate-500">Cargando datos…</p>}
+        {cargando && (
+          <div className="space-y-3">
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        )}
 
         {error && (
-          <div className="rounded-md px-3 py-2 text-sm" style={{ background: '#fee2e2', color: '#b91c1c' }}>
-            <p>{error}</p>
-            <button
-              type="button"
-              onClick={() => {
-                setError(null)
-                setRecarga((valor) => valor + 1)
-              }}
-              className="mt-1 font-semibold underline"
-            >
-              Reintentar
-            </button>
-          </div>
+          <Alert variant="destructive">
+            <AlertDescription>
+              <p>{error}</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={() => {
+                  setError(null)
+                  setRecarga((valor) => valor + 1)
+                }}
+              >
+                Reintentar
+              </Button>
+            </AlertDescription>
+          </Alert>
         )}
 
         {!cargando && datos && (
           <>
             {/* Avance contra el total esperado */}
-            <section className="rounded-lg bg-white p-5" style={{ border: '1px solid #e2e8f0' }}>
-              <div className="flex flex-wrap items-end justify-between gap-2">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Avance</p>
-                  <p className="mt-1 text-2xl font-bold text-slate-900">
-                    {datos.resumen.levantadas}{' '}
-                    <span className="text-base font-medium text-slate-400">
-                      de {datos.resumen.totalEsperado}
-                    </span>
+            <Card>
+              <CardContent>
+                <div className="flex flex-wrap items-end justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Avance</p>
+                    <p className="mt-1 text-2xl font-bold">
+                      {datos.resumen.levantadas}{' '}
+                      <span className="text-base font-medium text-muted-foreground">
+                        de {datos.resumen.totalEsperado}
+                      </span>
+                    </p>
+                  </div>
+                  <p className="text-sm font-semibold text-primary">
+                    {datos.resumen.avancePct}%
                   </p>
                 </div>
-                <p className="text-sm font-semibold" style={{ color: '#1d4ed8' }}>
-                  {datos.resumen.avancePct}%
+
+                <Progress value={datos.resumen.avancePct} className="mt-3" />
+
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Faltan {datos.resumen.faltantes} parcelas para completar el levantamiento.
                 </p>
-              </div>
 
-              <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full" style={{ background: '#e2e8f0' }}>
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${Math.min(datos.resumen.avancePct, 100)}%`,
-                    background: '#1d4ed8',
-                  }}
-                />
-              </div>
-
-              <p className="mt-2 text-xs text-slate-500">
-                Faltan {datos.resumen.faltantes} parcelas para completar el levantamiento.
-              </p>
-
-              <div className="mt-4 grid grid-cols-3 gap-3">
-                {datos.distribucion.map((item) => (
-                  <div key={item.estado} className="rounded-md p-3" style={{ background: '#f8fafc' }}>
-                    <p className="text-xs text-slate-500">{item.label}</p>
-                    <p className="text-lg font-bold text-slate-900">{item.cantidad}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
+                <div className="mt-4 grid grid-cols-3 gap-3">
+                  {datos.distribucion.map((item) => (
+                    <div key={item.estado} className="rounded-lg bg-muted p-3">
+                      <p className="text-xs text-muted-foreground">{item.label}</p>
+                      <p className="text-lg font-bold">{item.cantidad}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Cobertura de servicios */}
-            <section className="rounded-lg bg-white p-5" style={{ border: '1px solid #e2e8f0' }}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-base font-bold text-slate-900">Cobertura de servicios</h2>
+            <Card>
+              <CardHeader>
+                <CardTitle>Cobertura de servicios</CardTitle>
                 {serviciosEnDeficit.length > 0 && (
-                  <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: '#fee2e2', color: '#b91c1c' }}>
-                    {serviciosEnDeficit.length} en déficit
-                  </span>
+                  <CardAction>
+                    <Badge variant="destructive">
+                      {serviciosEnDeficit.length} en déficit
+                    </Badge>
+                  </CardAction>
                 )}
-              </div>
+                <CardDescription>
+                  El porcentaje se calcula sobre las parcelas que declararon el servicio, no
+                  sobre el total. Los casos sin dato se muestran aparte.
+                </CardDescription>
+              </CardHeader>
 
-              <p className="mt-1 text-xs text-slate-500">
-                El porcentaje se calcula sobre las parcelas que declararon el servicio, no
-                sobre el total. Los casos sin dato se muestran aparte.
-              </p>
-
-              <div className="mt-4 space-y-3">
+              <CardContent className="space-y-3">
                 {datos.cobertura.map((servicio) => (
                   <div key={servicio.key}>
                     <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <p className="text-sm font-semibold text-slate-800">{servicio.label}</p>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-sm font-semibold">{servicio.label}</p>
+                      <p className="text-xs text-muted-foreground">
                         {servicio.cubiertas} de {servicio.declaradas} declaradas ·{' '}
-                        <span className="font-semibold text-slate-700">{servicio.coberturaPct}%</span>
+                        <span className="font-semibold text-foreground">{servicio.coberturaPct}%</span>
                         {servicio.sinDato > 0 && ` · ${servicio.sinDato} sin dato`}
                       </p>
                     </div>
 
                     <div className="mt-1 flex items-center gap-2">
-                      <div className="h-2 flex-1 overflow-hidden rounded-full" style={{ background: '#e2e8f0' }}>
-                        <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${servicio.coberturaPct}%`,
-                            background: servicio.enDeficit ? '#dc2626' : '#16a34a',
-                          }}
-                        />
-                      </div>
-                      {servicio.enDeficit && (
-                        <span className="text-xs font-semibold" style={{ color: '#b91c1c' }}>
-                          déficit
-                        </span>
-                      )}
+                      <Progress value={servicio.coberturaPct} className="flex-1" />
+                      {servicio.enDeficit && <Badge variant="destructive">déficit</Badge>}
                     </div>
                   </div>
                 ))}
-              </div>
-            </section>
+              </CardContent>
+            </Card>
 
             {/* Equipamiento */}
-            <section className="rounded-lg bg-white p-5" style={{ border: '1px solid #e2e8f0' }}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-base font-bold text-slate-900">Equipamiento urbano</h2>
+            <Card>
+              <CardHeader>
+                <CardTitle>Equipamiento urbano</CardTitle>
                 {equipamientoSaturado.length > 0 && (
-                  <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: '#fef3c7', color: '#92400e' }}>
-                    {equipamientoSaturado.length} saturados
-                  </span>
+                  <CardAction>
+                    <Badge variant="destructive">
+                      {equipamientoSaturado.length} saturados
+                    </Badge>
+                  </CardAction>
                 )}
-              </div>
+              </CardHeader>
 
-              {datos.equipamiento.length === 0 ? (
-                <p className="mt-3 text-sm text-slate-500">
-                  Todavía no hay parcelas con equipamiento declarado.
-                </p>
-              ) : (
-                <table className="mt-3 w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
-                      <th className="py-1.5 pr-2">Tipo</th>
-                      <th className="py-1.5 pr-2">Cantidad</th>
-                      <th className="py-1.5 pr-2">Parcelas por unidad</th>
-                      <th className="py-1.5">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {datos.equipamiento.map((item) => (
-                      <tr key={item.tipo} style={{ borderTop: '1px solid #f1f5f9' }}>
-                        <td className="py-1.5 pr-2 text-slate-800">{item.tipo}</td>
-                        <td className="py-1.5 pr-2 text-slate-600">{item.cantidad}</td>
-                        <td className="py-1.5 pr-2 text-slate-600">{item.parcelasPorUnidad ?? '—'}</td>
-                        <td className="py-1.5">
-                          {item.saturado ? (
-                            <span className="text-xs font-semibold" style={{ color: '#92400e' }}>
-                              saturado
-                            </span>
-                          ) : (
-                            <span className="text-xs text-slate-400">ok</span>
-                          )}
-                        </td>
+              <CardContent>
+                {datos.equipamiento.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Todavía no hay parcelas con equipamiento declarado.
+                  </p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+                        <th className="py-1.5 pr-2">Tipo</th>
+                        <th className="py-1.5 pr-2">Cantidad</th>
+                        <th className="py-1.5 pr-2">Parcelas por unidad</th>
+                        <th className="py-1.5">Estado</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </section>
+                    </thead>
+                    <tbody>
+                      {datos.equipamiento.map((item) => (
+                        <tr key={item.tipo} className="border-t">
+                          <td className="py-1.5 pr-2">{item.tipo}</td>
+                          <td className="py-1.5 pr-2 text-muted-foreground">{item.cantidad}</td>
+                          <td className="py-1.5 pr-2 text-muted-foreground">{item.parcelasPorUnidad ?? '—'}</td>
+                          <td className="py-1.5">
+                            {item.saturado ? (
+                              <Badge variant="destructive">saturado</Badge>
+                            ) : (
+                              <Badge variant="outline">ok</Badge>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Mapa */}
-            <section className="rounded-lg overflow-hidden bg-white" style={{ border: '1px solid #e2e8f0' }}>
-              <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
-                <h2 className="text-base font-bold text-slate-900">Mapa del levantamiento</h2>
-                <p className="text-xs text-slate-500">
+            <Card>
+              <CardHeader>
+                <CardTitle>Mapa del levantamiento</CardTitle>
+                <CardDescription>
                   {datos.puntos.length} parcelas · {datos.celdas.length} celdas de densidad
-                </p>
-              </div>
-              <div style={{ height: 480 }}>
+                </CardDescription>
+              </CardHeader>
+              <div className="h-120">
                 <MapaCalor celdas={datos.celdas} puntos={datos.puntos} />
               </div>
-            </section>
+            </Card>
           </>
         )}
       </div>

@@ -26,10 +26,10 @@ export default async function EsquemaPage() {
   if (!user) redirect('/login')
   if (!hasPermission(user.role, 'esquema:editar')) {
     return (
-      <main className="min-h-screen flex items-center justify-center px-6 bg-slate-50">
+      <main className="min-h-screen flex items-center justify-center px-6 bg-muted">
         <div className="max-w-md text-center">
-          <h1 className="text-lg font-bold text-slate-900">Sin permiso</h1>
-          <p className="mt-2 text-sm text-slate-600">
+          <h1 className="text-lg font-bold text-foreground">Sin permiso</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
             Tu rol ({user.role}) no puede editar los esquemas. Pedile a un
             administrador que te asigne el permiso.
           </p>

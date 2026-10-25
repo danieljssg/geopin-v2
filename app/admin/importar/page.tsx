@@ -1,6 +1,8 @@
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
+
+import { buttonVariants } from '@/components/ui/button'
 import { getSessionUser } from '@/lib/server/session'
 import { hasPermission } from '@/lib/auth/roles'
 import Importador from '@/components/admin/Importador'
@@ -25,10 +27,10 @@ export default async function ImportarPage() {
   if (!user) redirect('/login')
   if (!hasPermission(user.role, 'importar:ejecutar')) {
     return (
-      <main className="min-h-screen flex items-center justify-center px-6 bg-slate-50">
+      <main className="min-h-screen flex items-center justify-center px-6 bg-muted">
         <div className="max-w-md text-center">
-          <h1 className="text-lg font-bold text-slate-900">Sin permiso</h1>
-          <p className="mt-2 text-sm text-slate-600">
+          <h1 className="text-lg font-bold text-foreground">Sin permiso</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
             Tu rol ({user.role}) no puede importar archivos.
           </p>
         </div>
@@ -37,20 +39,36 @@ export default async function ImportarPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <header className="px-4 py-4 sm:px-6" style={{ background: '#1e3a5f' }}>
+    <main className="min-h-screen bg-muted">
+      <header className="bg-primary px-4 py-4 text-primary-foreground sm:px-6">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-base font-bold text-white">Importar levantamiento</h1>
-            <p className="text-xs" style={{ color: '#93c5fd' }}>
+            <h1 className="text-base font-bold">Importar levantamiento</h1>
+            <p className="text-xs text-primary-foreground/70">
               Excel o CSV de campo, con cruce y detección de duplicados.
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <a href="/admin/dashboard" className="text-xs text-white underline">
+            <a
+              href="/admin/dashboard"
+              className={buttonVariants({
+                variant: 'ghost',
+                size: 'sm',
+                className:
+                  'text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground',
+              })}
+            >
               Dashboard
             </a>
-            <a href="/listado" className="text-xs text-white underline">
+            <a
+              href="/listado"
+              className={buttonVariants({
+                variant: 'ghost',
+                size: 'sm',
+                className:
+                  'text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground',
+              })}
+            >
               Parcelas
             </a>
           </div>
