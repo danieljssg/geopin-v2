@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { adminAc, userAc } from 'better-auth/plugins/admin/access'
 import { getAuth, resetAuth } from './auth'
 import { closeMongo } from './cosmos'
 import { resetServerEnvCache } from './env'
+import { DEFAULT_ROLE, USER_ROLES, normalizeRole } from '@/lib/auth/roles'
 
 /**
  * Smoke test de la configuración de Better Auth.
@@ -81,5 +83,139 @@ describe('getAuth', () => {
 
     expect(roleField?.defaultValue).toBe('encuestador')
     expect(roleField?.defaultValue).not.toBe('admin')
+  })
+
+  /**
+   * La gestión de usuarios la aporta el plugin `admin`. Estas dos son las
+   * condiciones que la hacen segura, y por eso se fijan acá:
+   *
+   * 1. `adminRoles` define qué rol manda: solo `admin`.
+   * 2. `roles` acota los valores que `set-role` y `create-user` aceptan a los
+   *    roles de la aplicación. Better Auth rechaza cualquier otro valor con
+   *    `YOU_ARE_NOT_ALLOWED_TO_SET_NON_EXISTENT_VALUE` antes de escribir.
+   *
+   * El campo `role` adicional de arriba no se toca: sigue declarado con el
+   * enum y `input: false`. El plugin agrega su propia declaración del mismo
+   * campo, también con `input: false`, así que el guard de escalada se
+   * mantiene por partida doble.
+   */
+  it('registra el plugin admin acotado a los roles de la aplicación', () => {
+    const auth = getAuth()
+    const plugin = auth.options.plugins?.find((candidato) => candidato.id === 'admin')
+
+    expect(plugin).toBeDefined()
+
+    const opciones = (
+      plugin as
+        | {
+            options?: {
+              adminRoles?: string | string[]
+              defaultRole?: string
+              roles?: Record<string, unknown>
+            }
+          }
+        | undefined
+    )?.options
+
+    expect(opciones?.adminRoles).toEqual(['admin'])
+    expect(opciones?.defaultRole).toBe(DEFAULT_ROLE)
+    expect(opciones?.roles).toBeDefined()
+    expect(Object.keys(opciones?.roles ?? {}).sort()).toEqual([...USER_ROLES].sort())
+    expect(opciones?.roles?.encuestador).toBe(userAc)
+    expect(opciones?.roles?.admin).toBe(adminAc)
+  })
+
+  /**
+   * El mapa de roles es lo que Better Auth consulta antes de cada acción de
+   * administración. El encuestador no autoriza ninguna y el admin autoriza
+   * todas: un `set-role`, `ban` o `list-users` con sesión de encuestador
+   * termina en 403.
+   */
+  it('solo el rol admin autoriza las acciones de gestión de usuarios', () => {
+    const acciones = { user: ['list', 'set-role', 'create', 'ban'] } as const
+
+    expect(userAc.authorize(acciones).success).toBe(false)
+    expect(adminAc.authorize(acciones).success).toBe(true)
+  })
+
+  /**
+   * Los endpoints de administración no pueden quedar abiertos: sin cookie de
+   * sesión responden 401 antes de tocar la base. Se prueban los tres que usa
+   * el panel de usuarios.
+   */
+  it('list-users exige una sesión de administrador', async () => {
+    const respuesta = await getAuth().handler(
+      new Request('https://geopin.example.com/api/auth/admin/list-users'),
+    )
+
+    expect(respuesta.status).toBe(401)
+  })
+
+  it('set-role exige una sesión de administrador', async () => {
+    const respuesta = await getAuth().handler(
+      new Request('https://geopin.example.com/api/auth/admin/set-role', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ userId: 'usuario-1', role: 'admin' }),
+      }),
+    )
+
+    expect(respuesta.status).toBe(401)
+  })
+
+  it('create-user exige una sesión de administrador', async () => {
+    const respuesta = await getAuth().handler(
+      new Request('https://geopin.example.com/api/auth/admin/create-user', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Intruso',
+          email: 'intruso@example.com',
+          password: 'contrasena-larga',
+          role: 'admin',
+        }),
+      }),
+    )
+
+    expect(respuesta.status).toBe(401)
+  })
+
+  /**
+   * El mismo invariante, ahora por el camino real: un cuerpo de registro con
+   * `role` no llega ni a la base. Antes del plugin la entrada se ignoraba en
+   * silencio; con el plugin se rechaza con 400 (`FIELD_NOT_ALLOWED`), que es
+   * más estricto y sigue impidiendo la escalada.
+   */
+  it('el registro rechaza un rol enviado por el cliente', async () => {
+    const respuesta = await getAuth().handler(
+      new Request('https://geopin.example.com/api/auth/sign-up/email', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Intruso',
+          email: 'intruso@example.com',
+          password: 'contrasena-larga',
+          role: 'admin',
+        }),
+      }),
+    )
+
+    expect(respuesta.status).toBe(400)
+    const cuerpo = (await respuesta.json()) as { code?: string; message?: string }
+    expect(cuerpo.code).toBe('FIELD_NOT_ALLOWED')
+    expect(cuerpo.message).toMatch(/role/)
+  })
+
+  /**
+   * Segunda capa, la de lectura: aunque una fila vieja o corrupta tenga un rol
+   * fuera del enum, `getSessionUser` lo normaliza al rol de mínimo privilegio.
+   * `user` es el rol por defecto de Better Auth y por eso aparece en la lista:
+   * nunca debe conceder permisos de administración.
+   */
+  it('un rol fuera de USER_ROLES cae en el rol de mínimo privilegio', () => {
+    for (const rol of ['user', 'superusuario', '', null, undefined, 42]) {
+      expect(normalizeRole(rol)).toBe(DEFAULT_ROLE)
+      expect(USER_ROLES).toContain(normalizeRole(rol))
+    }
   })
 })

@@ -1,5 +1,7 @@
 import { betterAuth } from 'better-auth'
 import { mongodbAdapter } from 'better-auth/adapters/mongodb'
+import { admin } from 'better-auth/plugins'
+import { adminAc, userAc } from 'better-auth/plugins/admin/access'
 import { getMongoClient } from './cosmos'
 import { getServerEnv } from './env'
 import { DEFAULT_ROLE, USER_ROLES } from '@/lib/auth/roles'
@@ -69,6 +71,23 @@ function createAuth() {
       expiresIn: 60 * 60 * 24 * 7,
       updateAge: 60 * 60 * 24,
     },
+    /**
+     * Gestión de usuarios (`/admin/list-users`, `set-role`, `ban-user`, …).
+     *
+     * `adminRoles` acota quién manda: solo el rol `admin`. `roles` acota qué
+     * valores puede escribir `set-role`/`create-user`: Better Auth los valida
+     * contra este mapa y rechaza con 400 cualquier rol fuera de USER_ROLES
+     * (`user`, basura) en vez de guardarlo. `userAc` no concede ningún
+     * permiso del plugin, así que el encuestador no administra usuarios.
+     * `defaultRole` repite el nacimiento no-administrador del campo de abajo.
+     */
+    plugins: [
+      admin({
+        adminRoles: ['admin'],
+        defaultRole: DEFAULT_ROLE,
+        roles: { encuestador: userAc, admin: adminAc },
+      }),
+    ],
   })
 }
 
