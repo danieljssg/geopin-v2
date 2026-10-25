@@ -1,0 +1,32 @@
+# UI polish + landing (shadcn tokens)
+
+**Objetivo**: pulir toda la UI alineándola a los tokens de `app/globals.css` con primitivas shadcn estándar, y crear la landing en `/` moviendo la app de campo a `/campo`.
+**Branch**: `feature/gis-platform-v3` · **Runner**: `pnpm typecheck && pnpm test && pnpm lint && pnpm build` (para UI sin RED ejecutable: ver excepción en Log).
+**Estrategia de entrega**: commits por unidad de trabajo (~400 líneas) en la branch actual; decisión de PR/stack la toma el usuario al final.
+
+## Specs
+
+- **S1** (S1 = verbatim del usuario): "hay que respetar las reglas que están en global.css de tailwindcss" → Todo color, radio, sombra y borde viene de los tokens semánticos de `app/globals.css` (`bg-background`, `text-foreground`, `text-muted-foreground`, `bg-primary`, `border-border`, `bg-card`, `bg-destructive`, `rounded-*`, `shadow-*`...). Prohibido: hex/rgb literales en Tailwind, clases de paleta (`slate-*`, `sky-*`...), `style={{}}` de presentación, valores arbitrarios (`rounded-[17px]`, `shadow-[0_...]`). `app/globals.css` no se edita (los writers no lo tocan).
+- **S2** (verbatim): "mantener todos los elementos standard de shadcn, es decir en lugar de personalizar formas, colores, bordes, sombras, etc,etc... dejar que sean los propios de shadcn por defecto, para mantener uniformidad y coherencia a lo largo de la UI" → Los componentes usan primitivas de `components/ui/*` tal como vienen del CLI/MCP (estilo `base-nova`), sin overrides visuales. Se agregan las primitivas estándar que faltan; se reemplazan los patrones hechos a mano (tabs con `role="tab"` + estilos inline, badges como `span` con `rounded-full`, barras de progreso con `div`, checkboxes crudos, alerts con divs de colores).
+- **S3** (verbatim): "crear una landing page" → Nueva `app/page.tsx` como landing pública de GeoPin: hero con nombre y descripción, CTAs (Campo, Listado, Entrar/Login, Admin), tarjetas de acceso usando Card/Badge/Button/Separator estándar. Server component; estilos solo con tokens (S1). Enlaces a rutas reales: `/campo`, `/listado`, `/login`, `/admin/dashboard`, `/admin/esquema`, `/admin/importar`.
+- **S4** (consecuencia de S3): La app de campo vive en `/campo`: mover el contenido de `app/page.tsx` (CampoPage) a `app/campo/page.tsx` (hoy un `redirect('/')`), y `/` pasa a ser la landing. Actualizar TODOS los enlaces cruzados: `app/listado/page.tsx:27,30` (→ `/campo`), `components/admin/SchemaBuilder.tsx:204` (→ `/campo`), enlaces dentro de la app de campo (Listado/Esquemas), `app/manifest.ts` `start_url: '/campo'` + `theme_color` al valor literal del token `--primary` (con comentario), fallback offline (`app/offline/page.tsx:52` "Volver al mapa" → `/campo`). `/campo/lista` y `/dashboard` mantienen sus redirects.
+- **S5** (implícito del encargo): Sin regresiones funcionales: la suite (`pnpm test`), `pnpm typecheck`, `pnpm lint` y `pnpm build` pasan; los flujos (formularios, sync, mapas) no cambian de comportamiento, solo de piel. Excepción test-first documentada en Log: no hay testing-library ni RED ejecutable para cambios de estilo; los checks son estructurales + pureza de tokens (grep de hex/`slate-`/`style={{}}` en las superficies tocadas).
+
+Decisiones registradas (asunción explícita, no bloqueante): (a) el tema actual de `globals.css` manda: los headers navy `#1e3a5f` pasan a `bg-primary` (naranja del tema). Si se quiere navy, se regenera el tema — un solo archivo. (b) Colores funcionales de Leaflet/mapa (trazado, pines, precisión) pueden mantener literales SOLO donde SVG/Leaflet no consume tokens, con comentario; el resto migra a tokens. (c) `SyncProvider` global no se toca.
+
+## Tasks
+
+- **T1** · S1,S2 · Agregar primitivas shadcn faltantes a `components/ui/`: card, input, label, select, tabs, badge, progress, alert, separator, skeleton, switch, textarea (vía MCP/CLI, sin tocar `globals.css` más allá de lo que el CLI haga). Route: inline. Commit: `<sha>`.
+- **T2** · S3,S4 · Landing en `/` + mover campo a `/campo` + actualizar enlaces/manifest. Route: inline. Commit: `<sha>`.
+- **T3** · S1,S2,S5 · Pulir superficie campo: `components/field/**` (FormularioParcela, GeometriaPanel, PanelDescargarMapa, PanelCapas, GpsIndicator, SyncStatus, ListaParcelas, CapaSuperpuesta, PolygonEditor) + `components/MapView.tsx` + `app/campo/page.tsx`: tokens en vez de hex/slate/inline, primitivas shadcn (tabs, badge, progress, alert, switch...). Route: delegated writer. Commit: `<sha>`.
+- **T4** · S1,S2,S5 · Pulir superficie admin: `components/admin/**` (SchemaBuilder, Importador, DashboardV2, MapaCalor) + `app/admin/*/page.tsx`: Card, Badge, Progress, Tabs, Alert, Select, tokens. Route: delegated writer. Commit: `<sha>`.
+- **T5** · S1,S2,S5 · Pulir shell: `app/login/page.tsx`, `app/offline/page.tsx`, `components/OfflineRetryButton.tsx` con Input/Label/Alert/Button estándar. Route: delegated writer. Commit: `<sha>`.
+- **T6** · S5 · Cierre: suite completa + build + pureza de tokens + verificación de superposiciones. Route: inline parent. Commit: cierre de feature.
+
+## Log
+
+- **L1** (2026-10-25, verbatim): "bien como casi todo está terminado, ahora vamos a pulir la UI, hay que respetar las reglas que están en global.css de tailwindcss crear una landing page y mantener todos los elementos standard de shadcn, es decir en lugar de personalizar formas, colores, bordes, sombras, etc,etc... dejar que sean los propios de shadcn por defecto, para mantener uniformidad y coherencia a lo largo de la UI, haz un plan maestro y delega eso a los sub-agentes..." · "antes de comenzar haz un commit de control"
+- **L1b** (2026-10-25): Commit de control hecho: `5da3cfd` (checkpoint del tema shadcn regenerado + fuentes Google + shadcn MCP).
+- **L2** (2026-10-25): Mapeo delegado (explorer): 10 rutas; `components/ui` solo `button.tsx` (sin usar); ~161 líneas con hex y ~141 con `style={{}}`; peores: SchemaBuilder, DashboardV2, FormularioParcela, Importador, MapView. Necesitan primitivas: card, input, label, select, tabs, badge, progress, alert, separator, skeleton, switch.
+- **L3** (2026-10-25): Excepción test-first: no hay @testing-library/jsdom en el repo, no existe RED ejecutable para cambios de piel; verificación estructural (typecheck/lint/vitest/build) + grep de pureza de tokens por superficie. El humo visual queda para el usuario con `pnpm dev`.
+- **L4** (2026-10-25): Decisión de marca: headers navy → `bg-primary` (naranja del tema actual de globals.css). Reversible cambiando los tokens en un solo archivo.
