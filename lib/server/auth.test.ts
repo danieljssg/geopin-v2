@@ -122,7 +122,15 @@ describe('getAuth', () => {
     expect(opciones?.roles).toBeDefined()
     expect(Object.keys(opciones?.roles ?? {}).sort()).toEqual([...USER_ROLES].sort())
     expect(opciones?.roles?.encuestador).toBe(userAc)
-    expect(opciones?.roles?.admin).toBe(adminAc)
+    // El rol admin es el acceso reducido del panel: concede lo que la
+    // gestión usa y deja fuera borrar e impersonar (y no es `adminAc`, el
+    // acceso completo por defecto de la librería).
+    const accesoAdmin = opciones?.roles?.admin as { statements: { user: string[] } }
+    expect(accesoAdmin.statements.user).toEqual(
+      expect.arrayContaining(['create', 'list', 'set-role', 'ban']),
+    )
+    expect(accesoAdmin.statements.user).not.toContain('delete')
+    expect(accesoAdmin.statements.user).not.toContain('impersonate')
   })
 
   /**

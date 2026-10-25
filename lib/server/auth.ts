@@ -1,7 +1,7 @@
 import { betterAuth } from 'better-auth'
 import { mongodbAdapter } from 'better-auth/adapters/mongodb'
 import { admin } from 'better-auth/plugins'
-import { adminAc, userAc } from 'better-auth/plugins/admin/access'
+import { defaultAc, userAc } from 'better-auth/plugins/admin/access'
 import { getMongoClient } from './cosmos'
 import { getServerEnv } from './env'
 import { DEFAULT_ROLE, USER_ROLES } from '@/lib/auth/roles'
@@ -15,6 +15,17 @@ import { DEFAULT_ROLE, USER_ROLES } from '@/lib/auth/roles'
  */
 
 let instance: AuthInstance | null = null
+
+/**
+ * Acceso de administración reducido al mínimo que usa el panel: listar,
+ * crear, cambiar rol, suspender y leer. Queda fuera todo lo que la gestión
+ * de usuarios no debe poder hacer jamás: borrar usuarios, impersonar
+ * identidades, escribir contraseñas/emails ajenos o revocar sesiones.
+ */
+const adminPanel = defaultAc.newRole({
+  user: ['create', 'list', 'set-role', 'ban', 'get'],
+  session: [],
+})
 
 export function getAuth(): AuthInstance {
   if (!instance) instance = createAuth()
@@ -85,7 +96,7 @@ function createAuth() {
       admin({
         adminRoles: ['admin'],
         defaultRole: DEFAULT_ROLE,
-        roles: { encuestador: userAc, admin: adminAc },
+        roles: { encuestador: userAc, admin: adminPanel },
       }),
     ],
   })
