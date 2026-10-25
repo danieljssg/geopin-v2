@@ -1,6 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import type { UsePoligonoResult } from '@/lib/field/use-poligono'
 
 /**
@@ -43,41 +47,43 @@ export default function GeometriaPanel({
   }
 
   return (
-    <section className="rounded-md p-3" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-      <h3 className="text-xs font-bold uppercase tracking-wide text-slate-600">Geometría de la parcela</h3>
+    <section className="rounded-lg border border-border bg-card p-3">
+      <h3 className="text-xs font-bold tracking-wide uppercase text-muted-foreground">
+        Geometría de la parcela
+      </h3>
 
       {/* Polígono cerrado */}
       {hayPoligono && !trazando && (
         <div className="mt-2 space-y-2">
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div>
-              <p className="text-xs text-slate-500">Área</p>
-              <p className="font-bold text-slate-900">{formatearMetros(poligono.areaGeometria)} m²</p>
+              <p className="text-xs text-muted-foreground">Área</p>
+              <p className="font-bold text-foreground">{formatearMetros(poligono.areaGeometria)} m²</p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">Perímetro</p>
-              <p className="font-bold text-slate-900">{formatearMetros(poligono.perimetroGeometria)} m</p>
+              <p className="text-xs text-muted-foreground">Perímetro</p>
+              <p className="font-bold text-foreground">{formatearMetros(poligono.perimetroGeometria)} m</p>
             </div>
           </div>
           <div className="flex gap-2">
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={() => poligono.iniciar()}
               disabled={deshabilitado}
-              className="rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-40"
-              style={{ background: '#dbeafe', color: '#1d4ed8' }}
             >
               Volver a trazar
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="destructive"
+              size="sm"
               onClick={() => poligono.limpiar()}
               disabled={deshabilitado}
-              className="rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-40"
-              style={{ background: '#fee2e2', color: '#b91c1c' }}
             >
               Quitar trazado
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -85,7 +91,7 @@ export default function GeometriaPanel({
       {/* Trazando */}
       {trazando && (
         <div className="mt-2 space-y-2">
-          <p className="text-xs text-slate-600">
+          <p className="text-xs text-muted-foreground">
             {poligono.draft.length === 0
               ? 'Tocá el mapa para marcar el primer vértice.'
               : `${poligono.draft.length} ${poligono.draft.length === 1 ? 'vértice' : 'vértices'}. Tocá para agregar, arrastrá para mover, tocá un vértice para quitarlo.`}
@@ -94,43 +100,37 @@ export default function GeometriaPanel({
           {poligono.draft.length >= 3 && (
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>
-                <p className="text-xs text-slate-500">Área en curso</p>
-                <p className="font-bold text-slate-900">{formatearMetros(poligono.areaBorrador)} m²</p>
+                <p className="text-xs text-muted-foreground">Área en curso</p>
+                <p className="font-bold text-foreground">{formatearMetros(poligono.areaBorrador)} m²</p>
               </div>
               <div>
-                <p className="text-xs text-slate-500">Perímetro</p>
-                <p className="font-bold text-slate-900">{formatearMetros(poligono.perimetroBorrador)} m</p>
+                <p className="text-xs text-muted-foreground">Perímetro</p>
+                <p className="font-bold text-foreground">{formatearMetros(poligono.perimetroBorrador)} m</p>
               </div>
             </div>
           )}
 
           <div className="flex flex-wrap gap-2">
-            <button
+            <Button
               type="button"
+              size="sm"
               onClick={() => poligono.terminar()}
               disabled={poligono.draft.length < 3}
-              className="rounded-md px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
-              style={{ background: '#15803d' }}
             >
               Cerrar polígono
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={() => poligono.deshacer()}
               disabled={poligono.draft.length === 0}
-              className="rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-40"
-              style={{ background: '#f1f5f9', color: '#334155' }}
             >
               Deshacer
-            </button>
-            <button
-              type="button"
-              onClick={() => poligono.cancelar()}
-              className="rounded-md px-3 py-1.5 text-xs font-semibold"
-              style={{ background: '#f1f5f9', color: '#334155' }}
-            >
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => poligono.cancelar()}>
               Cancelar
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -139,24 +139,26 @@ export default function GeometriaPanel({
       {!hayPoligono && !trazando && (
         <div className="mt-2 space-y-2">
           {confirmando ? (
-            <div className="rounded-md px-3 py-2 text-xs" style={{ background: '#fef3c7', color: '#92400e' }}>
-              <p>Ya escribiste los metros cuadrados a mano. Trazar el polígono los reemplaza.</p>
-              <div className="mt-2 flex gap-2">
-                <button type="button" onClick={confirmar} className="font-semibold underline">
-                  Reemplazar
-                </button>
-                <button type="button" onClick={() => setConfirmando(false)} className="underline">
-                  Cancelar
-                </button>
-              </div>
-            </div>
+            <Alert>
+              <AlertDescription>
+                Ya escribiste los metros cuadrados a mano. Trazar el polígono los reemplaza.
+                <div className="mt-2 flex gap-2">
+                  <Button type="button" size="xs" onClick={confirmar}>
+                    Reemplazar
+                  </Button>
+                  <Button type="button" size="xs" variant="ghost" onClick={() => setConfirmando(false)}>
+                    Cancelar
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
           ) : (
             <>
               <div>
-                <label htmlFor="area-manual" className="block text-xs text-slate-500 mb-1">
+                <Label htmlFor="area-manual" className="mb-1">
                   Metros cuadrados (si no trazás el polígono)
-                </label>
-                <input
+                </Label>
+                <Input
                   id="area-manual"
                   type="text"
                   inputMode="decimal"
@@ -164,29 +166,21 @@ export default function GeometriaPanel({
                   onChange={(event) => poligono.setAreaManual(event.target.value)}
                   placeholder="Ej. 120,5"
                   disabled={deshabilitado}
-                  className="w-full rounded-md border px-3 py-2 text-sm"
-                  style={{ borderColor: '#cbd5e1' }}
                 />
               </div>
 
-              <button
-                type="button"
-                onClick={onTrazar}
-                disabled={deshabilitado}
-                className="rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-40"
-                style={{ background: '#1e3a5f', color: '#ffffff' }}
-              >
+              <Button type="button" size="sm" onClick={onTrazar} disabled={deshabilitado}>
                 Trazar en el mapa
-              </button>
+              </Button>
             </>
           )}
         </div>
       )}
 
       {poligono.error && (
-        <p role="alert" className="mt-2 rounded-md px-2 py-1.5 text-xs" style={{ background: '#fee2e2', color: '#b91c1c' }}>
-          {poligono.error}
-        </p>
+        <Alert variant="destructive" className="mt-2">
+          <AlertDescription>{poligono.error}</AlertDescription>
+        </Alert>
       )}
     </section>
   )

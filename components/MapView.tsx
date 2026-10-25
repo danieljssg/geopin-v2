@@ -4,6 +4,8 @@ import { useEffect, useRef, useCallback } from 'react'
 import { LayersControl, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import type { Pin, Category } from '@/lib/types'
 import { getCategoryConfig } from '@/lib/categories'
 import { getUrbanDetails } from '@/lib/urban-options'
@@ -11,6 +13,7 @@ import { capasBasePorDefecto, capasDeTipo, type CapaMapa } from '@/lib/map/capas
 
 // ---------------------------------------------------------------------------
 // Icon factory — uses divIcon so no webpack asset-path issues
+// color funcional de mapa: el pin usa la paleta de categorías del dominio
 // ---------------------------------------------------------------------------
 function createCategoryIcon(categoria: string, size = 32): L.DivIcon {
   const cat = getCategoryConfig(categoria)
@@ -24,16 +27,16 @@ function createCategoryIcon(categoria: string, size = 32): L.DivIcon {
         width:${size}px;height:${size}px;
         border-radius:50% 50% 50% 0;
         transform:rotate(-45deg);
-        border:2.5px solid #fff;
-        box-shadow:0 2px 6px rgba(0,0,0,.35);
+        border:2.5px solid var(--background);
+        box-shadow:var(--shadow-md);
         display:flex;align-items:center;justify-content:center;
       ">
         <span style="
           transform:rotate(45deg);
-          color:#fff;
+          color:var(--primary-foreground);
           font-size:${fontSize};
           font-weight:700;
-          font-family:ui-sans-serif,system-ui,sans-serif;
+          font-family:var(--font-sans);
           line-height:1;
           pointer-events:none;
           user-select:none;
@@ -60,17 +63,17 @@ function createDraggableIcon(categoria: Category): L.DivIcon {
         width:${size}px;height:${size}px;
         border-radius:50% 50% 50% 0;
         transform:rotate(-45deg);
-        border:3px solid #fff;
-        box-shadow:0 3px 10px rgba(0,0,0,.4);
+        border:3px solid var(--background);
+        box-shadow:var(--shadow-lg);
         display:flex;align-items:center;justify-content:center;
         cursor:grab;
       ">
         <span style="
           transform:rotate(45deg);
-          color:#fff;
+          color:var(--primary-foreground);
           font-size:${fontSize};
           font-weight:700;
-          font-family:ui-sans-serif,system-ui,sans-serif;
+          font-family:var(--font-sans);
           line-height:1;
           pointer-events:none;
           user-select:none;
@@ -79,12 +82,12 @@ function createDraggableIcon(categoria: Category): L.DivIcon {
       </div>
       <div style="
         position:absolute;top:-8px;right:-8px;
-        background:#1d4ed8;color:#fff;
+        background:var(--primary);color:var(--primary-foreground);
         border-radius:50%;width:18px;height:18px;
         font-size:10px;font-weight:700;
         display:flex;align-items:center;justify-content:center;
-        border:2px solid #fff;
-        box-shadow:0 1px 3px rgba(0,0,0,.3);
+        border:2px solid var(--background);
+        box-shadow:var(--shadow-sm);
         pointer-events:none;
       ">+</div>`,
     className: 'relative',
@@ -181,25 +184,6 @@ function MapActionControls({
 }) {
   const map = useMap()
 
-  const btnStyle: React.CSSProperties = {
-    width: 36,
-    height: 36,
-    background: '#fff',
-    border: '1px solid #d1d5db',
-    borderRadius: 6,
-    boxShadow: '0 1px 5px rgba(0,0,0,.18)',
-    cursor: 'pointer',
-    fontSize: 22,
-    fontWeight: 600,
-    color: '#1e3a5f',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    lineHeight: 1,
-    userSelect: 'none',
-    transition: 'background .15s',
-  }
-
   const handleLocateMe = useCallback(() => {
     // Si el llamador maneja el GPS, no se pide una lectura acá: una lectura
     // suelta no pasa por el filtro de precisión y movería el pin sin avisar.
@@ -229,50 +213,37 @@ function MapActionControls({
   }, [map, onGPSStatus, onPositionChange, onLocateRequest])
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        bottom: 28,
-        right: 16,
-        zIndex: 1000,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 4,
-      }}
-    >
-      <button
-        style={btnStyle}
+    <div className="absolute right-4 bottom-7 z-[1000] flex flex-col gap-1">
+      <Button
+        variant="outline"
+        size="icon"
         onClick={handleLocateMe}
         aria-label="Usar mi ubicación"
         title="Usar mi ubicación"
-        onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '#f0f4ff')}
-        onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '#fff')}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
           <circle cx="12" cy="10" r="3" />
         </svg>
-      </button>
-      <button
-        style={btnStyle}
+      </Button>
+      <Button
+        variant="outline"
+        size="icon"
         onClick={() => map.zoomIn()}
         aria-label="Acercar"
         title="Acercar"
-        onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '#f0f4ff')}
-        onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '#fff')}
       >
         +
-      </button>
-      <button
-        style={btnStyle}
+      </Button>
+      <Button
+        variant="outline"
+        size="icon"
         onClick={() => map.zoomOut()}
         aria-label="Alejar"
         title="Alejar"
-        onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '#f0f4ff')}
-        onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '#fff')}
       >
         −
-      </button>
+      </Button>
     </div>
   )
 }
@@ -365,7 +336,7 @@ export default function MapView({
     <MapContainer
       center={defaultCenter}
       zoom={hasValidPosition ? 16 : 6}
-      style={{ height: '100%', width: '100%' }}
+      className="h-full w-full"
       zoomControl={false}
       scrollWheelZoom
     >
@@ -400,15 +371,16 @@ export default function MapView({
           eventHandlers={{ dragend: handleDragEnd }}
         >
           <Popup>
-            <div style={{ minWidth: 140 }}>
-              <p style={{ fontWeight: 600, marginBottom: 4, fontSize: 13 }}>Posicion actual</p>
-              <p style={{ fontSize: 11, color: '#6b7280', fontFamily: 'monospace' }}>
+            <div className="min-w-[140px]">
+              {/* div y no p: Leaflet fuerza `margin: 1.3em 0` a los p del popup. */}
+              <div className="mb-1 text-sm font-semibold">Posicion actual</div>
+              <div className="font-mono text-xs text-muted-foreground">
                 {lat.toFixed(6)},{' '}
                 {lng.toFixed(6)}
-              </p>
-              <p style={{ fontSize: 10, color: '#9ca3af', marginTop: 4 }}>
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground/80">
                 Arrastra para mover o haz clic en el mapa
-              </p>
+              </div>
             </div>
           </Popup>
         </Marker>
@@ -425,77 +397,50 @@ export default function MapView({
             icon={createCategoryIcon(pin.categoria)}
           >
             <Popup>
-              <div style={{ minWidth: 180, maxWidth: 220 }}>
-                <span
-                  style={{
-                    display: 'inline-block',
-                    backgroundColor: cat.bgColor,
-                    color: cat.color,
-                    padding: '2px 8px',
-                    borderRadius: 4,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    marginBottom: 6,
-                  }}
-                >
+              <div className="min-w-[180px] max-w-[220px]">
+                <Badge variant="secondary" className="mb-1.5">
                   {cat.label}
-                </span>
-                <p style={{ fontWeight: 700, fontSize: 14, margin: '0 0 4px' }}>{pin.nombre}</p>
+                </Badge>
+                {/* div y no p: Leaflet fuerza `margin: 1.3em 0` a los p del popup. */}
+                <div className="mb-1 text-sm font-bold">{pin.nombre}</div>
                 {pin.descripcion && (
-                  <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 6px' }}>
+                  <div className="mb-1.5 text-xs text-muted-foreground">
                     {pin.descripcion}
-                  </p>
+                  </div>
                 )}
                 {urbanDetails.length > 0 && (
-                  <dl
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'minmax(0, 1fr) auto',
-                      gap: '3px 8px',
-                      fontSize: 11,
-                      margin: '8px 0',
-                      maxHeight: 180,
-                      overflowY: 'auto',
-                    }}
-                  >
+                  <dl className="my-2 grid max-h-[180px] grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-1 overflow-y-auto text-xs">
                     {urbanDetails.map((detail) => (
-                      <div key={detail.label} style={{ display: 'contents' }}>
-                        <dt style={{ color: '#64748b' }}>{detail.label}</dt>
-                        <dd style={{ color: '#1e293b', fontWeight: 600, margin: 0, textAlign: 'right' }}>
-                          {detail.value}
-                        </dd>
+                      <div key={detail.label} className="contents">
+                        <dt className="text-muted-foreground">{detail.label}</dt>
+                        <dd className="text-right font-semibold text-foreground">{detail.value}</dd>
                       </div>
                     ))}
                   </dl>
                 )}
-                <p style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace', margin: '0 0 8px' }}>
+                <div className="mb-2 font-mono text-xs text-muted-foreground">
                   {pin.lat.toFixed(6)}, {pin.lng.toFixed(6)}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => onEditPin(pin)}
-                  aria-label={`Editar ${pin.nombre}`}
-                  style={{ background: '#dbeafe', color: '#1d4ed8', border: 'none', borderRadius: 4, padding: '4px 10px', marginRight: 6, fontSize: 12, cursor: 'pointer', fontWeight: 600 }}
-                >
-                  Editar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDeletePin(pin.id)}
-                  aria-label={`Eliminar ${pin.nombre}`}
-                  style={{
-                    background: '#fee2e2',
-                    color: '#dc2626',
-                    border: 'none',
-                    borderRadius: 4,
-                    padding: '4px 10px',
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    fontWeight: 500,
-                  }}
-                >
-                  Eliminar
-                </button>
+                </div>
+                <div className="flex gap-1.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    onClick={() => onEditPin(pin)}
+                    aria-label={`Editar ${pin.nombre}`}
+                  >
+                    Editar
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="xs"
+                    onClick={() => onDeletePin(pin.id)}
+                    aria-label={`Eliminar ${pin.nombre}`}
+                  >
+                    Eliminar
+                  </Button>
+                </div>
               </div>
             </Popup>
           </Marker>

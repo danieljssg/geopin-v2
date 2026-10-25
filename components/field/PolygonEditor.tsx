@@ -34,11 +34,11 @@ function vertexIcon(): L.DivIcon {
     html: `
       <div style="
         width:26px;height:26px;border-radius:50%;
-        background:#1d4ed8;border:3px solid #fff;
-        box-shadow:0 1px 6px rgba(0,0,0,.4);
+        background:var(--primary);border:3px solid var(--background);
+        box-shadow:var(--shadow-md);
         display:flex;align-items:center;justify-content:center;
-        color:#fff;font-size:11px;font-weight:700;
-        font-family:ui-sans-serif,system-ui,sans-serif;
+        color:var(--primary-foreground);font-size:11px;font-weight:700;
+        font-family:var(--font-sans);
       ">×</div>`,
     className: '',
     iconSize: [26, 26],
@@ -69,6 +69,7 @@ export default function PolygonEditor({
       {geometria && (
         <Polygon
           positions={geometria.coordinates[0].map(([lng, lat]) => [lat, lng] as [number, number])}
+          // color funcional de mapa: Leaflet no consume tokens CSS acá
           pathOptions={{ color: '#15803d', weight: 2, fillOpacity: 0.15, fillColor: '#22c55e' }}
         />
       )}
@@ -77,6 +78,7 @@ export default function PolygonEditor({
       {posicionesBorrador.length >= 2 && (
         <Polyline
           positions={posicionesBorrador}
+          // color funcional de mapa: Leaflet no consume tokens CSS acá
           pathOptions={{ color: '#1d4ed8', weight: 2, dashArray: '6 6' }}
         />
       )}
@@ -85,6 +87,7 @@ export default function PolygonEditor({
       {posicionesBorrador.length >= 3 && (
         <Polygon
           positions={posicionesBorrador}
+          // color funcional de mapa: Leaflet no consume tokens CSS acá
           pathOptions={{ color: '#1d4ed8', weight: 1, fillOpacity: 0.08, fillColor: '#3b82f6' }}
         />
       )}
@@ -113,6 +116,7 @@ export default function PolygonEditor({
         <CircleMarker
           center={[draft[0].lat, draft[0].lng]}
           radius={9}
+          // color funcional de mapa: Leaflet no consume tokens CSS acá
           pathOptions={{ color: '#15803d', weight: 3, fillColor: '#22c55e', fillOpacity: 0.4 }}
         />
       )}

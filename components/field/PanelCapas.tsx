@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { capasDeTipo, type CapaMapa } from '@/lib/map/capas'
 
 /**
@@ -35,25 +37,11 @@ export default function PanelCapas({
   if (bases.length === 0 && superpuestas.length === 0) return null
 
   return (
-    <div
-      className="rounded-md text-xs shadow-lg"
-      style={{
-        position: 'absolute',
-        left: 12,
-        bottom: 28,
-        zIndex: 1000,
-        minWidth: 200,
-        maxWidth: 260,
-        background: '#ffffff',
-        border: '1px solid #e2e8f0',
-        overflow: 'hidden',
-      }}
-    >
+    <div className="absolute bottom-7 left-3 z-[1000] max-w-[260px] min-w-[200px] overflow-hidden rounded-lg border border-border bg-card text-xs text-card-foreground shadow-lg">
       <button
         type="button"
         onClick={() => setAbierto((valor) => !valor)}
-        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left font-semibold"
-        style={{ background: '#1e3a5f', color: '#ffffff' }}
+        className="flex w-full items-center justify-between gap-3 bg-muted px-3 py-2 text-left font-semibold text-foreground"
       >
         <span>Capas</span>
         <span aria-hidden="true">{abierto ? '▾' : '▸'}</span>
@@ -62,7 +50,7 @@ export default function PanelCapas({
       {abierto && (
         <div className="max-h-[45vh] space-y-3 overflow-y-auto p-3">
           <section>
-            <h3 className="mb-1.5 font-semibold uppercase tracking-wide text-slate-500">
+            <h3 className="mb-1.5 font-semibold tracking-wide uppercase text-muted-foreground">
               Base
             </h3>
             {bases.map((capa) => (
@@ -72,15 +60,16 @@ export default function PanelCapas({
                   name="capa-base"
                   checked={capa.id === baseActiva}
                   onChange={() => onCambiarBase(capa.id)}
+                  className="accent-primary"
                 />
-                <span className="text-slate-700">{capa.label}</span>
+                <span className="text-foreground">{capa.label}</span>
               </label>
             ))}
           </section>
 
           {superpuestas.length > 0 && (
             <section>
-              <h3 className="mb-1.5 font-semibold uppercase tracking-wide text-slate-500">
+              <h3 className="mb-1.5 font-semibold tracking-wide uppercase text-muted-foreground">
                 Superposiciones
               </h3>
               {superpuestas.map((capa) => {
@@ -89,14 +78,15 @@ export default function PanelCapas({
 
                 return (
                   <div key={capa.id} className="py-1">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id={`capa-${capa.id}`}
+                        size="sm"
                         checked={visible}
-                        onChange={() => onToggleOverlay(capa.id)}
+                        onCheckedChange={() => onToggleOverlay(capa.id)}
                       />
-                      <span className="text-slate-700">{capa.label}</span>
-                    </label>
+                      <Label htmlFor={`capa-${capa.id}`}>{capa.label}</Label>
+                    </div>
 
                     {visible && (
                       <div className="mt-1 flex items-center gap-2 pl-5">
@@ -110,16 +100,16 @@ export default function PanelCapas({
                             onCambiarOpacidad(capa.id, Number(event.target.value) / 100)
                           }
                           aria-label={`Opacidad de ${capa.label}`}
-                          className="flex-1"
+                          className="flex-1 accent-primary"
                         />
-                        <span className="w-8 text-right text-slate-500">
+                        <span className="w-8 text-right text-muted-foreground">
                           {Math.round(opacidad * 100)}%
                         </span>
                       </div>
                     )}
 
                     {visible && capa.attribution && (
-                      <p className="mt-0.5 pl-5 text-[10px] text-slate-400">
+                      <p className="mt-0.5 pl-5 text-xs text-muted-foreground">
                         {capa.attribution.replace(/<[^>]+>/g, '')}
                       </p>
                     )}

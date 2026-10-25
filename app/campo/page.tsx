@@ -5,6 +5,8 @@ import dynamic from 'next/dynamic'
 import type { ParcelaCreateRequest } from '@/lib/api/contracts'
 import type { MapViewProps } from '@/components/MapView'
 import type { Parcela } from '@/lib/domain/types'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button, buttonVariants } from '@/components/ui/button'
 import FormularioParcela from '@/components/field/FormularioParcela'
 import GeometriaPanel from '@/components/field/GeometriaPanel'
 import PanelCapas from '@/components/field/PanelCapas'
@@ -32,8 +34,8 @@ import { ubicacionDeParcela } from '@/lib/domain/parcela'
 const MapView = dynamic<MapViewProps>(() => import('@/components/MapView'), {
   ssr: false,
   loading: () => (
-    <div className="h-full w-full flex items-center justify-center bg-slate-100">
-      <p className="text-sm text-slate-500 font-medium">Cargando mapa…</p>
+    <div className="h-full w-full flex items-center justify-center bg-muted">
+      <p className="text-sm text-muted-foreground font-medium">Cargando mapa…</p>
     </div>
   ),
 })
@@ -183,14 +185,11 @@ export default function CampoPage() {
   }
 
   return (
-    <main className="h-screen flex flex-col overflow-hidden bg-slate-50">
-      <header
-        className="flex flex-wrap items-center gap-3 px-3 py-3 shadow-sm z-20 shrink-0 sm:px-5"
-        style={{ background: '#1e3a5f' }}
-      >
+    <main className="h-screen flex flex-col overflow-hidden bg-background">
+      <header className="flex flex-wrap items-center gap-3 bg-primary px-3 py-3 text-primary-foreground shadow-sm z-20 shrink-0 sm:px-5">
         <div>
-          <h1 className="font-bold text-base leading-none text-white tracking-tight">GeoPin</h1>
-          <p className="hidden text-xs leading-none mt-0.5 sm:block" style={{ color: '#93c5fd' }}>
+          <h1 className="font-bold text-base leading-none text-primary-foreground tracking-tight">GeoPin</h1>
+          <p className="hidden text-xs leading-none mt-0.5 text-primary-foreground/70 sm:block">
             Captura de parcela
           </p>
         </div>
@@ -198,24 +197,21 @@ export default function CampoPage() {
         <SyncStatus />
         <div className="ml-auto flex items-center gap-3">
           {parcelaEnEdicion && (
-            <span className="text-xs" style={{ color: '#93c5fd' }}>
+            <span className="text-xs text-primary-foreground/70">
               Editando: {parcelaEnEdicion.nombre}
             </span>
           )}
-          <a href="/listado" className="text-xs text-white underline">
+          <a href="/listado" className={buttonVariants({ variant: 'ghost', size: 'xs' })}>
             Listado
           </a>
-          <a href="/admin/esquema" className="text-xs text-white underline">
+          <a href="/admin/esquema" className={buttonVariants({ variant: 'ghost', size: 'xs' })}>
             Esquemas
           </a>
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
-        <aside
-          className="w-full md:w-[400px] shrink-0 overflow-y-auto p-4 space-y-4"
-          style={{ borderRight: '1px solid #e2e8f0' }}
-        >
+        <aside className="w-full md:w-[400px] shrink-0 overflow-y-auto p-4 space-y-4 border-r border-border">
           <GpsIndicator
             fix={geo.fix}
             accuracy={geo.reading?.accuracy}
@@ -224,27 +220,31 @@ export default function CampoPage() {
           />
 
           {origen === 'manual' && (
-            <div className="rounded-md px-3 py-2 text-xs" style={{ background: '#f1f5f9', color: '#334155' }}>
-              <p>
-                {parcelaEnEdicion && !posicionTocada
-                  ? 'Posición guardada de la parcela. El sensor no la va a mover.'
-                  : 'Posición puesta a mano. El sensor no la va a mover.'}
-              </p>
-              <button type="button" onClick={usarMiUbicacion} className="mt-1 font-semibold underline">
-                Usar mi ubicación
-              </button>
-            </div>
+            <Alert>
+              <AlertDescription>
+                <p>
+                  {parcelaEnEdicion && !posicionTocada
+                    ? 'Posición guardada de la parcela. El sensor no la va a mover.'
+                    : 'Posición puesta a mano. El sensor no la va a mover.'}
+                </p>
+                <Button type="button" variant="link" size="xs" onClick={usarMiUbicacion}>
+                  Usar mi ubicación
+                </Button>
+              </AlertDescription>
+            </Alert>
           )}
 
-          {cargando && <p className="text-sm text-slate-500">Cargando formulario…</p>}
+          {cargando && <p className="text-sm text-muted-foreground">Cargando formulario…</p>}
 
           {!cargando && (desdeCache || error) && (
-            <div className="rounded-md px-3 py-2 text-xs" style={{ background: '#fef3c7', color: '#92400e' }}>
-              <p>{error}</p>
-              <button type="button" onClick={recargar} className="mt-1 font-semibold underline">
-                Reintentar
-              </button>
-            </div>
+            <Alert variant={error ? 'destructive' : 'default'}>
+              <AlertDescription>
+                <p>{error}</p>
+                <Button type="button" variant="link" size="xs" onClick={recargar}>
+                  Reintentar
+                </Button>
+              </AlertDescription>
+            </Alert>
           )}
 
           <GeometriaPanel poligono={poligono} deshabilitado={cargando} />

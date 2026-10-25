@@ -1,6 +1,9 @@
 'use client'
 
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { formatAccuracy, fixMessage, qualityOf, type GpsFix } from '@/lib/domain/gps'
+import { cn } from '@/lib/utils'
 
 /**
  * Indicador del estado del GPS.
@@ -10,13 +13,13 @@ import { formatAccuracy, fixMessage, qualityOf, type GpsFix } from '@/lib/domain
  * panel explica qué hacer cuando la lectura no alcanza.
  */
 
-const COLORES: Record<GpsFix, { texto: string; fondo: string }> = {
-  fijado: { texto: '#166534', fondo: '#dcfce7' },
-  impreciso: { texto: '#92400e', fondo: '#fef3c7' },
-  buscando: { texto: '#1e40af', fondo: '#dbeafe' },
-  'sin-permiso': { texto: '#b91c1c', fondo: '#fee2e2' },
-  error: { texto: '#b91c1c', fondo: '#fee2e2' },
-  'sin-soporte': { texto: '#475569', fondo: '#e2e8f0' },
+const VARIANTE: Record<GpsFix, 'secondary' | 'outline' | 'destructive' | 'ghost'> = {
+  fijado: 'secondary',
+  impreciso: 'outline',
+  buscando: 'outline',
+  'sin-permiso': 'destructive',
+  error: 'destructive',
+  'sin-soporte': 'ghost',
 }
 
 export interface GpsIndicatorProps {
@@ -33,27 +36,14 @@ export default function GpsIndicator({
   variant = 'pill',
   onReintentar,
 }: GpsIndicatorProps) {
-  const colores = COLORES[fix]
   const calidad = qualityOf(accuracy)
 
   if (variant === 'pill') {
     return (
-      <span
-        role="status"
-        aria-live="polite"
-        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
-        style={{ background: colores.fondo, color: colores.texto }}
-      >
+      <Badge variant={VARIANTE[fix]} role="status" aria-live="polite">
         <span
           aria-hidden="true"
-          style={{
-            width: 7,
-            height: 7,
-            borderRadius: '50%',
-            background: 'currentColor',
-            display: 'inline-block',
-            opacity: fix === 'buscando' ? 0.5 : 1,
-          }}
+          className={cn('size-[7px] rounded-full bg-current', fix === 'buscando' && 'opacity-50')}
         />
         {fix === 'fijado' && `GPS ${formatAccuracy(accuracy)}`}
         {fix === 'impreciso' && `GPS ${formatAccuracy(accuracy)} — débil`}
@@ -61,7 +51,7 @@ export default function GpsIndicator({
         {fix === 'sin-permiso' && 'GPS denegado'}
         {fix === 'sin-soporte' && 'Sin GPS'}
         {fix === 'error' && 'GPS sin señal'}
-      </span>
+      </Badge>
     )
   }
 
@@ -69,8 +59,10 @@ export default function GpsIndicator({
     <div
       role="status"
       aria-live="polite"
-      className="rounded-md px-3 py-2 text-xs"
-      style={{ background: colores.fondo, color: colores.texto }}
+      className={cn(
+        'rounded-lg border border-border bg-card px-3 py-2 text-xs text-card-foreground',
+        (fix === 'sin-permiso' || fix === 'error') && 'text-destructive',
+      )}
     >
       <div className="flex items-start justify-between gap-2">
         <div>
@@ -86,9 +78,15 @@ export default function GpsIndicator({
         </div>
 
         {(fix === 'sin-permiso' || fix === 'error' || fix === 'sin-soporte') && onReintentar && (
-          <button type="button" onClick={onReintentar} className="shrink-0 font-semibold underline">
+          <Button
+            type="button"
+            variant="link"
+            size="xs"
+            className="shrink-0"
+            onClick={onReintentar}
+          >
             Reintentar
-          </button>
+          </Button>
         )}
       </div>
 

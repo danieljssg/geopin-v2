@@ -1,6 +1,20 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 import type { ParcelaCreateRequest } from '@/lib/api/contracts'
 import { validateModuleData } from '@/lib/domain/schema'
 import type { FieldDef, FieldError, GeoPolygon, ModuleSchema, Parcela } from '@/lib/domain/types'
@@ -163,10 +177,12 @@ export default function FormularioParcela({
 
   if (ordenados.length === 0) {
     return (
-      <p className="rounded-md px-3 py-2 text-sm" style={{ background: '#fef3c7', color: '#92400e' }}>
-        No hay esquemas publicados. Un administrador tiene que publicar al menos
-        uno para poder capturar.
-      </p>
+      <Alert>
+        <AlertDescription>
+          No hay esquemas publicados. Un administrador tiene que publicar al menos uno para poder
+          capturar.
+        </AlertDescription>
+      </Alert>
     )
   }
 
@@ -175,91 +191,78 @@ export default function FormularioParcela({
       {/* Campos núcleo de la parcela */}
       <div className="space-y-3">
         <div>
-          <label htmlFor="parcela-nombre" className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
+          <Label htmlFor="parcela-nombre" className="mb-1.5">
             Nombre / referencia
-          </label>
-          <input
+          </Label>
+          <Input
             id="parcela-nombre"
             required
             value={nombre}
             onChange={(event) => setNombre(event.target.value)}
             placeholder="Casa de la esquina, parcela 14"
-            className="w-full rounded-md border px-3 py-2 text-sm"
-            style={{ borderColor: '#cbd5e1' }}
           />
         </div>
 
         <div>
-          <label htmlFor="parcela-categoria" className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
+          <Label htmlFor="parcela-categoria" className="mb-1.5">
             Categoría
-          </label>
-          <select
-            id="parcela-categoria"
+          </Label>
+          <Select
             value={categoria}
-            onChange={(event) => setCategoria(event.target.value)}
-            className="w-full rounded-md border px-3 py-2 text-sm"
-            style={{ borderColor: '#cbd5e1' }}
+            onValueChange={(value) => {
+              if (value !== null) setCategoria(value)
+            }}
           >
-            {['Vivienda', 'Salud', 'Educación', 'Comercio', 'Entretenimiento', 'Cultura', 'Industria', 'Agrícola', 'Otro'].map(
-              (opcion) => (
-                <option key={opcion} value={opcion}>
-                  {opcion}
-                </option>
-              ),
-            )}
-          </select>
+            <SelectTrigger id="parcela-categoria" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {['Vivienda', 'Salud', 'Educación', 'Comercio', 'Entretenimiento', 'Cultura', 'Industria', 'Agrícola', 'Otro'].map(
+                (opcion) => (
+                  <SelectItem key={opcion} value={opcion}>
+                    {opcion}
+                  </SelectItem>
+                ),
+              )}
+            </SelectContent>
+          </Select>
         </div>
 
         <div>
-          <label htmlFor="parcela-descripcion" className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
+          <Label htmlFor="parcela-descripcion" className="mb-1.5">
             Observaciones
-          </label>
-          <textarea
+          </Label>
+          <Textarea
             id="parcela-descripcion"
             rows={3}
             value={descripcion}
             onChange={(event) => setDescripcion(event.target.value)}
             placeholder="Notas de campo, sin límite de largo"
-            className="w-full rounded-md border px-3 py-2 text-sm"
-            style={{ borderColor: '#cbd5e1' }}
           />
         </div>
       </div>
 
       {/* Pestañas por módulo */}
-      <div>
-        <div role="tablist" aria-label="Módulos" className="flex flex-wrap gap-1">
+      <Tabs value={modulo.moduleId} onValueChange={(value) => setModuloActivo(value as string)}>
+        <TabsList aria-label="Módulos">
           {ordenados.map((esquema) => {
-            const activo = esquema.moduleId === modulo?.moduleId
             const erroresModulo = moduloConErrores(esquema).length
             return (
-              <button
-                key={esquema.moduleId}
-                type="button"
-                role="tab"
-                aria-selected={activo}
-                onClick={() => setModuloActivo(esquema.moduleId)}
-                className="rounded-t-md px-3 py-1.5 text-xs font-semibold"
-                style={{
-                  background: activo ? '#ffffff' : '#e2e8f0',
-                  color: activo ? '#1e3a5f' : '#475569',
-                  borderBottom: activo ? '2px solid #1d4ed8' : '2px solid transparent',
-                }}
-              >
+              <TabsTrigger key={esquema.moduleId} value={esquema.moduleId}>
                 {etiquetaModulo(esquema.moduleId)}
                 {erroresModulo > 0 && (
-                  <span aria-label={`${erroresModulo} errores`} style={{ color: '#b91c1c' }}>
+                  <span aria-label={`${erroresModulo} errores`} className="text-destructive">
                     {' '}
                     •
                   </span>
                 )}
-              </button>
+              </TabsTrigger>
             )
           })}
-        </div>
+        </TabsList>
 
-        <div role="tabpanel" className="rounded-b-md bg-white p-3" style={{ border: '1px solid #e2e8f0' }}>
-          {modulo?.campos
+        <TabsContent value={modulo.moduleId} className="rounded-lg border border-border bg-card p-3">
+          {modulo.campos
             .slice()
             .sort((a, b) => a.orden - b.orden)
             .map((campo) => (
@@ -270,31 +273,32 @@ export default function FormularioParcela({
                 onChange={(valor) => setValor(modulo.moduleId, campo.key, valor)}
               />
             ))}
-        </div>
-      </div>
+        </TabsContent>
+      </Tabs>
 
       {errores.length > 0 && (
-        <ul role="alert" className="space-y-1 rounded-md px-3 py-2 text-sm" style={{ background: '#fee2e2', color: '#b91c1c' }}>
-          {errores.map((error) => (
-            <li key={error.key}>{error.message}</li>
-          ))}
-        </ul>
+        <Alert variant="destructive">
+          <AlertDescription>
+            <ul className="space-y-1">
+              {errores.map((error) => (
+                <li key={error.key}>{error.message}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
       )}
 
       {mensaje && !errores.length && (
-        <p role="status" className="rounded-md px-3 py-2 text-sm" style={{ background: '#dcfce7', color: '#166534' }}>
-          {mensaje}
-        </p>
+        // `role="status"` reemplaza el `role="alert"` que trae Alert: el
+        // guardado exitoso se anuncia sin interrumpir.
+        <Alert role="status">
+          <AlertDescription>{mensaje}</AlertDescription>
+        </Alert>
       )}
 
-      <button
-        type="submit"
-        disabled={guardando || nombre.trim() === ''}
-        className="rounded-md px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
-        style={{ background: '#1d4ed8' }}
-      >
+      <Button type="submit" size="lg" className="w-full" disabled={guardando || nombre.trim() === ''}>
         {guardando ? 'Guardando…' : 'Guardar parcela'}
-      </button>
+      </Button>
     </form>
   )
 }
@@ -312,72 +316,69 @@ function CampoControl({
 
   return (
     <div className="mb-3">
-      <label htmlFor={id} className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
+      <Label htmlFor={id} className="mb-1.5">
         {campo.label}
-        {campo.requerido && <span style={{ color: '#b91c1c' }}> *</span>}
-      </label>
+        {campo.requerido && <span className="text-destructive"> *</span>}
+      </Label>
 
       {campo.tipo === 'texto' && (
-        <textarea
+        <Textarea
           id={id}
           rows={2}
           value={typeof valor === 'string' ? valor : ''}
           onChange={(event) => onChange(event.target.value)}
-          className="w-full rounded-md border px-3 py-2 text-sm"
-          style={{ borderColor: '#cbd5e1' }}
         />
       )}
 
       {(campo.tipo === 'entero' || campo.tipo === 'decimal') && (
-        <input
+        <Input
           id={id}
           type="number"
           step={campo.tipo === 'entero' ? 1 : 'any'}
           inputMode="decimal"
           value={typeof valor === 'number' || typeof valor === 'string' ? String(valor) : ''}
           onChange={(event) => onChange(event.target.value)}
-          className="w-full rounded-md border px-3 py-2 text-sm"
-          style={{ borderColor: '#cbd5e1' }}
         />
       )}
 
       {campo.tipo === 'booleano' && (
-        <label className="flex items-center gap-2 text-sm text-slate-700">
-          <input
+        <div className="flex items-center gap-2">
+          <Switch
             id={id}
-            type="checkbox"
             checked={valor === true}
-            onChange={(event) => onChange(event.target.checked)}
+            onCheckedChange={(checked) => onChange(checked)}
           />
-          {valor === true ? 'Sí' : 'No'}
-        </label>
+          <Label htmlFor={id}>{valor === true ? 'Sí' : 'No'}</Label>
+        </div>
       )}
 
       {campo.tipo === 'lista' && (
-        <select
-          id={id}
+        <Select
           value={typeof valor === 'string' ? valor : ''}
-          onChange={(event) => onChange(event.target.value)}
-          className="w-full rounded-md border px-3 py-2 text-sm"
-          style={{ borderColor: '#cbd5e1' }}
+          onValueChange={(value) => onChange(value)}
         >
-          <option value="">Sin dato</option>
-          {(campo.opciones ?? []).map((opcion) => (
-            <option key={opcion} value={opcion}>
-              {opcion}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger id={id} className="w-full">
+            <SelectValue>
+              {(value) => (typeof value === 'string' && value !== '' ? value : 'Sin dato')}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Sin dato</SelectItem>
+            {(campo.opciones ?? []).map((opcion) => (
+              <SelectItem key={opcion} value={opcion}>
+                {opcion}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       )}
 
       {campo.tipo === 'fecha' && (
-        <input
+        <Input
           id={id}
           type="date"
           value={typeof valor === 'string' ? valor : ''}
           onChange={(event) => onChange(event.target.value)}
-          className="w-full rounded-md border px-3 py-2 text-sm"
-          style={{ borderColor: '#cbd5e1' }}
         />
       )}
     </div>

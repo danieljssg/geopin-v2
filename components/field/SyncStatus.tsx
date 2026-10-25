@@ -1,5 +1,9 @@
 'use client'
 
+import { Loader2Icon } from 'lucide-react'
+
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { useSync } from './SyncProvider'
 
 /**
@@ -16,49 +20,41 @@ export default function SyncStatus() {
     return null
   }
 
-  const tono = conflictos > 0 ? '#b91c1c' : pendientes > 0 ? '#a16207' : '#166534'
+  const variante = conflictos > 0 ? 'destructive' : pendientes > 0 ? 'secondary' : 'outline'
+  // Un error de sync sin conteos no tiene nada que mostrar en el badge; el
+  // botón de sincronizar sigue siendo la acción disponible.
+  const hayDetalle = sincronizando || conflictos > 0 || pendientes > 0
 
   return (
     <div
-      className="flex items-center gap-2 text-xs font-medium px-2.5 py-1 rounded-full"
-      style={{ background: `${tono}18`, color: tono }}
+      className="flex items-center gap-2 text-xs font-medium"
       role="status"
       aria-live="polite"
     >
-      {sincronizando && (
-        <span
-          aria-hidden="true"
-          style={{
-            width: 9,
-            height: 9,
-            border: '1.5px solid currentColor',
-            borderTopColor: 'transparent',
-            borderRadius: '50%',
-            display: 'inline-block',
-            animation: 'spin 0.8s linear infinite',
-          }}
-        />
+      {hayDetalle && (
+        <Badge variant={variante}>
+          {sincronizando && <Loader2Icon className="animate-spin" aria-hidden="true" />}
+
+          {conflictos > 0 && <span>{conflictos} en conflicto</span>}
+          {conflictos > 0 && pendientes > 0 && <span aria-hidden="true">·</span>}
+          {pendientes > 0 && (
+            <span>
+              {pendientes} {pendientes === 1 ? 'pendiente' : 'pendientes'}
+            </span>
+          )}
+          {sincronizando && pendientes === 0 && conflictos === 0 && <span>Sincronizando…</span>}
+        </Badge>
       )}
 
-      {conflictos > 0 && <span>{conflictos} en conflicto</span>}
-      {conflictos > 0 && pendientes > 0 && <span aria-hidden="true">·</span>}
-      {pendientes > 0 && (
-        <span>
-          {pendientes} {pendientes === 1 ? 'pendiente' : 'pendientes'}
-        </span>
-      )}
-      {sincronizando && pendientes === 0 && conflictos === 0 && <span>Sincronizando…</span>}
-
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="xs"
         onClick={() => void sincronizar()}
         disabled={sincronizando}
-        style={{ textDecoration: 'underline', marginLeft: 2 }}
       >
         Sincronizar
-      </button>
-
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      </Button>
     </div>
   )
 }

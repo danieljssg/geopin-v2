@@ -2,6 +2,18 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button, buttonVariants } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import type { ParcelaEstado } from '@/lib/domain/types'
 
 /**
@@ -52,10 +64,17 @@ const ETIQUETAS: Record<ParcelaEstado, string> = {
   en_revision: 'En revisión',
 }
 
-const COLORES: Record<ParcelaEstado, { fondo: string; texto: string }> = {
-  completa: { fondo: '#dcfce7', texto: '#166534' },
-  pendiente: { fondo: '#fef3c7', texto: '#92400e' },
-  en_revision: { fondo: '#dbeafe', texto: '#1e40af' },
+const VARIANTE_ESTADO: Record<ParcelaEstado, 'secondary' | 'outline' | 'default'> = {
+  completa: 'secondary',
+  pendiente: 'outline',
+  en_revision: 'default',
+}
+
+const FILTROS: Record<string, string> = {
+  '': 'Todos los estados',
+  completa: 'Completadas',
+  pendiente: 'Pendientes',
+  en_revision: 'En revisión',
 }
 
 export default function ListaParcelas() {
@@ -127,30 +146,32 @@ export default function ListaParcelas() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <input
+        <Input
           type="search"
           value={busqueda}
           onChange={(event) => setBusqueda(event.target.value)}
           placeholder="Buscar por nombre o código"
           aria-label="Buscar parcelas"
-          className="rounded-md border px-3 py-2 text-sm"
-          style={{ borderColor: '#cbd5e1', minWidth: 240 }}
+          className="w-full sm:w-60"
         />
 
-        <select
+        <Select
           value={filtro}
-          onChange={(event) => setFiltro(event.target.value as ParcelaEstado | '')}
-          aria-label="Filtrar por estado"
-          className="rounded-md border px-3 py-2 text-sm"
-          style={{ borderColor: '#cbd5e1' }}
+          onValueChange={(value) => setFiltro((value ?? '') as ParcelaEstado | '')}
         >
-          <option value="">Todos los estados</option>
-          <option value="completa">Completadas</option>
-          <option value="pendiente">Pendientes</option>
-          <option value="en_revision">En revisión</option>
-        </select>
+          <SelectTrigger aria-label="Filtrar por estado" className="w-full sm:w-44">
+            <SelectValue>{(value) => FILTROS[value as string] ?? FILTROS['']}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(FILTROS).map(([value, etiqueta]) => (
+              <SelectItem key={value} value={value}>
+                {etiqueta}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-muted-foreground">
           {visibles.length} de {parcelas?.length ?? 0}
         </span>
 
@@ -159,8 +180,7 @@ export default function ListaParcelas() {
             <a
               key={formato}
               href={`/api/export?format=${formato}`}
-              className="rounded-md px-3 py-1.5 text-xs font-semibold"
-              style={{ background: '#e2e8f0', color: '#334155' }}
+              className={buttonVariants({ variant: 'outline', size: 'xs' })}
             >
               {formato === 'shp' ? 'SHP' : formato.toUpperCase()}
             </a>
@@ -169,25 +189,29 @@ export default function ListaParcelas() {
       </div>
 
       {error && (
-        <div className="rounded-md px-3 py-2 text-sm" style={{ background: '#fee2e2', color: '#b91c1c' }}>
-          <p>{error}</p>
-          <button
-            type="button"
-            onClick={() => {
-              setError(null)
-              setRecarga((valor) => valor + 1)
-            }}
-            className="mt-1 font-semibold underline"
-          >
-            Reintentar
-          </button>
-        </div>
+        <Alert variant="destructive">
+          <AlertDescription>
+            <p>{error}</p>
+            <Button
+              type="button"
+              variant="link"
+              size="xs"
+              className="mt-1"
+              onClick={() => {
+                setError(null)
+                setRecarga((valor) => valor + 1)
+              }}
+            >
+              Reintentar
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
 
-      {cargando && <p className="text-sm text-slate-500">Cargando parcelas…</p>}
+      {cargando && <p className="text-sm text-muted-foreground">Cargando parcelas…</p>}
 
       {!cargando && !error && visibles.length === 0 && (
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-muted-foreground">
           {(parcelas?.length ?? 0) === 0
             ? 'Todavía no hay parcelas levantadas.'
             : 'Ninguna parcela coincide con el filtro.'}
@@ -195,67 +219,62 @@ export default function ListaParcelas() {
       )}
 
       {!cargando && visibles.length > 0 && (
-        <div className="overflow-x-auto rounded-lg bg-white" style={{ border: '1px solid #e2e8f0' }}>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                <th className="px-3 py-2">Nombre</th>
-                <th className="px-3 py-2">Código</th>
-                <th className="px-3 py-2">Estado</th>
-                <th className="px-3 py-2">Área</th>
-                <th className="px-3 py-2">Fecha</th>
-                <th className="px-3 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {visibles.map((parcela) => {
-                const colores = COLORES[parcela.estado]
-                return (
-                  <tr key={parcela.id} style={{ borderTop: '1px solid #f1f5f9' }}>
-                    <td className="px-3 py-2 text-slate-800">{parcela.nombre}</td>
-                    <td className="px-3 py-2 text-slate-500">{parcela.codigo ?? '—'}</td>
+        <Card size="sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-muted/50 text-left text-xs tracking-wide uppercase text-muted-foreground">
+                  <th className="px-3 py-2">Nombre</th>
+                  <th className="px-3 py-2">Código</th>
+                  <th className="px-3 py-2">Estado</th>
+                  <th className="px-3 py-2">Área</th>
+                  <th className="px-3 py-2">Fecha</th>
+                  <th className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {visibles.map((parcela) => (
+                  <tr key={parcela.id} className="border-t border-border">
+                    <td className="px-3 py-2 font-medium text-foreground">{parcela.nombre}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{parcela.codigo ?? '—'}</td>
                     <td className="px-3 py-2">
-                      <span
-                        className="rounded-full px-2 py-0.5 text-xs font-semibold"
-                        style={{ background: colores.fondo, color: colores.texto }}
-                      >
+                      <Badge variant={VARIANTE_ESTADO[parcela.estado]}>
                         {ETIQUETAS[parcela.estado]}
-                      </span>
+                      </Badge>
                     </td>
-                    <td className="px-3 py-2 text-slate-600">
+                    <td className="px-3 py-2 text-foreground">
                       {parcela.areaM2 !== undefined
                         ? `${parcela.areaM2.toLocaleString('es-VE')} m²`
                         : '—'}
                     </td>
-                    <td className="px-3 py-2 text-slate-500">
+                    <td className="px-3 py-2 text-muted-foreground">
                       {new Date(parcela.creadoEn).toLocaleDateString('es-VE')}
                     </td>
                     <td className="px-3 py-2">
-                      <div className="flex gap-2">
+                      <div className="flex gap-1.5">
                         <Link
-                          href={`/?parcela=${encodeURIComponent(parcela.id)}`}
-                          className="rounded px-2 py-1 text-xs font-semibold"
-                          style={{ background: '#dbeafe', color: '#1d4ed8' }}
+                          href={`/campo?parcela=${encodeURIComponent(parcela.id)}`}
+                          className={buttonVariants({ variant: 'outline', size: 'xs' })}
                         >
                           Editar
                         </Link>
-                        <button
+                        <Button
                           type="button"
+                          variant="destructive"
+                          size="xs"
                           onClick={() => void eliminar(parcela.id)}
                           disabled={eliminando === parcela.id}
-                          className="rounded px-2 py-1 text-xs font-semibold disabled:opacity-40"
-                          style={{ background: '#fee2e2', color: '#b91c1c' }}
                         >
                           {eliminando === parcela.id ? '…' : 'Eliminar'}
-                        </button>
+                        </Button>
                       </div>
                     </td>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
     </div>
   )
