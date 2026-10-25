@@ -1,5 +1,5 @@
 import { applyModuleUpdates, type ModuleConflict, type ModuleOutcome } from '@/lib/domain/sync'
-import { toGeoPoint } from '@/lib/domain/parcela'
+import { ubicacionPersistida } from '@/lib/domain/parcela'
 import type { Parcela } from '@/lib/domain/types'
 import type { ParcelaCreateRequest, ParcelaEstadoSync } from '@/lib/api/contracts'
 import { buildParcelaDoc, findParcela, saveParcela, type ParcelaDoc } from '../repositories/parcelas'
@@ -87,7 +87,7 @@ export async function writeParcela(
         descripcion: input.descripcion,
         categoria: input.categoria,
         codigo: input.codigo,
-        ubicacion: toGeoPoint(input.ubicacion),
+        ubicacion: ubicacionPersistida(input.geometria, input.ubicacion),
         geometria: input.geometria,
         areaM2: input.areaM2,
         perimetroM: input.perimetroM,
@@ -101,7 +101,7 @@ export async function writeParcela(
         nombre: input.nombre,
         descripcion: input.descripcion,
         categoria: input.categoria,
-        ubicacion: toGeoPoint(input.ubicacion),
+        ubicacion: ubicacionPersistida(input.geometria, input.ubicacion),
         geometria: input.geometria,
         areaM2: input.areaM2,
         perimetroM: input.perimetroM,

@@ -84,6 +84,50 @@ export function isUsablePolygon(coordinates: number[][][] | undefined): boolean 
 }
 
 /**
+ * Primer vértice del anillo exterior de un polígono utilizable.
+ *
+ * Es la misma coordenada `[lng, lat]` que el editor dibuja primero; las
+ * reglas de ubicación de la app giran alrededor de este punto.
+ */
+export function primerVerticeDeGeometria(
+  geometria: Parcela['geometria'],
+): [number, number] | null {
+  const primerVertice = geometria?.coordinates[0]?.[0]
+
+  if (
+    Array.isArray(primerVertice) &&
+    primerVertice.length === 2 &&
+    Number.isFinite(primerVertice[0]) &&
+    Number.isFinite(primerVertice[1])
+  ) {
+    return [primerVertice[0], primerVertice[1]]
+  }
+
+  return null
+}
+
+/**
+ * Ubicación que se persiste para una parcela con geometría entrante.
+ *
+ * Es la contraparte de guardado de `ubicacionDeParcela`: si la parcela trae
+ * contorno utilizable, la ubicación guardada ES el primer vértice del anillo
+ * exterior —no el pin del dispositivo, que en un trazado nunca se movió—.
+ * Sin geometría se persiste el punto de entrada tal cual.
+ */
+export function ubicacionPersistida(
+  geometria: Parcela['geometria'],
+  fallback: UbicacionInput,
+): GeoPoint {
+  const vertice = primerVerticeDeGeometria(geometria)
+
+  if (vertice) {
+    return { type: 'Point', coordinates: vertice }
+  }
+
+  return toGeoPoint(fallback)
+}
+
+/**
  * Ubicación con la que se abre una parcela guardada.
  *
  * Una parcela con contorno no se ubica en el punto donde estaba el
@@ -95,15 +139,10 @@ export function isUsablePolygon(coordinates: number[][][] | undefined): boolean 
 export function ubicacionDeParcela(
   parcela: Pick<Parcela, 'ubicacion' | 'geometria'>,
 ): UbicacionInput {
-  const primerVertice = parcela.geometria?.coordinates[0]?.[0]
+  const vertice = primerVerticeDeGeometria(parcela.geometria)
 
-  if (
-    Array.isArray(primerVertice) &&
-    primerVertice.length === 2 &&
-    Number.isFinite(primerVertice[0]) &&
-    Number.isFinite(primerVertice[1])
-  ) {
-    return { lng: primerVertice[0], lat: primerVertice[1] }
+  if (vertice) {
+    return { lng: vertice[0], lat: vertice[1] }
   }
 
   return fromGeoPoint(parcela.ubicacion)

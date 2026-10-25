@@ -7,6 +7,7 @@ import {
   polygonPerimeterM,
   toGeoPoint,
   ubicacionDeParcela,
+  ubicacionPersistida,
 } from './parcela'
 
 /**
@@ -83,6 +84,49 @@ describe('isUsablePolygon', () => {
     expect(isUsablePolygon([])).toBe(false)
     expect(isUsablePolygon([[[0, 0], [1, 0], [1, 1]]])).toBe(false)
     expect(isUsablePolygon([[[0, 0], [1, 0], [1, 1], ['x', 0]] as unknown as number[][]])).toBe(false)
+  })
+})
+
+describe('ubicacionPersistida', () => {
+  const ANILLO: number[][][] = [
+    [
+      [-69.2951, 10.0783],
+      [-69.2941, 10.0783],
+      [-69.2941, 10.0793],
+      [-69.2951, 10.0783],
+    ],
+  ]
+  const PIN = { lat: 10.4806, lng: -66.9036 }
+
+  it('con polígono utilizable persiste su primer vértice como ubicación', () => {
+    const punto = ubicacionPersistida(
+      { type: 'Polygon', coordinates: ANILLO },
+      PIN,
+    )
+
+    // La regla de S-bug: la parcela con contorno se guarda donde está el
+    // contorno, no donde estaba el pin del dispositivo.
+    expect(punto).toEqual({ type: 'Point', coordinates: [-69.2951, 10.0783] })
+  })
+
+  it('sin geometría persiste el punto de entrada', () => {
+    expect(ubicacionPersistida(undefined, PIN)).toEqual({
+      type: 'Point',
+      coordinates: [-66.9036, 10.4806],
+    })
+  })
+
+  it('con geometría vacía o inválida persiste el punto de entrada', () => {
+    expect(
+      ubicacionPersistida({ type: 'Polygon', coordinates: [] }, PIN),
+    ).toEqual({ type: 'Point', coordinates: [-66.9036, 10.4806] })
+
+    expect(
+      ubicacionPersistida(
+        { type: 'Polygon', coordinates: [[['x', 0]]] as unknown as number[][][] },
+        PIN,
+      ),
+    ).toEqual({ type: 'Point', coordinates: [-66.9036, 10.4806] })
   })
 })
 
