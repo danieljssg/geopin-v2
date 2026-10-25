@@ -2,7 +2,23 @@ import { SerwistProvider } from '@serwist/turbopack/react'
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
 import { SyncProvider } from '@/components/field/SyncProvider'
+import { Outfit, Merriweather, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+
+const fontSans = Outfit({
+  subsets: ["latin"],
+  variable: "--font-sans",
+});
+
+const fontSerif = Merriweather({
+  subsets: ["latin"],
+  variable: "--font-serif",
+});
+
+const fontMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+});
 
 export const metadata: Metadata = {
   title: "GeoPin — Marcado de Establecimientos",
@@ -47,8 +63,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="bg-slate-50" suppressHydrationWarning>
-      <body className="antialiased">
+    <html lang="es" suppressHydrationWarning>
+      <body className={`${fontSans.variable} ${fontSerif.variable} ${fontMono.variable} antialiased`}>
         <SerwistProvider swUrl="/serwist/sw.js">
           <SyncProvider>{children}</SyncProvider>
         </SerwistProvider>
