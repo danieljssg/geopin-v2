@@ -49,7 +49,7 @@ export default function OfflinePage() {
             respaldo del service worker y hay que volver a intentar la
             navegación, no hacer una transición del router. */}
         {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-        <a href="/" style={{ textDecoration: 'underline' }}>
+        <a href="/campo" style={{ textDecoration: 'underline' }}>
           Volver al mapa
         </a>
       </p>

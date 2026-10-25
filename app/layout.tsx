@@ -21,10 +21,9 @@ const fontMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GeoPin — Marcado de Establecimientos",
+  title: "GeoPin — Levantamiento GIS",
   description:
-    "Marca y registra establecimientos, viviendas y edificaciones en el mapa usando GPS del dispositivo.",
-  generator: "v0.app",
+    "Registro catastral y de servicios urbanos en campo, con captura offline y sincronización.",
   icons: {
     icon: [
       {

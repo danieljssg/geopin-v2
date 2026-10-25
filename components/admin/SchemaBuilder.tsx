@@ -201,7 +201,7 @@ export default function SchemaBuilder({ usuario }: { usuario: string }) {
             <span className="text-xs" style={{ color: '#93c5fd' }}>
               {usuario}
             </span>
-            <Link href="/" className="text-xs text-white underline">
+            <Link href="/campo" className="text-xs text-white underline">
               Ir al mapa
             </Link>
           </div>

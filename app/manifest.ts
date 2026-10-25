@@ -14,12 +14,17 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: 'GeoPin',
     description:
       'Registro catastral y de servicios urbanos en campo, con captura offline y sincronización.',
-    start_url: '/',
+    // La PWA instalada abre la app de campo, no la landing: es la herramienta
+    // que usan a diario los levantadores.
+    start_url: '/campo',
     scope: '/',
     display: 'standalone',
     orientation: 'portrait',
-    background_color: '#f8fafc',
-    theme_color: '#1e3a5f',
+    // Colores tomados de los tokens de app/globals.css (--background y
+    // --primary): el manifiesto necesita literales, no pueden referenciar
+    // variables CSS.
+    background_color: 'oklch(1 0 0)',
+    theme_color: 'oklch(0.6716 0.1368 48.5130)',
     categories: ['productivity', 'utilities', 'navigation'],
     icons: [
       {

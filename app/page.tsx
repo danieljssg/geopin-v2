@@ -1,333 +1,184 @@
-'use client'
+import type { Metadata } from 'next'
+import Link from 'next/link'
+import { BarChart3, FileSliders, MapPin, WifiOff } from 'lucide-react'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import dynamic from 'next/dynamic'
-import type { ParcelaCreateRequest } from '@/lib/api/contracts'
-import type { MapViewProps } from '@/components/MapView'
-import type { Parcela } from '@/lib/domain/types'
-import FormularioParcela from '@/components/field/FormularioParcela'
-import GeometriaPanel from '@/components/field/GeometriaPanel'
-import PanelCapas from '@/components/field/PanelCapas'
-import PanelDescargarMapa from '@/components/field/PanelDescargarMapa'
-import GpsIndicator from '@/components/field/GpsIndicator'
-import SyncStatus from '@/components/field/SyncStatus'
-import { useSync } from '@/components/field/SyncProvider'
-import { useSchemas } from '@/lib/field/use-schemas'
-import { useCapas } from '@/lib/field/use-capas'
-import { usePoligono } from '@/lib/field/use-poligono'
-import { useGeolocation } from '@/lib/field/use-geolocation'
-import { shouldFollowSensor, type OrigenPosicion } from '@/lib/domain/gps'
-import { ubicacionDeParcela } from '@/lib/domain/parcela'
+import { Badge } from '@/components/ui/badge'
+import { buttonVariants } from '@/components/ui/button'
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
+
+export const metadata: Metadata = {
+  title: 'GeoPin — Levantamiento GIS',
+  description:
+    'Registro catastral y de servicios urbanos en campo, con captura offline y sincronización.',
+}
 
 /**
- * Página de campo v2.
+ * Landing pública.
  *
- * Los campos salen del esquema publicado, la geometría se traza sobre el
- * mapa y el GPS se lee en continuo filtrando por precisión.
- *
- * El estado del polígono y el de la posición viven acá porque los comparten
- * el panel y el mapa.
+ * Es la cara de la plataforma: presenta qué es GeoPin y reparte los accesos
+ * por rol (campo, listado, administración). No hay lógica de sesión acá:
+ * cada app interna decide su propia autorización al entrar.
  */
 
-const MapView = dynamic<MapViewProps>(() => import('@/components/MapView'), {
-  ssr: false,
-  loading: () => (
-    <div className="h-full w-full flex items-center justify-center bg-slate-100">
-      <p className="text-sm text-slate-500 font-medium">Cargando mapa…</p>
-    </div>
-  ),
-})
+const CARACTERISTICAS = [
+  {
+    icono: MapPin,
+    titulo: 'Captura guiada en campo',
+    descripcion:
+      'Marcar establecimientos, viviendas y edificaciones sobre el mapa con GPS del dispositivo, filtrando lecturas por precisión.',
+  },
+  {
+    icono: FileSliders,
+    titulo: 'Esquemas sin desplegar código',
+    descripcion:
+      'Los formularios salen de esquemas publicados por administración: los campos nuevos aparecen en la app de campo al instante.',
+  },
+  {
+    icono: WifiOff,
+    titulo: 'Offline primero',
+    descripcion:
+      'Mapas descargados y captura guardada en el dispositivo; todo se sincroniza solo cuando vuelve la señal.',
+  },
+  {
+    icono: BarChart3,
+    titulo: 'Panel de administración',
+    descripcion:
+      'Dashboard de avance, importación de Excel o CSV con detección de duplicados y exportación de lo levantado.',
+  },
+] as const
 
-/**
- * El editor de polígono también se carga solo en el cliente: usa Leaflet y no
- * puede evaluarse durante el prerender del servidor.
- */
-const PolygonEditor = dynamic(() => import('@/components/field/PolygonEditor'), {
-  ssr: false,
-})
+const ACCESOS = [
+  {
+    href: '/campo',
+    titulo: 'App de campo',
+    descripcion: 'Capturar y editar parcelas sobre el mapa.',
+  },
+  {
+    href: '/listado',
+    titulo: 'Parcelas levantadas',
+    descripcion: 'Revisar, corregir o eliminar lo capturado.',
+  },
+  {
+    href: '/admin/dashboard',
+    titulo: 'Dashboard',
+    descripcion: 'Avance del levantamiento por zona y módulo.',
+  },
+  {
+    href: '/admin/importar',
+    titulo: 'Importar',
+    descripcion: 'Cargar Excel o CSV con cruces y duplicados.',
+  },
+  {
+    href: '/admin/esquema',
+    titulo: 'Esquemas',
+    descripcion: 'Definir los formularios que usa el campo.',
+  },
+  {
+    href: '/login',
+    titulo: 'Entrar',
+    descripcion: 'Iniciar sesión con tu cuenta de GeoPin.',
+  },
+] as const
 
-/**
- * La superposición también se carga solo en el cliente: `leaflet` toca
- * `window` al importarse y el prerender del servidor no lo tiene.
- */
-const CapaSuperpuesta = dynamic(() => import('@/components/field/CapaSuperpuesta'), {
-  ssr: false,
-})
-
-const CENTRO_INICIAL = { lat: 10.4806, lng: -66.9036 }
-
-export default function CampoPage() {
-  const { esquemas, cargando, desdeCache, error, recargar } = useSchemas()
-  const { encolar } = useSync()
-  const poligono = usePoligono()
-  const capas = useCapas()
-  const geo = useGeolocation()
-
-  const [posicionManual, setPosicionManual] = useState(CENTRO_INICIAL)
-  const [origen, setOrigen] = useState<OrigenPosicion>('sensor')
-  const [parcelaEnEdicion, setParcelaEnEdicion] = useState<Parcela | null>(null)
-  /**
-   * Distingue la posición que traía la parcela guardada de una que el
-   * levantador puso a mano. La fuente (`gps.fuente`) solo puede cambiar a
-   * `manual` si el pin se movió de verdad.
-   */
-  const [posicionTocada, setPosicionTocada] = useState(false)
-  /** Coordenadas a las que el mapa vuela al abrir una parcela guardada. */
-  const [enfoque, setEnfoque] = useState<{ lat: number; lng: number; zoom?: number } | null>(null)
-
-  const trazando = poligono.modo === 'trazando'
-
-  /**
-   * Si la URL trae `?parcela=<id>`, se edita esa parcela: se precarga el
-   * formulario, su geometría y las versiones de cada módulo, que son las que
-   * permiten al servidor detectar el conflicto si otro Companero editó el
-   * mismo módulo mientras tanto.
-   */
-  useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get('parcela')
-    if (!id) return
-
-    let vivo = true
-
-    void fetch(`/api/parcelas/${encodeURIComponent(id)}`, { credentials: 'same-origin' })
-      .then((respuesta) => (respuesta.ok ? respuesta.json() : null))
-      .then((cuerpo: { parcela?: Parcela } | null) => {
-        if (!vivo || !cuerpo?.parcela) return
-
-        const parcela = cuerpo.parcela
-        // Con polígono, la ubicación es el primer vértice del contorno: el
-        // pin tiene que caer sobre la parcela y no donde estaba el teléfono.
-        const { lat, lng } = ubicacionDeParcela(parcela)
-
-        setParcelaEnEdicion(parcela)
-        // El pin arranca donde se guardó la parcela. Sin esto el marcador
-        // seguía al GPS y el mapa mostraba la ubicación del dispositivo en
-        // vez de la del pin que se está editando.
-        setPosicionManual({ lat, lng })
-        setOrigen('manual')
-        setPosicionTocada(false)
-        setEnfoque({ lat, lng, zoom: 17 })
-      })
-      .catch(() => {})
-
-    return () => {
-      vivo = false
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!parcelaEnEdicion) return
-    poligono.cargar(
-      parcelaEnEdicion.geometria ?? null,
-      parcelaEnEdicion.areaM2 !== undefined ? String(parcelaEnEdicion.areaM2) : '',
-    )
-    // Solo al cambiar de parcela: recargar en cada render borraría el trazado.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [parcelaEnEdicion?.id])
-
-  /**
-   * El pin sigue al sensor **derivado en el render**, no guardado en estado:
-   * se mueve solo cuando la lectura pasa el filtro de 15 m y la posición no
-   * fue puesta a mano. Es la regla de S3 y S5.
-   *
-   * Con un efecto, el pin se movía en un segundo render: un estado que
-   * cambia dentro de un efecto provoca un render en cascada.
-   */
-  const posicionSensor = useMemo(() => {
-    if (!geo.reading || !shouldFollowSensor(origen, geo.reading)) return null
-    return {
-      lat: geo.reading.lat,
-      lng: geo.reading.lng,
-      precision: geo.reading.accuracy,
-    }
-  }, [geo.reading, origen])
-
-  const ubicacion = posicionSensor ?? posicionManual
-
-  /**
-   * Volver al sensor es una acción explícita del levantador: es la
-   * confirmación que pide S5 antes de descartar la posición manual.
-   */
-  const usarMiUbicacion = useCallback(() => {
-    // Con el origen en "sensor", la posición derivada vuelve a seguir al
-    // GPS en el próximo render: no hace falta escribirla a mano.
-    setOrigen('sensor')
-    setPosicionTocada(false)
-    geo.reiniciar()
-  }, [geo])
-
-  const onPositionChange = useCallback((lat: number, lng: number) => {
-    setPosicionManual({ lat, lng })
-    setOrigen('manual')
-    setPosicionTocada(true)
-  }, [])
-
-  const gps = useMemo(() => {
-    if (posicionSensor) {
-      return { fuente: 'sensor' as const, precision: posicionSensor.precision }
-    }
-
-    // Al editar una parcela sin mover el pin, la ubicación sigue siendo la
-    // del documento: conserva la fuente con la que se levantó. Si el pin se
-    // movió, la fuente pasa a manual.
-    if (parcelaEnEdicion && !posicionTocada && parcelaEnEdicion.gps) {
-      return parcelaEnEdicion.gps
-    }
-
-    return { fuente: 'manual' as const }
-  }, [posicionSensor, parcelaEnEdicion, posicionTocada])
-
-  async function onGuardar(payload: ParcelaCreateRequest) {
-    await encolar(payload)
-    poligono.limpiar()
-  }
-
+export default function LandingPage() {
   return (
-    <main className="h-screen flex flex-col overflow-hidden bg-slate-50">
-      <header
-        className="flex flex-wrap items-center gap-3 px-3 py-3 shadow-sm z-20 shrink-0 sm:px-5"
-        style={{ background: '#1e3a5f' }}
-      >
-        <div>
-          <h1 className="font-bold text-base leading-none text-white tracking-tight">GeoPin</h1>
-          <p className="hidden text-xs leading-none mt-0.5 sm:block" style={{ color: '#93c5fd' }}>
-            Captura de parcela
-          </p>
-        </div>
-        <GpsIndicator fix={geo.fix} accuracy={geo.reading?.accuracy} />
-        <SyncStatus />
-        <div className="ml-auto flex items-center gap-3">
-          {parcelaEnEdicion && (
-            <span className="text-xs" style={{ color: '#93c5fd' }}>
-              Editando: {parcelaEnEdicion.nombre}
+    <div className="flex min-h-screen flex-col">
+      <header className="border-border border-b">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
+          <div className="flex items-center gap-2">
+            <span className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-lg">
+              <MapPin className="size-4" />
             </span>
-          )}
-          <a href="/listado" className="text-xs text-white underline">
-            Listado
-          </a>
-          <a href="/admin/esquema" className="text-xs text-white underline">
-            Esquemas
-          </a>
+            <span className="text-base font-bold">GeoPin</span>
+          </div>
+          <nav className="flex items-center gap-2">
+            {/* Enlaces de acción: buttonVariants sobre Link es el patrón
+                estándar de shadcn para botones que navegan. */}
+            <Link href="/login" className={buttonVariants({ variant: 'ghost' })}>
+              Entrar
+            </Link>
+            <Link href="/campo" className={buttonVariants()}>
+              Abrir la app
+            </Link>
+          </nav>
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
-        <aside
-          className="w-full md:w-[400px] shrink-0 overflow-y-auto p-4 space-y-4"
-          style={{ borderRight: '1px solid #e2e8f0' }}
-        >
-          <GpsIndicator
-            fix={geo.fix}
-            accuracy={geo.reading?.accuracy}
-            variant="panel"
-            onReintentar={usarMiUbicacion}
-          />
-
-          {origen === 'manual' && (
-            <div className="rounded-md px-3 py-2 text-xs" style={{ background: '#f1f5f9', color: '#334155' }}>
-              <p>
-                {parcelaEnEdicion && !posicionTocada
-                  ? 'Posición guardada de la parcela. El sensor no la va a mover.'
-                  : 'Posición puesta a mano. El sensor no la va a mover.'}
-              </p>
-              <button type="button" onClick={usarMiUbicacion} className="mt-1 font-semibold underline">
-                Usar mi ubicación
-              </button>
+      <main className="flex-1">
+        <section className="mx-auto max-w-5xl px-4 pt-14 pb-10 sm:px-6 sm:pt-20">
+          <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
+            <Badge variant="secondary" className="mb-4">
+              Captura offline · Sincronización automática
+            </Badge>
+            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+              Levantamiento catastral en campo, sin perder un dato
+            </h1>
+            <p className="text-muted-foreground mt-4 text-base sm:text-lg">
+              GeoPin registra establecimientos, viviendas y servicios urbanos
+              sobre el mapa, con o sin conexión, y sincroniza la captura del
+              equipo cuando vuelve la señal.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+              <Link href="/campo" className={buttonVariants({ size: 'lg' })}>
+                Empezar a capturar
+              </Link>
+              <Link
+                href="/listado"
+                className={buttonVariants({ variant: 'outline', size: 'lg' })}
+              >
+                Ver parcelas levantadas
+              </Link>
             </div>
-          )}
+          </div>
+        </section>
 
-          {cargando && <p className="text-sm text-slate-500">Cargando formulario…</p>}
+        <section className="mx-auto max-w-5xl px-4 pb-10 sm:px-6">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {CARACTERISTICAS.map(({ icono: Icono, titulo, descripcion }) => (
+              <Card key={titulo}>
+                <CardHeader>
+                  <span className="bg-muted text-foreground flex size-9 items-center justify-center rounded-lg">
+                    <Icono className="size-4" />
+                  </span>
+                  <CardTitle className="mt-2">{titulo}</CardTitle>
+                  <CardDescription>{descripcion}</CardDescription>
+                </CardHeader>
+              </Card>
+            ))}
+          </div>
+        </section>
 
-          {!cargando && (desdeCache || error) && (
-            <div className="rounded-md px-3 py-2 text-xs" style={{ background: '#fef3c7', color: '#92400e' }}>
-              <p>{error}</p>
-              <button type="button" onClick={recargar} className="mt-1 font-semibold underline">
-                Reintentar
-              </button>
-            </div>
-          )}
+        <section className="mx-auto max-w-5xl px-4 pb-14 sm:px-6">
+          <div className="flex items-center gap-4">
+            <h2 className="text-lg font-semibold">Accesos rápidos</h2>
+            <Separator className="flex-1" />
+          </div>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {ACCESOS.map(({ href, titulo, descripcion }) => (
+              <Link key={href} href={href} className="group">
+                <Card className="group-hover:shadow-md">
+                  <CardHeader>
+                    <CardTitle className="text-base">{titulo}</CardTitle>
+                    <CardDescription>{descripcion}</CardDescription>
+                  </CardHeader>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </section>
+      </main>
 
-          <GeometriaPanel poligono={poligono} deshabilitado={cargando} />
-
-          <PanelDescargarMapa
-            puntos={poligono.draft}
-            posicionActual={{ lat: ubicacion.lat, lng: ubicacion.lng }}
-          />
-
-          {!cargando && (
-            <FormularioParcela
-              // El `key` reinicia el formulario cuando cambia la parcela en
-              // edición: es el patrón que React recomienda para resetear
-              // estado con una prop, y evita un setState dentro de un efecto.
-              key={parcelaEnEdicion?.id ?? 'nueva'}
-              esquemas={esquemas}
-              id={parcelaEnEdicion?.id}
-              initial={parcelaEnEdicion}
-              ubicacion={ubicacion}
-              gps={gps}
-              geometria={poligono.geometria}
-              areaM2={poligono.areaEfectiva}
-              perimetroM={poligono.perimetroGeometria}
-              onGuardar={onGuardar}
-            />
-          )}
-        </aside>
-
-        <div className="flex-1 relative min-h-[50vh]">
-          <MapView
-            lat={ubicacion.lat}
-            lng={ubicacion.lng}
-            categoria="vivienda"
-            savedPins={[]}
-            // Mientras se traza, cada toque agrega un vértice en vez de
-            // mover el pin.
-            clickToPosition={!trazando}
-            // El GPS lo maneja el hook, que filtra por precisión: el mapa no
-            // tiene que pedir su propia lectura.
-            autoLocate={false}
-            onLocateRequest={usarMiUbicacion}
-            capas={capas.capas}
-            capaBase={capas.baseActiva}
-            enfoque={enfoque}
-            onPositionChange={onPositionChange}
-            onGPSStatus={() => {}}
-            onDeletePin={() => {}}
-            onEditPin={() => {}}
-          >
-            {capas.capas
-              .filter(
-                (capa) =>
-                  capa.tipo === 'superposicion' && capas.overlaysVisibles.includes(capa.id),
-              )
-              .map((capa) => (
-                <CapaSuperpuesta
-                  key={capa.id}
-                  capa={capa}
-                  opacidad={capas.opacidades[capa.id] ?? capa.opacity}
-                />
-              ))}
-
-            <PolygonEditor
-              draft={poligono.draft}
-              geometria={poligono.geometria}
-              trazando={trazando}
-              onAgregar={poligono.agregar}
-              onMover={poligono.mover}
-              onQuitar={poligono.quitar}
-            />
-          </MapView>
-
-          <PanelCapas
-            capas={capas.capas}
-            baseActiva={capas.baseActiva}
-            onCambiarBase={capas.setBaseActiva}
-            overlaysVisibles={capas.overlaysVisibles}
-            onToggleOverlay={capas.toggleOverlay}
-            opacidades={capas.opacidades}
-            onCambiarOpacidad={capas.setOpacidad}
-          />
+      <footer className="border-border border-t">
+        <div className="text-muted-foreground mx-auto max-w-5xl px-4 py-6 text-xs sm:px-6">
+          GeoPin · Registro catastral y de servicios urbanos en campo.
         </div>
-      </div>
-    </main>
+      </footer>
+    </div>
   )
 }
