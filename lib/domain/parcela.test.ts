@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import type { GeoPoint } from './types'
 import {
   fromGeoPoint,
   isUsablePolygon,
   polygonAreaM2,
   polygonPerimeterM,
   toGeoPoint,
+  ubicacionDeParcela,
 } from './parcela'
 
 /**
@@ -81,5 +83,48 @@ describe('isUsablePolygon', () => {
     expect(isUsablePolygon([])).toBe(false)
     expect(isUsablePolygon([[[0, 0], [1, 0], [1, 1]]])).toBe(false)
     expect(isUsablePolygon([[[0, 0], [1, 0], [1, 1], ['x', 0]] as unknown as number[][]])).toBe(false)
+  })
+})
+
+describe('ubicacionDeParcela', () => {
+  const guardada: GeoPoint = { type: 'Point', coordinates: [-66.9036, 10.4806] }
+
+  const ANILLO: number[][][] = [
+    [
+      [-66.8, 10.5],
+      [-66.79, 10.5],
+      [-66.79, 10.51],
+      [-66.8, 10.5],
+    ],
+  ]
+
+  it('usa el primer vértice del polígono, no la ubicación guardada', () => {
+    const ubicacion = ubicacionDeParcela({
+      ubicacion: guardada,
+      geometria: { type: 'Polygon', coordinates: ANILLO },
+    })
+
+    // El anillo guarda [longitud, latitud] y la app trabaja en lat/lng.
+    expect(ubicacion).toEqual({ lat: 10.5, lng: -66.8 })
+  })
+
+  it('sin geometría devuelve la ubicación guardada', () => {
+    expect(ubicacionDeParcela({ ubicacion: guardada })).toEqual({
+      lat: 10.4806,
+      lng: -66.9036,
+    })
+  })
+
+  it('con geometría vacía o inválida devuelve la ubicación guardada', () => {
+    expect(
+      ubicacionDeParcela({ ubicacion: guardada, geometria: { type: 'Polygon', coordinates: [] } }),
+    ).toEqual({ lat: 10.4806, lng: -66.9036 })
+
+    expect(
+      ubicacionDeParcela({
+        ubicacion: guardada,
+        geometria: { type: 'Polygon', coordinates: [[['x', 0]]] as unknown as number[][][] },
+      }),
+    ).toEqual({ lat: 10.4806, lng: -66.9036 })
   })
 })

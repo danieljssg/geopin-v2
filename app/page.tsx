@@ -17,7 +17,7 @@ import { useCapas } from '@/lib/field/use-capas'
 import { usePoligono } from '@/lib/field/use-poligono'
 import { useGeolocation } from '@/lib/field/use-geolocation'
 import { shouldFollowSensor, type OrigenPosicion } from '@/lib/domain/gps'
-import { fromGeoPoint } from '@/lib/domain/parcela'
+import { ubicacionDeParcela } from '@/lib/domain/parcela'
 
 /**
  * Página de campo v2.
@@ -66,6 +66,14 @@ export default function CampoPage() {
   const [posicionManual, setPosicionManual] = useState(CENTRO_INICIAL)
   const [origen, setOrigen] = useState<OrigenPosicion>('sensor')
   const [parcelaEnEdicion, setParcelaEnEdicion] = useState<Parcela | null>(null)
+  /**
+   * Distingue la posición que traía la parcela guardada de una que el
+   * levantador puso a mano. La fuente (`gps.fuente`) solo puede cambiar a
+   * `manual` si el pin se movió de verdad.
+   */
+  const [posicionTocada, setPosicionTocada] = useState(false)
+  /** Coordenadas a las que el mapa vuela al abrir una parcela guardada. */
+  const [enfoque, setEnfoque] = useState<{ lat: number; lng: number; zoom?: number } | null>(null)
 
   const trazando = poligono.modo === 'trazando'
 
@@ -84,7 +92,21 @@ export default function CampoPage() {
     void fetch(`/api/parcelas/${encodeURIComponent(id)}`, { credentials: 'same-origin' })
       .then((respuesta) => (respuesta.ok ? respuesta.json() : null))
       .then((cuerpo: { parcela?: Parcela } | null) => {
-        if (vivo && cuerpo?.parcela) setParcelaEnEdicion(cuerpo.parcela)
+        if (!vivo || !cuerpo?.parcela) return
+
+        const parcela = cuerpo.parcela
+        // Con polígono, la ubicación es el primer vértice del contorno: el
+        // pin tiene que caer sobre la parcela y no donde estaba el teléfono.
+        const { lat, lng } = ubicacionDeParcela(parcela)
+
+        setParcelaEnEdicion(parcela)
+        // El pin arranca donde se guardó la parcela. Sin esto el marcador
+        // seguía al GPS y el mapa mostraba la ubicación del dispositivo en
+        // vez de la del pin que se está editando.
+        setPosicionManual({ lat, lng })
+        setOrigen('manual')
+        setPosicionTocada(false)
+        setEnfoque({ lat, lng, zoom: 17 })
       })
       .catch(() => {})
 
@@ -130,21 +152,30 @@ export default function CampoPage() {
     // Con el origen en "sensor", la posición derivada vuelve a seguir al
     // GPS en el próximo render: no hace falta escribirla a mano.
     setOrigen('sensor')
+    setPosicionTocada(false)
     geo.reiniciar()
   }, [geo])
 
   const onPositionChange = useCallback((lat: number, lng: number) => {
     setPosicionManual({ lat, lng })
     setOrigen('manual')
+    setPosicionTocada(true)
   }, [])
 
-  const gps = useMemo(
-    () =>
-      posicionSensor
-        ? { fuente: 'sensor' as const, precision: posicionSensor.precision }
-        : { fuente: 'manual' as const },
-    [posicionSensor],
-  )
+  const gps = useMemo(() => {
+    if (posicionSensor) {
+      return { fuente: 'sensor' as const, precision: posicionSensor.precision }
+    }
+
+    // Al editar una parcela sin mover el pin, la ubicación sigue siendo la
+    // del documento: conserva la fuente con la que se levantó. Si el pin se
+    // movió, la fuente pasa a manual.
+    if (parcelaEnEdicion && !posicionTocada && parcelaEnEdicion.gps) {
+      return parcelaEnEdicion.gps
+    }
+
+    return { fuente: 'manual' as const }
+  }, [posicionSensor, parcelaEnEdicion, posicionTocada])
 
   async function onGuardar(payload: ParcelaCreateRequest) {
     await encolar(payload)
@@ -194,7 +225,11 @@ export default function CampoPage() {
 
           {origen === 'manual' && (
             <div className="rounded-md px-3 py-2 text-xs" style={{ background: '#f1f5f9', color: '#334155' }}>
-              <p>Posición puesta a mano. El sensor no la va a mover.</p>
+              <p>
+                {parcelaEnEdicion && !posicionTocada
+                  ? 'Posición guardada de la parcela. El sensor no la va a mover.'
+                  : 'Posición puesta a mano. El sensor no la va a mover.'}
+              </p>
               <button type="button" onClick={usarMiUbicacion} className="mt-1 font-semibold underline">
                 Usar mi ubicación
               </button>
@@ -228,8 +263,8 @@ export default function CampoPage() {
               esquemas={esquemas}
               id={parcelaEnEdicion?.id}
               initial={parcelaEnEdicion}
-              ubicacion={parcelaEnEdicion ? fromGeoPoint(parcelaEnEdicion.ubicacion) : ubicacion}
-              gps={parcelaEnEdicion?.gps ?? gps}
+              ubicacion={ubicacion}
+              gps={gps}
               geometria={poligono.geometria}
               areaM2={poligono.areaEfectiva}
               perimetroM={poligono.perimetroGeometria}
@@ -253,6 +288,7 @@ export default function CampoPage() {
             onLocateRequest={usarMiUbicacion}
             capas={capas.capas}
             capaBase={capas.baseActiva}
+            enfoque={enfoque}
             onPositionChange={onPositionChange}
             onGPSStatus={() => {}}
             onDeletePin={() => {}}

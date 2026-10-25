@@ -149,6 +149,27 @@ function MapClickHandler({ onPositionChange, enabled }: MapClickHandlerProps) {
   return null
 }
 
+/**
+ * Vuela a un punto cuando cambia.
+ *
+ * `MapContainer` solo respeta `center` al montarse; sin esto, abrir una
+ * parcela guardada dejaba la cámara donde estaba el dispositivo y el pin
+ * aparecía fuera de pantalla.
+ */
+function EnfoqueMapa({ enfoque }: { enfoque?: { lat: number; lng: number; zoom?: number } | null }) {
+  const map = useMap()
+  const lat = enfoque?.lat
+  const lng = enfoque?.lng
+  const zoom = enfoque?.zoom
+
+  useEffect(() => {
+    if (lat === undefined || lng === undefined) return
+    map.flyTo([lat, lng], zoom ?? Math.max(map.getZoom(), 17), { animate: true, duration: 1.2 })
+  }, [map, lat, lng, zoom])
+
+  return null
+}
+
 function MapActionControls({
   onPositionChange,
   onGPSStatus,
@@ -291,6 +312,11 @@ export interface MapViewProps {
   capaBase?: string
   /** Capas y controles que se dibujan dentro del mapa. */
   children?: React.ReactNode
+  /**
+   * Punto al que el mapa vuela cuando cambia. Se usa para abrir una parcela
+   * guardada en sus coordenadas y no en las del dispositivo.
+   */
+  enfoque?: { lat: number; lng: number; zoom?: number } | null
 }
 
 export default function MapView({
@@ -308,6 +334,7 @@ export default function MapView({
   capas,
   capaBase,
   children,
+  enfoque,
 }: MapViewProps) {
   const hasValidPosition = lat !== 0 || lng !== 0
 
@@ -355,6 +382,7 @@ export default function MapView({
       </LayersControl>
 
       {autoLocate && <GPSDetector onPositionChange={onPositionChange} onGPSStatus={onGPSStatus} />}
+      <EnfoqueMapa enfoque={enfoque} />
       <MapClickHandler onPositionChange={onPositionChange} enabled={clickToPosition} />
       <MapActionControls
         onPositionChange={onPositionChange}

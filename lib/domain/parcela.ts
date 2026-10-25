@@ -83,5 +83,31 @@ export function isUsablePolygon(coordinates: number[][][] | undefined): boolean 
   )
 }
 
+/**
+ * Ubicación con la que se abre una parcela guardada.
+ *
+ * Una parcela con contorno no se ubica en el punto donde estaba el
+ * dispositivo cuando se capturó: se ubica en el contorno. Se toma el primer
+ * vértice del anillo exterior —el mismo que el editor dibuja primero— para
+ * que el pin caiga sobre el polígono y `ubicacion` quede con ese valor. Sin
+ * geometría utilizable se conserva la ubicación guardada.
+ */
+export function ubicacionDeParcela(
+  parcela: Pick<Parcela, 'ubicacion' | 'geometria'>,
+): UbicacionInput {
+  const primerVertice = parcela.geometria?.coordinates[0]?.[0]
+
+  if (
+    Array.isArray(primerVertice) &&
+    primerVertice.length === 2 &&
+    Number.isFinite(primerVertice[0]) &&
+    Number.isFinite(primerVertice[1])
+  ) {
+    return { lng: primerVertice[0], lat: primerVertice[1] }
+  }
+
+  return fromGeoPoint(parcela.ubicacion)
+}
+
 /** Estado por defecto de una parcela recién capturada. */
 export const DEFAULT_PARCELA_ESTADO: Parcela['estado'] = 'pendiente'
