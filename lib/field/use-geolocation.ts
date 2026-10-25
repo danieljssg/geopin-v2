@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { fixFrom, type GpsFix, type GpsReading } from '@/lib/domain/gps'
 
 /**
@@ -33,14 +33,22 @@ export function useGeolocation(options: UseGeolocationOptions = {}): UseGeolocat
   const [intento, setIntento] = useState(0)
 
   /**
-   * Si el navegador tiene GPS se deriva del entorno en vez de guardarlo en
-   * estado: ponerlo en estado exigía un setState dentro del efecto, que
-   * React 19 marca porque provoca un render en cascada.
+   * Si el navegador tiene GPS.
    *
-   * Durante el prerender del servidor `navigator` no existe y se asume que
-   * sí lo hay: un navegador sin geolocation es un caso excepcional.
+   * Se lee con `useSyncExternalStore` y no directamente en el render:
+   * **Node 24 expone un `navigator` global sin `geolocation`**, así que una
+   * comprobación directa daba `false` en el servidor y `true` en el cliente,
+   * y React rompía por hidratación.
+   *
+   * `getServerSnapshot` se usa también en el primer render del cliente, así
+   * que el HTML del servidor y la primera pintura coinciden. Después React
+   * re-renderiza con el valor real.
    */
-  const supported = typeof navigator === 'undefined' || 'geolocation' in navigator
+  const supported = useSyncExternalStore(
+    () => () => {},
+    () => typeof navigator !== 'undefined' && 'geolocation' in navigator,
+    () => true,
+  )
 
   useEffect(() => {
     if (!enabled) return

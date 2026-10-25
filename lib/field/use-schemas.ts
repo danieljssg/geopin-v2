@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import type { ModuleSchema } from '@/lib/domain/types'
 import { cacheEsquemas, getCachedEsquemas } from './cache'
+import { redirigirSiNoHaySesion } from './sesion'
 
 /**
  * Esquemas publicados, con respaldo en la caché local.
@@ -41,6 +42,10 @@ export function useSchemas(): UseSchemasResult {
           headers: { Accept: 'application/json' },
         })
 
+        // Sin sesión no tiene sentido mostrar un error de esquemas: se va al
+        // login. La raíz es estática para que el shell funcione offline, así
+        // que la comprobación va acá.
+        if (redirigirSiNoHaySesion(respuesta.status)) return
         if (!respuesta.ok) throw new Error(`El servidor respondió ${respuesta.status}.`)
 
         const { esquemas: lista } = (await respuesta.json()) as { esquemas: ModuleSchema[] }

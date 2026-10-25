@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import type { CapaMapa } from '@/lib/map/capas'
+import { redirigirSiNoHaySesion } from './sesion'
 
 /**
  * Configuración de las capas del mapa.
@@ -39,6 +40,7 @@ export function useCapas(): UseCapasResult {
 
       try {
         const respuesta = await fetch('/api/capas', { credentials: 'same-origin' })
+        if (redirigirSiNoHaySesion(respuesta.status)) return
         if (!respuesta.ok) throw new Error(`El servidor respondió ${respuesta.status}.`)
 
         const { capas: lista, avisos: listaAvisos } = (await respuesta.json()) as {
