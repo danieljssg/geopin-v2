@@ -32,6 +32,38 @@ export async function updateTotalEsperado(id: string, totalEsperado: number): Pr
   return resultado.matchedCount > 0
 }
 
+/** Campos que el panel puede editar de una campaña ya creada. */
+export interface CambiosLevantamiento {
+  nombre?: string
+  ciudad?: string
+  totalEsperado?: number
+}
+
+/**
+ * Actualiza los campos editables y devuelve el documento resultante.
+ *
+ * No es un upsert: editar una campaña que no existe es un 404, no un alta
+ * silenciosa con datos a medias. `findOneAndUpdate` devuelve el documento ya
+ * actualizado en una sola operación, así la respuesta del PATCH no puede
+ * quedar desfasada por una escritura intermedia. `creadoPor` y `creadoEn`
+ * quedan fuera a propósito: la autoría no se edita.
+ */
+export async function updateLevantamiento(
+  id: string,
+  cambios: CambiosLevantamiento,
+): Promise<LevantamientoDoc | null> {
+  const set: Partial<Pick<Levantamiento, 'nombre' | 'ciudad' | 'totalEsperado'>> = {}
+  if (cambios.nombre !== undefined) set.nombre = cambios.nombre
+  if (cambios.ciudad !== undefined) set.ciudad = cambios.ciudad
+  if (cambios.totalEsperado !== undefined) set.totalEsperado = cambios.totalEsperado
+
+  return levantamientosCollection().findOneAndUpdate(
+    { _id: id },
+    { $set: set },
+    { returnDocument: 'after' },
+  )
+}
+
 /**
  * Todas las parcelas de un levantamiento (o todas, sin filtro).
  *
