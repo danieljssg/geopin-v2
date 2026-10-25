@@ -24,57 +24,77 @@ import { Skeleton } from '@/components/ui/skeleton'
  * Actualiza los datos que la cuenta permite cambiar sin infraestructura de
  * verificación de correo: el nombre y la contraseña. El rol y el email no se
  * tocan acá — el rol lo gestiona administración (panel de usuarios) y el
- * email require verificación, que la plataforma no tiene montada.
+ * email requiere verificación, que la plataforma no tiene montada.
  */
 
 type Mensaje = { tipo: 'ok' | 'error'; texto: string } | null
 
-export default function PerfilPage() {
-  const session = useSession()
+/**
+ * Formulario de nombre. El `key` del uso lo remonta cuando cambia el
+ * usuario, así que el valor inicial nace de la sesión sin necesidad de
+ * sincronizar estado en un efecto (regla del linter de hooks de React).
+ */
+function FormularioNombre({ inicial }: { inicial: string }) {
   const router = useRouter()
-  const user = session.data?.user
+  const [nombre, setNombre] = useState(inicial)
+  const [enviando, setEnviando] = useState(false)
+  const [mensaje, setMensaje] = useState<Mensaje>(null)
 
-  const [nombre, setNombre] = useState('')
-  const [nombreEnviando, setNombreEnviando] = useState(false)
-  const [mensajeNombre, setMensajeNombre] = useState<Mensaje>(null)
-
-  const [contrasenaActual, setContrasenaActual] = useState('')
-  const [contrasenaNueva, setContrasenaNueva] = useState('')
-  const [contrasenaEnviando, setContrasenaEnviando] = useState(false)
-  const [mensajeContrasena, setMensajeContrasena] = useState<Mensaje>(null)
-
-  useEffect(() => {
-    if (!session.isPending && !user) router.replace('/login')
-  }, [session.isPending, user, router])
-
-  useEffect(() => {
-    if (user) setNombre(user.name ?? '')
-  }, [user])
-
-  async function guardarNombre(event: React.FormEvent) {
+  async function guardar(event: React.FormEvent) {
     event.preventDefault()
-    setMensajeNombre(null)
-    setNombreEnviando(true)
+    setMensaje(null)
+    setEnviando(true)
 
     try {
       const { error } = await updateUser({ name: nombre.trim() })
       if (error) {
-        setMensajeNombre({ tipo: 'error', texto: error.message ?? 'No se pudo guardar el nombre.' })
+        setMensaje({ tipo: 'error', texto: error.message ?? 'No se pudo guardar el nombre.' })
         return
       }
-      setMensajeNombre({ tipo: 'ok', texto: 'Nombre actualizado.' })
+      setMensaje({ tipo: 'ok', texto: 'Nombre actualizado.' })
       router.refresh()
     } catch {
-      setMensajeNombre({ tipo: 'error', texto: 'No se pudo contactar al servidor.' })
+      setMensaje({ tipo: 'error', texto: 'No se pudo contactar al servidor.' })
     } finally {
-      setNombreEnviando(false)
+      setEnviando(false)
     }
   }
 
-  async function guardarContrasena(event: React.FormEvent) {
+  return (
+    <form onSubmit={guardar} className="space-y-3">
+      <div className="space-y-2">
+        <Label htmlFor="nombre">Nombre</Label>
+        <Input
+          id="nombre"
+          required
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+        />
+      </div>
+
+      {mensaje && (
+        <Alert variant={mensaje.tipo === 'error' ? 'destructive' : 'default'}>
+          <AlertDescription>{mensaje.texto}</AlertDescription>
+        </Alert>
+      )}
+
+      <Button type="submit" disabled={enviando}>
+        {enviando ? 'Guardando…' : 'Guardar nombre'}
+      </Button>
+    </form>
+  )
+}
+
+function FormularioContrasena() {
+  const [contrasenaActual, setContrasenaActual] = useState('')
+  const [contrasenaNueva, setContrasenaNueva] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [mensaje, setMensaje] = useState<Mensaje>(null)
+
+  async function guardar(event: React.FormEvent) {
     event.preventDefault()
-    setMensajeContrasena(null)
-    setContrasenaEnviando(true)
+    setMensaje(null)
+    setEnviando(true)
 
     try {
       const { error } = await changePassword({
@@ -83,7 +103,7 @@ export default function PerfilPage() {
         revokeOtherSessions: false,
       })
       if (error) {
-        setMensajeContrasena({
+        setMensaje({
           tipo: 'error',
           texto:
             error.status === 401
@@ -92,15 +112,64 @@ export default function PerfilPage() {
         })
         return
       }
-      setMensajeContrasena({ tipo: 'ok', texto: 'Contraseña actualizada.' })
+      setMensaje({ tipo: 'ok', texto: 'Contraseña actualizada.' })
       setContrasenaActual('')
       setContrasenaNueva('')
     } catch {
-      setMensajeContrasena({ tipo: 'error', texto: 'No se pudo contactar al servidor.' })
+      setMensaje({ tipo: 'error', texto: 'No se pudo contactar al servidor.' })
     } finally {
-      setContrasenaEnviando(false)
+      setEnviando(false)
     }
   }
+
+  return (
+    <form onSubmit={guardar} className="space-y-3">
+      <div className="space-y-2">
+        <Label htmlFor="contrasena-actual">Contraseña actual</Label>
+        <Input
+          id="contrasena-actual"
+          type="password"
+          required
+          autoComplete="current-password"
+          value={contrasenaActual}
+          onChange={(e) => setContrasenaActual(e.target.value)}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="contrasena-nueva">Contraseña nueva</Label>
+        <Input
+          id="contrasena-nueva"
+          type="password"
+          required
+          minLength={8}
+          autoComplete="new-password"
+          value={contrasenaNueva}
+          onChange={(e) => setContrasenaNueva(e.target.value)}
+        />
+      </div>
+
+      {mensaje && (
+        <Alert variant={mensaje.tipo === 'error' ? 'destructive' : 'default'}>
+          <AlertDescription>{mensaje.texto}</AlertDescription>
+        </Alert>
+      )}
+
+      <Button type="submit" disabled={enviando}>
+        {enviando ? 'Guardando…' : 'Cambiar contraseña'}
+      </Button>
+    </form>
+  )
+}
+
+export default function PerfilPage() {
+  const session = useSession()
+  const router = useRouter()
+  const user = session.data?.user
+
+  useEffect(() => {
+    if (!session.isPending && !user) router.replace('/login')
+  }, [session.isPending, user, router])
 
   if (session.isPending || !user) {
     return (
@@ -121,66 +190,11 @@ export default function PerfilPage() {
         </CardHeader>
 
         <CardContent className="space-y-6">
-          <form onSubmit={guardarNombre} className="space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor="nombre">Nombre</Label>
-              <Input
-                id="nombre"
-                required
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-              />
-            </div>
-
-            {mensajeNombre && (
-              <Alert variant={mensajeNombre.tipo === 'error' ? 'destructive' : 'default'}>
-                <AlertDescription>{mensajeNombre.texto}</AlertDescription>
-              </Alert>
-            )}
-
-            <Button type="submit" disabled={nombreEnviando}>
-              {nombreEnviando ? 'Guardando…' : 'Guardar nombre'}
-            </Button>
-          </form>
+          <FormularioNombre key={user.id} inicial={user.name ?? ''} />
 
           <Separator />
 
-          <form onSubmit={guardarContrasena} className="space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor="contrasena-actual">Contraseña actual</Label>
-              <Input
-                id="contrasena-actual"
-                type="password"
-                required
-                autoComplete="current-password"
-                value={contrasenaActual}
-                onChange={(e) => setContrasenaActual(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="contrasena-nueva">Contraseña nueva</Label>
-              <Input
-                id="contrasena-nueva"
-                type="password"
-                required
-                minLength={8}
-                autoComplete="new-password"
-                value={contrasenaNueva}
-                onChange={(e) => setContrasenaNueva(e.target.value)}
-              />
-            </div>
-
-            {mensajeContrasena && (
-              <Alert variant={mensajeContrasena.tipo === 'error' ? 'destructive' : 'default'}>
-                <AlertDescription>{mensajeContrasena.texto}</AlertDescription>
-              </Alert>
-            )}
-
-            <Button type="submit" disabled={contrasenaEnviando}>
-              {contrasenaEnviando ? 'Guardando…' : 'Cambiar contraseña'}
-            </Button>
-          </form>
+          <FormularioContrasena />
         </CardContent>
       </Card>
     </main>
