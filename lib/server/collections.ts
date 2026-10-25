@@ -110,6 +110,13 @@ export const INDEX_SPECS: IndexSpec[] = [
     },
   },
   {
+    collection: COLLECTION_PARECLAS,
+    index: {
+      key: { creadoPor: 1 },
+      name: 'creadoPor',
+    },
+  },
+  {
     collection: COLLECTION_SCHEMAS,
     index: {
       key: { modulo: 1 },

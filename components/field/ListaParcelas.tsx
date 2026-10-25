@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -46,9 +47,12 @@ interface ParcelaFila {
  * Vive fuera del componente a propósito: así el efecto solo aplica el
  * resultado y no hay un `setState` en su cuerpo.
  */
-async function pedirParcelas(): Promise<{ parcelas?: ParcelaFila[]; error?: string }> {
+async function pedirParcelas(
+  mias: boolean,
+): Promise<{ parcelas?: ParcelaFila[]; error?: string }> {
   try {
-    const respuesta = await fetch('/api/parcelas?limite=200', { credentials: 'same-origin' })
+    const consulta = mias ? '/api/parcelas?limite=200&mias=1' : '/api/parcelas?limite=200'
+    const respuesta = await fetch(consulta, { credentials: 'same-origin' })
     if (!respuesta.ok) return { error: `El servidor respondió ${respuesta.status}.` }
 
     const cuerpo = (await respuesta.json()) as { parcelas?: ParcelaFila[] }
@@ -78,6 +82,21 @@ const FILTROS: Record<string, string> = {
 }
 
 export default function ListaParcelas() {
+  return (
+    <Suspense
+      fallback={<p className="text-sm text-muted-foreground">Cargando parcelas…</p>}
+    >
+      <ListaParcelasContenido />
+    </Suspense>
+  )
+}
+
+function ListaParcelasContenido() {
+  const searchParams = useSearchParams()
+  // `mias=1` es el atajo de "Mis registros": el servidor lo traduce al dueño
+  // de la sesión, así que el cliente no manda ningún id de usuario.
+  const mias = searchParams.get('mias') === '1'
+
   const [parcelas, setParcelas] = useState<ParcelaFila[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   // El estado de carga se deriva de los datos: si todavía no hay lista, la
@@ -98,7 +117,7 @@ export default function ListaParcelas() {
   useEffect(() => {
     let vivo = true
 
-    void pedirParcelas().then((resultado) => {
+    void pedirParcelas(mias).then((resultado) => {
       if (!vivo) return
       if (resultado.parcelas) setParcelas(resultado.parcelas)
       if (resultado.error) setError(resultado.error)
@@ -107,7 +126,7 @@ export default function ListaParcelas() {
     return () => {
       vivo = false
     }
-  }, [recarga])
+  }, [recarga, mias])
 
   const visibles = useMemo(() => {
     const texto = busqueda.trim().toLowerCase()
@@ -146,6 +165,8 @@ export default function ListaParcelas() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
+        {mias && <Badge variant="secondary">Mis registros</Badge>}
+
         <Input
           type="search"
           value={busqueda}

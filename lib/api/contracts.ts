@@ -446,6 +446,8 @@ export function parseSyncRequest(input: unknown): ParseResult<SyncRequest> {
 export function parseListQuery(url: URL): {
   levantamientoId?: string
   estado?: ParcelaEstado
+  /** Filtro por dueño. Solo lo aplica el servidor cuando el usuario es admin. */
+  creadoPor?: string
   limite: number
   skip: number
 } {
@@ -464,8 +466,9 @@ export function parseListQuery(url: URL): {
       : undefined
 
   const levantamientoId = url.searchParams.get('levantamientoId')?.trim() || undefined
+  const creadoPor = url.searchParams.get('creadoPor')?.trim() || undefined
 
-  return { levantamientoId, estado, limite, skip }
+  return { levantamientoId, estado, creadoPor, limite, skip }
 }
 
 // ---------------------------------------------------------------------------

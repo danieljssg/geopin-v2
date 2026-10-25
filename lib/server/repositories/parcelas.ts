@@ -16,14 +16,19 @@ import { stripUndefinedDeep } from '@/lib/domain/json'
 export interface ParcelaFilter {
   levantamientoId?: string
   estado?: ParcelaEstado
+  /** Dueño de la parcela. El route handler lo fuerza al usuario sin rol admin. */
+  creadoPor?: string
   limite: number
   skip: number
 }
 
-function buildFilter(filter: Pick<ParcelaFilter, 'levantamientoId' | 'estado'>) {
+function buildFilter(
+  filter: Pick<ParcelaFilter, 'levantamientoId' | 'estado' | 'creadoPor'>,
+) {
   const query: Record<string, unknown> = {}
   if (filter.levantamientoId) query.levantamientoId = filter.levantamientoId
   if (filter.estado) query.estado = filter.estado
+  if (filter.creadoPor) query.creadoPor = filter.creadoPor
   return query
 }
 
@@ -37,7 +42,7 @@ export async function listParcelas(filter: ParcelaFilter): Promise<ParcelaDoc[]>
 }
 
 export async function countParcelas(
-  filter: Pick<ParcelaFilter, 'levantamientoId' | 'estado'>,
+  filter: Pick<ParcelaFilter, 'levantamientoId' | 'estado' | 'creadoPor'>,
 ): Promise<number> {
   return parcelasCollection().countDocuments(buildFilter(filter))
 }

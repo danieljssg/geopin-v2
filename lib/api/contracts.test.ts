@@ -192,4 +192,22 @@ describe('parseListQuery', () => {
     expect(parseListQuery(new URL('https://x.test/api/parcelas?estado=completa')).estado).toBe('completa')
     expect(parseListQuery(new URL('https://x.test/api/parcelas?estado=xxx')).estado).toBeUndefined()
   })
+
+  it('conserva el filtro por levantamiento', () => {
+    expect(
+      parseListQuery(new URL('https://x.test/api/parcelas?levantamientoId=lev-1')).levantamientoId,
+    ).toBe('lev-1')
+  })
+
+  it('acepta un filtro por creador', () => {
+    const query = parseListQuery(new URL('https://x.test/api/parcelas?creadoPor=user-123'))
+    expect(query.creadoPor).toBe('user-123')
+  })
+
+  it('descarta un creador vacío', () => {
+    expect(parseListQuery(new URL('https://x.test/api/parcelas?creadoPor=')).creadoPor).toBeUndefined()
+    expect(
+      parseListQuery(new URL('https://x.test/api/parcelas?creadoPor=%20')).creadoPor,
+    ).toBeUndefined()
+  })
 })
