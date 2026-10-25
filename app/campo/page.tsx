@@ -6,13 +6,14 @@ import type { ParcelaCreateRequest } from '@/lib/api/contracts'
 import type { MapViewProps } from '@/components/MapView'
 import type { Parcela } from '@/lib/domain/types'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
 import FormularioParcela from '@/components/field/FormularioParcela'
 import GeometriaPanel from '@/components/field/GeometriaPanel'
 import PanelCapas from '@/components/field/PanelCapas'
 import PanelDescargarMapa from '@/components/field/PanelDescargarMapa'
 import GpsIndicator from '@/components/field/GpsIndicator'
 import SyncStatus from '@/components/field/SyncStatus'
+import { NavBar } from '@/components/NavBar'
 import { useSync } from '@/components/field/SyncProvider'
 import { useSchemas } from '@/lib/field/use-schemas'
 import { useCapas } from '@/lib/field/use-capas'
@@ -186,29 +187,17 @@ export default function CampoPage() {
 
   return (
     <main className="h-screen flex flex-col overflow-hidden bg-background">
-      <header className="flex flex-wrap items-center gap-3 bg-primary px-3 py-3 text-primary-foreground shadow-sm z-20 shrink-0 sm:px-5">
-        <div>
-          <h1 className="font-bold text-base leading-none text-primary-foreground tracking-tight">GeoPin</h1>
-          <p className="hidden text-xs leading-none mt-0.5 text-primary-foreground/70 sm:block">
-            Captura de parcela
-          </p>
-        </div>
+      <NavBar />
+
+      <div className="bg-primary flex flex-wrap items-center gap-3 px-3 py-2 text-primary-foreground shadow-sm z-10 shrink-0 sm:px-5">
         <GpsIndicator fix={geo.fix} accuracy={geo.reading?.accuracy} />
         <SyncStatus />
-        <div className="ml-auto flex items-center gap-3">
-          {parcelaEnEdicion && (
-            <span className="text-xs text-primary-foreground/70">
-              Editando: {parcelaEnEdicion.nombre}
-            </span>
-          )}
-          <a href="/listado" className={buttonVariants({ variant: 'ghost', size: 'xs' })}>
-            Listado
-          </a>
-          <a href="/admin/esquema" className={buttonVariants({ variant: 'ghost', size: 'xs' })}>
-            Esquemas
-          </a>
-        </div>
-      </header>
+        {parcelaEnEdicion && (
+          <span className="ml-auto text-xs text-primary-foreground/70">
+            Editando: {parcelaEnEdicion.nombre}
+          </span>
+        )}
+      </div>
 
       <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
         <aside className="w-full md:w-[400px] shrink-0 overflow-y-auto p-4 space-y-4 border-r border-border">

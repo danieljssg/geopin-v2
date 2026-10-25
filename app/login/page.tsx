@@ -34,7 +34,7 @@ export default function LoginPage() {
     setEnviando(true)
 
     try {
-      const { error: authError } = await signIn.email({ email, password })
+      const { error: authError, data } = await signIn.email({ email, password })
       if (authError) {
         setError(
           authError.status === 401
@@ -43,7 +43,10 @@ export default function LoginPage() {
         )
         return
       }
-      router.push('/admin/esquema')
+      // Cada rol aterriza en su herramienta: el encuestador va a capturar y
+      // el admin al panel. Aterrizar siempre en /admin/esquema le mostraba
+      // "Sin permiso" al encuestador.
+      router.push(data?.user?.role === 'admin' ? '/admin/dashboard' : '/campo')
       router.refresh()
     } catch {
       setError('No se pudo contactar al servidor.')
