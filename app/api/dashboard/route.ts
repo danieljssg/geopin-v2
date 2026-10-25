@@ -1,6 +1,6 @@
 import { headers } from 'next/headers'
 import { apiRoute, jsonOk } from '@/lib/server/http'
-import { requireSessionUser } from '@/lib/server/session'
+import { requirePermission } from '@/lib/server/session'
 import { findLevantamiento, findParcelasParaDashboard } from '@/lib/server/repositories/levantamientos'
 import {
   coberturaServicios,
@@ -23,7 +23,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: Request): Promise<Response> {
   return apiRoute(async () => {
     const requestHeaders = await headers()
-    await requireSessionUser(requestHeaders)
+    await requirePermission(requestHeaders, 'levantamiento:gestionar')
 
     const url = new URL(request.url)
     const levantamientoId = url.searchParams.get('levantamientoId')?.trim() || undefined

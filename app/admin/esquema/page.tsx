@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { getSessionUser } from '@/lib/server/session'
 import { hasPermission } from '@/lib/auth/roles'
+import { NavBar } from '@/components/NavBar'
 import SchemaBuilder from '@/components/admin/SchemaBuilder'
 
 export const metadata: Metadata = {
@@ -38,5 +39,18 @@ export default async function EsquemaPage() {
     )
   }
 
-  return <SchemaBuilder usuario={user.email} />
+  return (
+    <main className="min-h-screen bg-muted">
+      <NavBar />
+      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+        <h1 className="text-lg font-semibold">Administrador de esquemas</h1>
+        <p className="text-muted-foreground mt-0.5 text-xs">
+          Los campos que agregues acá aparecen en la app de campo sin desplegar código.
+        </p>
+        <div className="mt-4">
+          <SchemaBuilder />
+        </div>
+      </div>
+    </main>
+  )
 }

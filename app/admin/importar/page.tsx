@@ -2,9 +2,9 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 
-import { buttonVariants } from '@/components/ui/button'
 import { getSessionUser } from '@/lib/server/session'
 import { hasPermission } from '@/lib/auth/roles'
+import { NavBar } from '@/components/NavBar'
 import Importador from '@/components/admin/Importador'
 
 export const metadata: Metadata = {
@@ -40,43 +40,15 @@ export default async function ImportarPage() {
 
   return (
     <main className="min-h-screen bg-muted">
-      <header className="bg-primary px-4 py-4 text-primary-foreground sm:px-6">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-base font-bold">Importar levantamiento</h1>
-            <p className="text-xs text-primary-foreground/70">
-              Excel o CSV de campo, con cruce y detección de duplicados.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <a
-              href="/admin/dashboard"
-              className={buttonVariants({
-                variant: 'ghost',
-                size: 'sm',
-                className:
-                  'text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground',
-              })}
-            >
-              Dashboard
-            </a>
-            <a
-              href="/listado"
-              className={buttonVariants({
-                variant: 'ghost',
-                size: 'sm',
-                className:
-                  'text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground',
-              })}
-            >
-              Parcelas
-            </a>
-          </div>
-        </div>
-      </header>
-
+      <NavBar />
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-        <Importador />
+        <h1 className="text-lg font-semibold">Importar levantamiento</h1>
+        <p className="text-muted-foreground mt-0.5 text-xs">
+          Excel o CSV de campo, con cruce y detección de duplicados.
+        </p>
+        <div className="mt-4">
+          <Importador />
+        </div>
       </div>
     </main>
   )
