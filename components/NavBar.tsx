@@ -124,12 +124,15 @@ export function NavBar() {
           <DropdownMenu>
             <DropdownMenuTrigger className="sm:hidden" render={<Button variant="outline" size="icon" aria-label="Abrir menú de navegación"><Menu /></Button>} />
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Navegación</DropdownMenuLabel>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Navegación</DropdownMenuLabel>
+                {enlaces.map(({ href, label }) => <DropdownMenuItem key={href} render={<Link href={href} />}>{label}</DropdownMenuItem>)}
+              </DropdownMenuGroup>
               <DropdownMenuSeparator />
-              {enlaces.map(({ href, label }) => <DropdownMenuItem key={href} render={<Link href={href} />}>{label}</DropdownMenuItem>)}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem render={<Link href="/perfil" />}>Perfil</DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" onClick={cerrarSesion}>Cerrar sesión</DropdownMenuItem>
+              <DropdownMenuGroup>
+                <DropdownMenuItem render={<Link href="/perfil" />}>Perfil</DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" onClick={cerrarSesion}>Cerrar sesión</DropdownMenuItem>
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
           <DropdownMenu>
