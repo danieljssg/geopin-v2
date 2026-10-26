@@ -172,7 +172,41 @@ export default function CampoPage() {
     }
   }, [geo.reading, origen])
 
+  const posicionAproximada = useMemo(() => {
+    if (
+      origen !== 'sensor' ||
+      parcelaEnEdicion ||
+      posicionSensor ||
+      !geo.reading ||
+      !Number.isFinite(geo.reading.accuracy) ||
+      geo.reading.accuracy <= 0
+    ) return null
+    return geo.reading
+  }, [geo.reading, origen, parcelaEnEdicion, posicionSensor])
+
+  useEffect(() => {
+    if (
+      parcelaEnEdicion ||
+      origen !== 'sensor' ||
+      !geo.reading ||
+      !Number.isFinite(geo.reading.accuracy) ||
+      geo.reading.accuracy <= 0
+    ) return
+
+    // La lectura imprecisa sirve para ubicar la vista y mostrar el área de
+    // incertidumbre, pero no mueve el pin de captura hasta pasar el umbral.
+    const zoom = Math.max(
+      3,
+      Math.min(17, Math.round(17 - Math.log2(Math.max(geo.reading.accuracy, 15) / 15))),
+    )
+    setEnfoque({ lat: geo.reading.lat, lng: geo.reading.lng, zoom })
+  }, [geo.reading, origen, parcelaEnEdicion])
+
   const ubicacion = posicionSensor ?? posicionManual
+  const posicionMapa =
+    posicionAproximada ??
+    posicionSensor ??
+    ((parcelaEnEdicion || posicionTocada) ? posicionManual : null)
 
   /**
    * Volver al sensor es una acción explícita del levantador: es la
@@ -190,6 +224,7 @@ export default function CampoPage() {
     setPosicionManual({ lat, lng })
     setOrigen('manual')
     setPosicionTocada(true)
+    setEnfoque({ lat, lng, zoom: 17 })
   }, [])
 
   const gps = useMemo(() => {
@@ -208,6 +243,9 @@ export default function CampoPage() {
   }, [posicionSensor, parcelaEnEdicion, posicionTocada])
 
   async function onGuardar(payload: ParcelaCreateRequest) {
+    if (!parcelaEnEdicion && !posicionSensor && !posicionTocada) {
+      throw new Error('Espera a que el GPS mejore o toca el mapa para colocar el pin manualmente.')
+    }
     await encolar(payload)
     poligono.limpiar()
   }
@@ -267,7 +305,7 @@ export default function CampoPage() {
 
           <PanelDescargarMapa
             puntos={poligono.draft}
-            posicionActual={{ lat: ubicacion.lat, lng: ubicacion.lng }}
+            posicionActual={posicionMapa ?? undefined}
           />
 
           {!cargando && (
@@ -305,6 +343,9 @@ export default function CampoPage() {
             capas={capas.capas}
             capaBase={capas.baseActiva}
             enfoque={enfoque}
+            initialView={{ lat: 0, lng: 0, zoom: 2 }}
+            previewPosition={posicionAproximada}
+            showPositionMarker={Boolean(parcelaEnEdicion || posicionTocada || posicionSensor)}
             onPositionChange={onPositionChange}
             onGPSStatus={() => {}}
             onDeletePin={() => {}}
@@ -349,7 +390,7 @@ export default function CampoPage() {
             </Button>
           </div>
           {!formularioAbierto && (
-            <Button type="button" size="lg" className="absolute bottom-5 right-4 z-[1001] h-12 rounded-full px-5 shadow-xl md:hidden" onClick={() => setFormularioAbierto(true)}>
+            <Button type="button" size="lg" className="absolute bottom-[4.5rem] left-3 z-[1001] h-12 w-[200px] rounded-full px-5 shadow-xl md:hidden" onClick={() => setFormularioAbierto(true)}>
               <Plus /> Nuevo registro
             </Button>
           )}
@@ -365,7 +406,7 @@ export default function CampoPage() {
                 {cargando && <FormularioSkeleton />}
                 {!cargando && (desdeCache || error) && <Alert variant={error ? 'destructive' : 'default'}><AlertDescription><p>{error}</p><Button type="button" variant="link" size="xs" onClick={recargar}>Reintentar</Button></AlertDescription></Alert>}
                 <GeometriaPanel poligono={poligono} deshabilitado={cargando} />
-                <PanelDescargarMapa puntos={poligono.draft} posicionActual={{ lat: ubicacion.lat, lng: ubicacion.lng }} />
+                <PanelDescargarMapa puntos={poligono.draft} posicionActual={posicionMapa ?? undefined} />
                 {!cargando && <FormularioParcela key={parcelaEnEdicion?.id ?? 'nueva'} esquemas={esquemas} id={parcelaEnEdicion?.id} initial={parcelaEnEdicion} ubicacion={ubicacion} gps={gps} geometria={poligono.geometria} areaM2={poligono.areaEfectiva} perimetroM={poligono.perimetroGeometria} onGuardar={onGuardar} />}
               </div>
             </div>
