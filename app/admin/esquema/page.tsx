@@ -5,6 +5,7 @@ import { getSessionUser } from '@/lib/server/session'
 import { hasPermission } from '@/lib/auth/roles'
 import { NavBar } from '@/components/NavBar'
 import SchemaBuilder from '@/components/admin/SchemaBuilder'
+import { PageHeading } from '@/components/PageHeading'
 
 export const metadata: Metadata = {
   title: 'Administrador de esquemas | GeoPin',
@@ -42,12 +43,9 @@ export default async function EsquemaPage() {
   return (
     <main className="min-h-screen bg-muted">
       <NavBar />
-      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-        <h1 className="text-lg font-semibold">Administrador de esquemas</h1>
-        <p className="text-muted-foreground mt-0.5 text-xs">
-          Los campos que agregues acá aparecen en la app de campo sin desplegar código.
-        </p>
-        <div className="mt-4">
+      <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-8">
+        <PageHeading title="Esquemas de captura" description="Diseña y publica los campos que los equipos de campo completan en cada módulo." />
+        <div>
           <SchemaBuilder />
         </div>
       </div>

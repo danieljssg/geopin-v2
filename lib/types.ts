@@ -20,11 +20,3 @@ export interface Pin extends UrbanData {
   categoria: string
   creadoEn: string
 }
-
-export interface PinFormData extends Omit<UrbanData, 'poblacion' | 'poblacionPromedio'> {
-  lat: number
-  lng: number
-  nombre: string
-  descripcion: string
-  categoria: Category
-}

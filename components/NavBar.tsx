@@ -32,6 +32,7 @@ import {
 const ENLACES_ENCUESTADOR = [
   { href: '/campo', label: 'Capturar' },
   { href: '/listado?mias=1', label: 'Mis registros' },
+  { href: '/docs', label: 'Docs' },
 ] as const
 
 const ENLACES_ADMIN = [
@@ -41,6 +42,8 @@ const ENLACES_ADMIN = [
   { href: '/admin/esquema', label: 'Esquemas' },
   { href: '/admin/usuarios', label: 'Usuarios' },
   { href: '/admin/levantamientos', label: 'Levantamientos' },
+  { href: '/admin/importar', label: 'Importar' },
+  { href: '/docs', label: 'Docs' },
 ] as const
 
 function inicialesDe(nombre: string): string {

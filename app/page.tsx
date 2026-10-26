@@ -199,8 +199,9 @@ export default function LandingPage() {
       </main>
 
       <footer className="border-border border-t">
-        <div className="text-muted-foreground mx-auto max-w-5xl px-4 py-6 text-xs sm:px-6">
-          GeoPin · Registro catastral y de servicios urbanos en campo.
+        <div className="text-muted-foreground mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 text-xs sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <span>GeoPin · Registro territorial para equipos de campo.</span>
+          <Link href="/docs" className="hover:text-foreground">Documentación del proyecto</Link>
         </div>
       </footer>
     </div>

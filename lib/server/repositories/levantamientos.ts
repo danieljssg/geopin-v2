@@ -24,14 +24,6 @@ export async function createLevantamiento(input: Levantamiento): Promise<Levanta
   return { ...input, _id: input.id }
 }
 
-export async function updateTotalEsperado(id: string, totalEsperado: number): Promise<boolean> {
-  const resultado = await levantamientosCollection().updateOne(
-    { _id: id },
-    { $set: { totalEsperado } },
-  )
-  return resultado.matchedCount > 0
-}
-
 /** Campos que el panel puede editar de una campaña ya creada. */
 export interface CambiosLevantamiento {
   nombre?: string

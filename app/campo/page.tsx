@@ -8,6 +8,7 @@ import type { MapViewProps } from '@/components/MapView'
 import type { Parcela } from '@/lib/domain/types'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import FormularioParcela from '@/components/field/FormularioParcela'
 import GeometriaPanel from '@/components/field/GeometriaPanel'
 import PanelCapas from '@/components/field/PanelCapas'
@@ -35,11 +36,12 @@ import { ubicacionDeParcela } from '@/lib/domain/parcela'
 
 const MapView = dynamic<MapViewProps>(() => import('@/components/MapView'), {
   ssr: false,
-  loading: () => (
-    <div className="h-full w-full flex items-center justify-center bg-muted">
-      <p className="text-sm text-muted-foreground font-medium">Cargando mapa…</p>
-    </div>
-  ),
+  loading: () => <div className="relative h-full w-full overflow-hidden bg-[#f3f5f2]" aria-label="Cargando mapa" role="status">
+    <Skeleton className="absolute left-[18%] top-[20%] h-8 w-40 bg-white/80" />
+    <Skeleton className="absolute left-[40%] top-[42%] size-12 rounded-full bg-white/80" />
+    <Skeleton className="absolute bottom-5 left-4 h-9 w-32 bg-white/80" />
+    <span className="absolute bottom-5 right-4 text-xs text-slate-500">Cargando mapa…</span>
+  </div>,
 })
 
 /**
@@ -59,6 +61,17 @@ const CapaSuperpuesta = dynamic(() => import('@/components/field/CapaSuperpuesta
 })
 
 const CENTRO_INICIAL = { lat: 10.4806, lng: -66.9036 }
+
+function FormularioSkeleton() {
+  return (
+    <div className="space-y-3" aria-label="Cargando formulario" role="status">
+      <Skeleton className="h-5 w-36" />
+      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-24 w-full" />
+    </div>
+  )
+}
 
 export default function CampoPage() {
   const { esquemas, cargando, desdeCache, error, recargar } = useSchemas()
@@ -237,7 +250,7 @@ export default function CampoPage() {
             </Alert>
           )}
 
-          {cargando && <p className="text-sm text-muted-foreground">Cargando formulario…</p>}
+          {cargando && <FormularioSkeleton />}
 
           {!cargando && (desdeCache || error) && (
             <Alert variant={error ? 'destructive' : 'default'}>
@@ -349,7 +362,7 @@ export default function CampoPage() {
               <div className="space-y-4 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
                 <GpsIndicator fix={geo.fix} accuracy={geo.reading?.accuracy} variant="panel" onReintentar={usarMiUbicacion} />
                 {origen === 'manual' && <Alert><AlertDescription><p>{parcelaEnEdicion && !posicionTocada ? 'Posición guardada de la parcela. El sensor no la va a mover.' : 'Posición puesta a mano. El sensor no la va a mover.'}</p><Button type="button" variant="link" size="xs" onClick={usarMiUbicacion}>Usar mi ubicación</Button></AlertDescription></Alert>}
-                {cargando && <p className="text-sm text-muted-foreground">Cargando formulario…</p>}
+                {cargando && <FormularioSkeleton />}
                 {!cargando && (desdeCache || error) && <Alert variant={error ? 'destructive' : 'default'}><AlertDescription><p>{error}</p><Button type="button" variant="link" size="xs" onClick={recargar}>Reintentar</Button></AlertDescription></Alert>}
                 <GeometriaPanel poligono={poligono} deshabilitado={cargando} />
                 <PanelDescargarMapa puntos={poligono.draft} posicionActual={{ lat: ubicacion.lat, lng: ubicacion.lng }} />

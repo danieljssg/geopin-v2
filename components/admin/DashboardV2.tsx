@@ -39,8 +39,10 @@ import type { PuntoMapa } from './MapaCalor'
 const MapaCalor = dynamic(() => import('./MapaCalor'), {
   ssr: false,
   loading: () => (
-    <div className="flex h-full w-full items-center justify-center bg-muted">
-      <p className="text-sm font-medium text-muted-foreground">Cargando mapa…</p>
+    <div className="relative h-72 w-full overflow-hidden rounded-xl bg-muted" aria-label="Cargando mapa de densidad" role="status">
+      <Skeleton className="absolute inset-0 rounded-none" />
+      <Skeleton className="absolute left-1/4 top-1/4 size-24 rounded-full opacity-60" />
+      <Skeleton className="absolute bottom-8 right-1/4 size-32 rounded-full opacity-50" />
     </div>
   ),
 })

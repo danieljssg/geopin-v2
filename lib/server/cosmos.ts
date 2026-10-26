@@ -43,18 +43,6 @@ export function getDb(): Db {
   return getMongoClient().db(env.MONGODB_DB)
 }
 
-/**
- * Abre la conexión y la deja lista. Idempotente.
- *
- * La operación de red real ocurre en el primer comando; esto solo abre el
- * pool y resuelve el topología inicial.
- */
-export async function connectToCosmos(): Promise<Db> {
-  const client = getMongoClient()
-  await client.connect()
-  return client.db(getServerEnv().MONGODB_DB)
-}
-
 /** Cierra el cliente. Solo para tests y para apagados limpios. */
 export async function closeMongo(): Promise<void> {
   const client = globalRef[GLOBAL_KEY]
