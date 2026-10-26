@@ -22,9 +22,11 @@ import type { UsePoligonoResult } from '@/lib/field/use-poligono'
 export default function GeometriaPanel({
   poligono,
   deshabilitado = false,
+  onIniciar,
 }: {
   poligono: UsePoligonoResult
   deshabilitado?: boolean
+  onIniciar?: () => void
 }) {
   const [confirmando, setConfirmando] = useState(false)
 
@@ -38,12 +40,14 @@ export default function GeometriaPanel({
       return
     }
     poligono.iniciar()
+    onIniciar?.()
   }
 
   function confirmar() {
     setConfirmando(false)
     poligono.setAreaManual('')
     poligono.iniciar()
+    onIniciar?.()
   }
 
   return (
@@ -70,7 +74,7 @@ export default function GeometriaPanel({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => poligono.iniciar()}
+              onClick={() => { poligono.iniciar(); onIniciar?.() }}
               disabled={deshabilitado}
             >
               Volver a trazar
