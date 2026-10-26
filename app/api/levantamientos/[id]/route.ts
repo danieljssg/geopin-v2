@@ -54,8 +54,14 @@ export async function PATCH(request: Request, context: RouteContext): Promise<Re
     }
 
     if (cuerpo.totalEsperado !== undefined) {
-      const totalEsperado = Number(cuerpo.totalEsperado)
-      if (!Number.isInteger(totalEsperado) || totalEsperado < 0) {
+      // Solo un número JSON real: `Number()` coerciona null→0, true→1 o
+      // []→0 y terminaría sobreescribiendo el total con basura.
+      const totalEsperado = cuerpo.totalEsperado
+      if (
+        typeof totalEsperado !== 'number' ||
+        !Number.isInteger(totalEsperado) ||
+        totalEsperado < 0
+      ) {
         return jsonError('"totalEsperado" debe ser un entero no negativo.', 400)
       }
       cambios.totalEsperado = totalEsperado
