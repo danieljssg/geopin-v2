@@ -390,7 +390,7 @@ export default function CampoPage() {
             </Button>
           </div>
           {!formularioAbierto && (
-            <Button type="button" size="lg" className="absolute bottom-[4.5rem] left-3 z-[1001] h-12 w-[200px] rounded-full px-5 shadow-xl md:hidden" onClick={() => setFormularioAbierto(true)}>
+            <Button type="button" size="lg" className="absolute bottom-7 left-3 z-[1000] h-12 w-[200px] rounded-full px-5 shadow-xl md:hidden" onClick={() => setFormularioAbierto(true)}>
               <Plus /> Nuevo registro
             </Button>
           )}

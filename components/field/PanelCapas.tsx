@@ -37,7 +37,7 @@ export default function PanelCapas({
   if (bases.length === 0 && superpuestas.length === 0) return null
 
   return (
-    <div className="absolute bottom-7 left-3 z-[1000] max-w-[260px] min-w-[200px] overflow-hidden rounded-lg border border-border bg-card text-xs text-card-foreground shadow-lg">
+    <div className="absolute bottom-[5.25rem] left-3 z-[1001] max-w-[260px] min-w-[200px] overflow-hidden rounded-lg border border-border bg-card text-xs text-card-foreground shadow-lg">
       <button
         type="button"
         onClick={() => setAbierto((valor) => !valor)}
