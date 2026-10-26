@@ -133,6 +133,24 @@ describe('parseParcelaPatch', () => {
     })
     expect(parsed.ok).toBe(true)
   })
+
+  it('acepta un parche de estado válido', () => {
+    const parsed = parseParcelaPatch({ estado: 'completa' })
+    expect(parsed.ok).toBe(true)
+    if (!parsed.ok) return
+    expect(parsed.value.core?.estado).toBe('completa')
+  })
+
+  it('rechaza un parche de estado desconocido', () => {
+    expect(parseParcelaPatch({ estado: 'archivada' }).ok).toBe(false)
+  })
+
+  it('acepta un parche de levantamiento', () => {
+    const parsed = parseParcelaPatch({ levantamientoId: 'levantamiento-1' })
+    expect(parsed.ok).toBe(true)
+    if (!parsed.ok) return
+    expect(parsed.value.core?.levantamientoId).toBe('levantamiento-1')
+  })
 })
 
 describe('parseSyncRequest', () => {

@@ -16,13 +16,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { ParcelaEstado } from '@/lib/domain/types'
+import { redirigirSiNoHaySesion } from '@/lib/field/sesion'
 
 /**
  * Lista de parcelas levantadas.
  *
  * Es la vista que le falta a la app v2 para reemplazar al prototipo: el
- * levantador tiene que ver lo que ya capturó, corregirlo y borrar lo que
- * se capturó mal.
+ * levantador tiene que ver lo que ya capturó, cambiar el estado de cada
+ * parcela, ver a qué campaña pertenece, corregirla y borrar lo mal capturado.
  *
  * Editar y borrar van contra el servidor. Los cambios de una sesión sin
  * conexión pasan por la cola, igual que la captura.
@@ -34,6 +35,7 @@ interface ParcelaFila {
   codigo?: string
   categoria: string
   estado: ParcelaEstado
+  levantamientoId?: string
   lat: number
   lng: number
   areaM2?: number
@@ -53,6 +55,11 @@ async function pedirParcelas(
   try {
     const consulta = mias ? '/api/parcelas?limite=200&mias=1' : '/api/parcelas?limite=200'
     const respuesta = await fetch(consulta, { credentials: 'same-origin' })
+    // Un 401 manda al login (mismo mecanismo que /campo): el alert crudo
+    // con el código no le sirve de nada a quien no inició sesión.
+    if (redirigirSiNoHaySesion(respuesta.status)) {
+      return { error: 'Necesitás iniciar sesión para ver las parcelas.' }
+    }
     if (!respuesta.ok) return { error: `El servidor respondió ${respuesta.status}.` }
 
     const cuerpo = (await respuesta.json()) as { parcelas?: ParcelaFila[] }
@@ -62,16 +69,31 @@ async function pedirParcelas(
   }
 }
 
+interface LevantamientoOp {
+  id: string
+  nombre: string
+}
+
+/**
+ * Pide las campañas para la columna y el selector de levantamiento: la API
+ * de parcelas devuelve solo el id. Si falla, la columna muestra "—" y no
+ * bloquea el listado.
+ */
+async function pedirLevantamientos(): Promise<LevantamientoOp[]> {
+  try {
+    const respuesta = await fetch('/api/levantamientos', { credentials: 'same-origin' })
+    if (!respuesta.ok) return []
+    const cuerpo = (await respuesta.json()) as { levantamientos?: LevantamientoOp[] }
+    return cuerpo.levantamientos ?? []
+  } catch {
+    return []
+  }
+}
+
 const ETIQUETAS: Record<ParcelaEstado, string> = {
   completa: 'Completada',
   pendiente: 'Pendiente',
   en_revision: 'En revisión',
-}
-
-const VARIANTE_ESTADO: Record<ParcelaEstado, 'secondary' | 'outline' | 'default'> = {
-  completa: 'secondary',
-  pendiente: 'outline',
-  en_revision: 'default',
 }
 
 const FILTROS: Record<string, string> = {
@@ -106,6 +128,13 @@ function ListaParcelasContenido() {
   const [filtro, setFiltro] = useState<ParcelaEstado | ''>('')
   const [busqueda, setBusqueda] = useState('')
   const [eliminando, setEliminando] = useState<string | null>(null)
+  const [parcheando, setParcheando] = useState<string | null>(null)
+  // Campañas disponibles para la columna y el selector de levantamiento.
+  const [levantamientos, setLevantamientos] = useState<LevantamientoOp[]>([])
+  const nombreDeLevantamiento = useMemo(
+    () => new Map(levantamientos.map((levantamiento) => [levantamiento.id, levantamiento.nombre])),
+    [levantamientos],
+  )
 
   const [recarga, setRecarga] = useState(0)
 
@@ -127,6 +156,18 @@ function ListaParcelasContenido() {
       vivo = false
     }
   }, [recarga, mias])
+
+  useEffect(() => {
+    let vivo = true
+
+    void pedirLevantamientos().then((campanias) => {
+      if (vivo) setLevantamientos(campanias)
+    })
+
+    return () => {
+      vivo = false
+    }
+  }, [recarga])
 
   const visibles = useMemo(() => {
     const texto = busqueda.trim().toLowerCase()
@@ -159,6 +200,35 @@ function ListaParcelasContenido() {
       setError(caught instanceof Error ? caught.message : 'No se pudo eliminar.')
     } finally {
       setEliminando(null)
+    }
+  }
+
+  /**
+   * Envia un parche contra el servidor y refleja los campos cambiados en la
+   * fila. Un error cae en la misma alerta del listado.
+   */
+  async function parchear(id: string, cambios: Record<string, unknown>, mensajeError: string) {
+    setParcheando(id)
+    try {
+      const respuesta = await fetch(`/api/parcelas/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cambios),
+      })
+      if (!respuesta.ok) {
+        const fallo = (await respuesta.json().catch(() => ({}))) as { error?: string }
+        throw new Error(fallo.error ?? `El servidor respondió ${respuesta.status}.`)
+      }
+      setParcelas((previas) =>
+        (previas ?? []).map((parcela) =>
+          parcela.id === id ? { ...parcela, ...(cambios as Partial<ParcelaFila>) } : parcela,
+        ),
+      )
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : mensajeError)
+    } finally {
+      setParcheando(null)
     }
   }
 
@@ -247,6 +317,7 @@ function ListaParcelasContenido() {
                 <tr className="bg-muted/50 text-left text-xs tracking-wide uppercase text-muted-foreground">
                   <th className="px-3 py-2">Nombre</th>
                   <th className="px-3 py-2">Código</th>
+                  <th className="px-3 py-2">Levantamiento</th>
                   <th className="px-3 py-2">Estado</th>
                   <th className="px-3 py-2">Área</th>
                   <th className="px-3 py-2">Fecha</th>
@@ -259,9 +330,74 @@ function ListaParcelasContenido() {
                     <td className="px-3 py-2 font-medium text-foreground">{parcela.nombre}</td>
                     <td className="px-3 py-2 text-muted-foreground">{parcela.codigo ?? '—'}</td>
                     <td className="px-3 py-2">
-                      <Badge variant={VARIANTE_ESTADO[parcela.estado]}>
-                        {ETIQUETAS[parcela.estado]}
-                      </Badge>
+                      {levantamientos.length === 0 ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <Select
+                          value={parcela.levantamientoId ?? ''}
+                          onValueChange={(valor) => {
+                            if (typeof valor === 'string' && valor !== '') {
+                              void parchear(
+                                parcela.id,
+                                { levantamientoId: valor },
+                                'No se pudo asignar el levantamiento.',
+                              )
+                            }
+                          }}
+                        >
+                          <SelectTrigger
+                            aria-label={`Levantamiento de ${parcela.nombre}`}
+                            size="sm"
+                            className="w-40"
+                            disabled={parcheando === parcela.id}
+                          >
+                            <SelectValue>
+                              {(value) =>
+                                value
+                                  ? (nombreDeLevantamiento.get(value as string) ?? '—')
+                                  : 'Sin campaña'
+                              }
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {levantamientos.map((levantamiento) => (
+                              <SelectItem key={levantamiento.id} value={levantamiento.id}>
+                                {levantamiento.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <Select
+                        value={parcela.estado}
+                        onValueChange={(valor) => {
+                          if (valor) {
+                            void parchear(
+                              parcela.id,
+                              { estado: valor as ParcelaEstado },
+                              'No se pudo cambiar el estado.',
+                            )
+                          }
+                        }}
+                      >
+                        <SelectTrigger
+                          aria-label={`Cambiar estado de ${parcela.nombre}`}
+                          size="sm"
+                          className="w-36"
+                          disabled={parcheando === parcela.id}
+                        >
+                          <SelectValue>{(value) => ETIQUETAS[value as ParcelaEstado]}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(ETIQUETAS).map(([value, etiqueta]) => (
+                            <SelectItem key={value} value={value}>
+                              {etiqueta}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </td>
                     <td className="px-3 py-2 text-foreground">
                       {parcela.areaM2 !== undefined

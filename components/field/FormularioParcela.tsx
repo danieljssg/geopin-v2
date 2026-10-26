@@ -153,7 +153,11 @@ export default function FormularioParcela({
         categoria,
         ubicacion,
         gps,
-        estado: 'pendiente',
+        // La última escritura gana: reenviar 'pendiente' fijo borraba el
+        // estado y el levantamiento que el listado u otra vista hubiera
+        // asignado a esta parcela.
+        estado: initial?.estado ?? 'pendiente',
+        levantamientoId: initial?.levantamientoId,
         // La geometría va con la parcela, no con un módulo: es la misma
         // parcela la que tiene contorno, más allá de qué se levantó de ella.
         geometria: geometria ?? undefined,

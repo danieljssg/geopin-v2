@@ -4,7 +4,7 @@ import { NavBar } from '@/components/NavBar'
 
 export const metadata: Metadata = {
   title: 'Parcelas levantadas | GeoPin',
-  description: 'Listado de las parcelas capturadas, con edición y eliminación.',
+  description: 'Listado de las parcelas capturadas, con cambio de estado, edición y eliminación.',
 }
 
 /**
@@ -20,7 +20,7 @@ export default function ListaPage() {
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <h1 className="text-lg font-semibold">Parcelas levantadas</h1>
         <p className="text-muted-foreground mt-0.5 text-xs">
-          Editá o eliminá lo que ya capturaste.
+          Cambiá el estado, editá o eliminá lo que ya capturaste.
         </p>
         <div className="mt-4">
           <ListaParcelas />
