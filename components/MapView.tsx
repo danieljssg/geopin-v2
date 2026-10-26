@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useCallback } from 'react'
-import { Circle, CircleMarker, LayersControl, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
+import { Circle, CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Badge } from '@/components/ui/badge'
@@ -353,17 +353,9 @@ export default function MapView({
       zoomControl={false}
       scrollWheelZoom
     >
-      <LayersControl position="topright" collapsed={capas ? true : false}>
-        {capasBase.map((capa) => (
-          <LayersControl.BaseLayer
-            key={capa.id}
-            checked={capa.id === baseActiva}
-            name={capa.label}
-          >
-            <TileLayer url={capa.url} attribution={capa.attribution} />
-          </LayersControl.BaseLayer>
-        ))}
-      </LayersControl>
+      {capasBase.map((capa) => capa.id === baseActiva && (
+        <TileLayer key={capa.id} url={capa.url} attribution={capa.attribution} />
+      ))}
 
       {autoLocate && <GPSDetector onPositionChange={onPositionChange} onGPSStatus={onGPSStatus} />}
       <EnfoqueMapa enfoque={enfoque} />
