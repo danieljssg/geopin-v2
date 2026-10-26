@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -121,14 +122,16 @@ export function NavBar() {
               <span className="hidden text-sm sm:block">{user.name}</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>
-                {user.email} · {ROLE_LABELS[admin ? 'admin' : 'encuestador']}
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem render={<Link href="/perfil" />}>Perfil</DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" onClick={cerrarSesion}>
-                Cerrar sesión
-              </DropdownMenuItem>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>
+                  {user.email} · {ROLE_LABELS[admin ? 'admin' : 'encuestador']}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem render={<Link href="/perfil" />}>Perfil</DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" onClick={cerrarSesion}>
+                  Cerrar sesión
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
