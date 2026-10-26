@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useCallback } from 'react'
-import { LayersControl, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
+import { Circle, CircleMarker, LayersControl, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Badge } from '@/components/ui/badge'
@@ -288,6 +288,12 @@ export interface MapViewProps {
    * guardada en sus coordenadas y no en las del dispositivo.
    */
   enfoque?: { lat: number; lng: number; zoom?: number } | null
+  /** Centro neutral usado mientras el dispositivo aún no entrega GPS. */
+  initialView?: { lat: number; lng: number; zoom: number }
+  /** Lectura aproximada del dispositivo que aún no alcanza la precisión de captura. */
+  previewPosition?: { lat: number; lng: number; accuracy: number } | null
+  /** Oculta el pin de captura provisional cuando todavía no hay ubicación fiable. */
+  showPositionMarker?: boolean
 }
 
 export default function MapView({
@@ -306,6 +312,9 @@ export default function MapView({
   capaBase,
   children,
   enfoque,
+  initialView,
+  previewPosition,
+  showPositionMarker = true,
 }: MapViewProps) {
   const hasValidPosition = lat !== 0 || lng !== 0
 
@@ -330,12 +339,16 @@ export default function MapView({
   )
 
   // Default center: Caracas, Venezuela
-  const defaultCenter: [number, number] = hasValidPosition ? [lat, lng] : [10.4806, -66.9036]
+  const defaultCenter: [number, number] = initialView
+    ? [initialView.lat, initialView.lng]
+    : hasValidPosition
+      ? [lat, lng]
+      : [10.4806, -66.9036]
 
   return (
     <MapContainer
       center={defaultCenter}
-      zoom={hasValidPosition ? 16 : 6}
+      zoom={initialView?.zoom ?? (hasValidPosition ? 16 : 6)}
       className="h-full w-full"
       zoomControl={false}
       scrollWheelZoom
@@ -362,8 +375,30 @@ export default function MapView({
       />
       {children}
 
+      {previewPosition && (
+        <>
+          <Circle
+            center={[previewPosition.lat, previewPosition.lng]}
+            radius={previewPosition.accuracy}
+            pathOptions={{ color: '#2563eb', fillColor: '#3b82f6', fillOpacity: 0.12, weight: 2 }}
+          />
+          <CircleMarker
+            center={[previewPosition.lat, previewPosition.lng]}
+            radius={8}
+            pathOptions={{ color: '#fff', fillColor: '#2563eb', fillOpacity: 1, weight: 3 }}
+          >
+            <Popup>
+              <div className="text-sm font-semibold">Tu ubicación aproximada</div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                Precisión actual: ±{Math.round(previewPosition.accuracy)} m. El pin de captura se fijará cuando mejore la señal.
+              </div>
+            </Popup>
+          </CircleMarker>
+        </>
+      )}
+
       {/* Active / draggable marker */}
-      {hasValidPosition && (
+      {showPositionMarker && hasValidPosition && (
         <Marker
           position={[lat, lng]}
           draggable
