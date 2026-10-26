@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Crosshair, Plus, X } from 'lucide-react'
 import type { ParcelaCreateRequest } from '@/lib/api/contracts'
@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import FormularioParcela from '@/components/field/FormularioParcela'
+import { CaptureDraftProvider, useCaptureDraft } from '@/components/field/CaptureDraftProvider'
 import GeometriaPanel from '@/components/field/GeometriaPanel'
 import PanelCapas from '@/components/field/PanelCapas'
 import PanelDescargarMapa from '@/components/field/PanelDescargarMapa'
@@ -73,10 +74,14 @@ function FormularioSkeleton() {
   )
 }
 
-export default function CampoPage() {
+export default function CampoPage() { return <CaptureDraftProvider><CampoContent /></CaptureDraftProvider> }
+
+function CampoContent() {
+  const { reset } = useCaptureDraft()
   const { esquemas, cargando, desdeCache, error, recargar } = useSchemas()
   const { encolar } = useSync()
   const poligono = usePoligono()
+  const geometryBeforeDrawing = useRef<{ geometry: typeof poligono.geometria; area: string } | null>(null)
   const capas = useCapas()
   const geo = useGeolocation()
 
@@ -105,6 +110,8 @@ export default function CampoPage() {
     return () => window.removeEventListener('geopin-theme-change', sincronizarTema)
   }, [])
 
+  const beginDrawing = () => { geometryBeforeDrawing.current = { geometry: poligono.geometria, area: poligono.areaManual }; setFormularioAbierto(false); (document.activeElement as HTMLElement | null)?.blur() }
+  const cancelDrawing = () => { poligono.cancelar(); const previous = geometryBeforeDrawing.current; if (previous) poligono.cargar(previous.geometry, previous.area); setFormularioAbierto(true) }
   const trazando = poligono.modo === 'trazando'
 
   /**
@@ -130,6 +137,7 @@ export default function CampoPage() {
         const { lat, lng } = ubicacionDeParcela(parcela)
 
         setParcelaEnEdicion(parcela)
+        reset(parcela)
         // El pin arranca donde se guardó la parcela. Sin esto el marcador
         // seguía al GPS y el mapa mostraba la ubicación del dispositivo en
         // vez de la del pin que se está editando.
@@ -143,7 +151,7 @@ export default function CampoPage() {
     return () => {
       vivo = false
     }
-  }, [])
+  }, [reset])
 
   useEffect(() => {
     if (!parcelaEnEdicion) return
@@ -301,7 +309,7 @@ export default function CampoPage() {
             </Alert>
           )}
 
-          <GeometriaPanel poligono={poligono} deshabilitado={cargando} />
+          <GeometriaPanel poligono={poligono} deshabilitado={cargando} onIniciar={beginDrawing} />
 
           <PanelDescargarMapa
             puntos={poligono.draft}
@@ -374,7 +382,7 @@ export default function CampoPage() {
             />
           </MapView>
 
-          <PanelCapas
+          {!trazando && <PanelCapas
             capas={capas.capas}
             baseActiva={capas.baseActiva}
             onCambiarBase={capas.setBaseActiva}
@@ -382,19 +390,20 @@ export default function CampoPage() {
             onToggleOverlay={capas.toggleOverlay}
             opacidades={capas.opacidades}
             onCambiarOpacidad={capas.setOpacidad}
-          />
+          />}
 
           <div className="absolute right-3 top-3 z-[1001] flex flex-col gap-2 md:hidden">
             <Button type="button" size="icon-lg" variant="outline" aria-label="Usar mi ubicación" className="size-11 rounded-full bg-background shadow-lg" onClick={usarMiUbicacion}>
               <Crosshair />
             </Button>
           </div>
-          {!formularioAbierto && (
+          {!formularioAbierto && !trazando && (
             <Button type="button" size="lg" className="absolute bottom-7 left-3 z-[1000] h-12 w-[200px] rounded-full px-5 shadow-xl md:hidden" onClick={() => setFormularioAbierto(true)}>
               <Plus /> Nuevo registro
             </Button>
           )}
-          {formularioAbierto && (
+          {trazando && <div className="absolute inset-x-3 bottom-5 z-[1003] rounded-xl border bg-background p-3 shadow-xl md:hidden"><p className="mb-2 text-sm">{poligono.draft.length} vértices · {Math.round(poligono.areaBorrador)} m² · {Math.round(poligono.perimetroBorrador)} m</p><div className="flex gap-2"><Button type="button" variant="outline" onClick={poligono.deshacer}>Deshacer</Button><Button type="button" variant="outline" onClick={() => { cancelDrawing() }}>Cancelar</Button><Button type="button" disabled={poligono.draft.length < 3} onClick={() => { if (poligono.terminar()) setFormularioAbierto(true) }}>Finalizar</Button></div>{poligono.error && <p role="alert" className="text-destructive">{poligono.error}</p>}</div>}
+          {formularioAbierto && !trazando && (
             <div className="absolute inset-x-0 bottom-0 z-[1002] flex max-h-[82%] flex-col rounded-t-2xl border-t bg-background shadow-2xl md:hidden">
               <div className="flex shrink-0 items-center justify-between border-b px-4 py-3">
                 <div><p className="text-sm font-semibold">{parcelaEnEdicion ? 'Editar parcela' : 'Nuevo levantamiento'}</p><p className="text-xs text-muted-foreground">Pin o perímetro · completa los datos</p></div>
@@ -405,7 +414,7 @@ export default function CampoPage() {
                 {origen === 'manual' && <Alert><AlertDescription><p>{parcelaEnEdicion && !posicionTocada ? 'Posición guardada de la parcela. El sensor no la va a mover.' : 'Posición puesta a mano. El sensor no la va a mover.'}</p><Button type="button" variant="link" size="xs" onClick={usarMiUbicacion}>Usar mi ubicación</Button></AlertDescription></Alert>}
                 {cargando && <FormularioSkeleton />}
                 {!cargando && (desdeCache || error) && <Alert variant={error ? 'destructive' : 'default'}><AlertDescription><p>{error}</p><Button type="button" variant="link" size="xs" onClick={recargar}>Reintentar</Button></AlertDescription></Alert>}
-                <GeometriaPanel poligono={poligono} deshabilitado={cargando} />
+                <GeometriaPanel poligono={poligono} deshabilitado={cargando} onIniciar={beginDrawing} />
                 <PanelDescargarMapa puntos={poligono.draft} posicionActual={posicionMapa ?? undefined} />
                 {!cargando && <FormularioParcela key={parcelaEnEdicion?.id ?? 'nueva'} esquemas={esquemas} id={parcelaEnEdicion?.id} initial={parcelaEnEdicion} ubicacion={ubicacion} gps={gps} geometria={poligono.geometria} areaM2={poligono.areaEfectiva} perimetroM={poligono.perimetroGeometria} onGuardar={onGuardar} />}
               </div>
