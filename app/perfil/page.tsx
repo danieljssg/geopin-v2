@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { changePassword, updateUser, useSession } from '@/lib/auth-client'
+import { NavBar } from '@/components/NavBar'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -187,30 +188,33 @@ export default function PerfilPage() {
 
   if (session.isPending || !user) {
     return (
-      <main className="bg-background flex min-h-screen items-center justify-center px-6">
+      <main className="bg-muted flex min-h-screen items-center justify-center px-6">
         <Skeleton className="h-64 w-full max-w-md" />
       </main>
     )
   }
 
   return (
-    <main className="bg-background flex min-h-screen items-start justify-center px-6 py-10">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Perfil</CardTitle>
-          <CardDescription>
-            {user.email} · {user.role === 'admin' ? 'Administrador' : 'Encuestador'}
-          </CardDescription>
-        </CardHeader>
+    <main className="min-h-screen bg-muted">
+      <NavBar />
+      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+        <Card className="mx-auto w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Perfil</CardTitle>
+            <CardDescription>
+              {user.email} · {user.role === 'admin' ? 'Administrador' : 'Encuestador'}
+            </CardDescription>
+          </CardHeader>
 
-        <CardContent className="space-y-6">
-          <FormularioNombre key={user.id} inicial={user.name ?? ''} />
+          <CardContent className="space-y-6">
+            <FormularioNombre key={user.id} inicial={user.name ?? ''} />
 
-          <Separator />
+            <Separator />
 
-          <FormularioContrasena />
-        </CardContent>
-      </Card>
+            <FormularioContrasena />
+          </CardContent>
+        </Card>
+      </div>
     </main>
   )
 }
