@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ArrowDown, Boxes, Database, Globe2, Laptop, LockKeyhole, Server } from 'lucide-react'
+import { ArrowDown, Boxes, Database, Globe2, Laptop, LockKeyhole, Search, X, Server } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -20,7 +20,29 @@ const ENTIDADES = [
   { name: 'user / session', fields: 'Colecciones administradas por Better Auth', detail: 'Cuentas, roles y sesiones. El rol es controlado por servidor y determina las capacidades de la API y navegación.' },
 ]
 
+const SECCIONES = [
+  { id: 'arquitectura', title: 'Arquitectura', keywords: 'interfaz next react api mongodb offline sincronización capas' },
+  { id: 'datos', title: 'Base de datos', keywords: 'parcelas schemas levantamientos user session colecciones índices geojson almacenamiento' },
+  { id: 'decisiones', title: 'Decisiones técnicas', keywords: 'mongodb postgresql cosmos concurrencia offline conflictos' },
+  { id: 'rutas', title: 'Rutas de la aplicación', keywords: 'campo captura listado dashboard campañas usuarios esquemas importación perfil permisos api' },
+  { id: 'desarrollo', title: 'Desarrollo', keywords: 'convenciones capas interfaz tipos contratos índices' },
+]
+const normalizar = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
 export function DocsExplorer() {
+  const [consulta, setConsulta] = useState('')
+  const [seccionActiva, setSeccionActiva] = useState('arquitectura')
+  const resultados = SECCIONES.filter(item => normalizar(`${item.title} ${item.keywords}`).includes(normalizar(consulta.trim())))
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(entries => {
+      const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
+      if (visible) setSeccionActiva(visible.target.id)
+    }, { rootMargin: '-5% 0px -60% 0px', threshold: 0 })
+    SECCIONES.forEach(({ id }) => { const element = document.getElementById(id); if (element) observer.observe(element) })
+    return () => observer.disconnect()
+  }, [])
+
   const [nodoActivo, setNodoActivo] = useState(NODOS[0].id)
   const [entidadActiva, setEntidadActiva] = useState(ENTIDADES[0].name)
   const nodo = NODOS.find((item) => item.id === nodoActivo) ?? NODOS[0]
@@ -29,14 +51,18 @@ export function DocsExplorer() {
   return (
     <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
       <aside className="h-fit lg:sticky lg:top-24">
-          <Card className="gap-2 p-2 lg:p-3">
-          <p className="hidden px-2 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground lg:block">En esta guía</p>
-          <nav aria-label="Índice de documentación" className="flex gap-1 overflow-x-auto lg:flex-col">
-            {[['#arquitectura', 'Arquitectura'], ['#datos', 'Base de datos'], ['#decisiones', 'Decisiones'], ['#rutas', 'Rutas'], ['#desarrollo', 'Desarrollo']].map(([href, label]) => (
-              <a key={href} href={href} className="shrink-0 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">{label}</a>
-            ))}
-          </nav>
-        </Card>
+        <div className="docs-search">
+          <Search size={15} aria-hidden="true" />
+          <label htmlFor="docs-query" className="sr-only">Buscar en la documentación</label>
+          <input id="docs-query" type="search" placeholder="Buscar en la guía…" value={consulta} onChange={event => setConsulta(event.target.value)} />
+          {consulta && <button type="button" aria-label="Limpiar búsqueda" onClick={() => setConsulta('')}><X size={15} /></button>}
+          {consulta.trim() && <div className="docs-results"><p role="status">{resultados.length ? `${resultados.length} secciones encontradas` : 'Sin resultados. Prueba con parcelas, API u offline.'}</p>{resultados.map(item => <a key={item.id} href={`#${item.id}`} onClick={() => { setSeccionActiva(item.id); setConsulta('') }}>{item.title}</a>)}</div>}
+        </div>
+        <p className="mb-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">En esta guía / 05</p>
+        <nav aria-label="Índice de documentación" className="docs-index flex gap-1 overflow-x-auto lg:flex-col">
+          {SECCIONES.map((item, index) => <a key={item.id} href={`#${item.id}`} aria-current={seccionActiva === item.id ? 'location' : undefined} onClick={() => setSeccionActiva(item.id)} className="shrink-0 px-3 py-3 text-sm text-muted-foreground transition-colors hover:text-foreground"><span className="mr-3 font-mono text-[10px] opacity-60">0{index + 1}</span>{item.title}</a>)}
+        </nav>
+        <Link href="/campo" className="mt-6 hidden border-t pt-4 text-xs text-muted-foreground hover:text-foreground lg:block">↗ Abrir app de campo</Link>
       </aside>
 
       <div className="min-w-0 space-y-10">
@@ -56,7 +82,7 @@ export function DocsExplorer() {
                 })}
               </div>
               <div className="mt-4 flex justify-center text-muted-foreground xl:hidden"><ArrowDown className="size-4"/></div>
-              <div aria-live="polite" className="mt-4 rounded-xl bg-muted/70 p-4"><div className="flex items-center gap-2"><Globe2 className="size-4"/><p className="text-sm font-semibold">{nodo.title}</p></div><p className="mt-2 text-sm leading-6 text-muted-foreground">{nodo.detail}</p></div>
+              <div aria-live="polite" className="mt-4 rounded-xl bg-muted/70 p-4"><div key={nodo.id} className="motion-safe:animate-fade-in"><div className="flex items-center gap-2"><Globe2 className="size-4"/><p className="text-sm font-semibold">{nodo.title}</p></div><p className="mt-2 text-sm leading-6 text-muted-foreground">{nodo.detail}</p></div></div>
             </CardContent>
           </Card>
           <pre className="overflow-x-auto rounded-xl border bg-card p-4 text-xs leading-6 text-muted-foreground"><code>{`Navegador → Next.js UI → Route handlers → Dominio / repositorios → MongoDB\n        ↘ IndexedDB + outbox ─── sincronización ────↗`}</code></pre>
@@ -66,7 +92,7 @@ export function DocsExplorer() {
           <div><Badge variant="outline">Modelo de datos</Badge><h2 className="mt-2 text-xl font-semibold tracking-tight">Estructura de almacenamiento</h2><p className="mt-1 text-sm text-muted-foreground">Elige una colección para consultar su forma y propósito.</p></div>
           <div className="grid gap-4 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
             <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-1">{ENTIDADES.map((item) => <button key={item.name} type="button" aria-pressed={item.name === entidadActiva} onClick={() => setEntidadActiva(item.name)} className={`rounded-xl border px-4 py-3 text-left transition-colors ${item.name === entidadActiva ? 'border-foreground bg-muted' : 'bg-card hover:bg-muted/60'}`}><span className="font-mono text-sm font-semibold">{item.name}</span><span className="mt-1 block text-xs text-muted-foreground">{item.fields}</span></button>)}</div>
-            <Card><CardHeader><CardTitle className="font-mono text-base">{entidad.name}</CardTitle><CardDescription>{entidad.detail}</CardDescription></CardHeader><CardContent><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Campos principales</p><code className="block rounded-lg bg-muted p-3 text-xs leading-6">{entidad.fields}</code></CardContent></Card>
+            <Card aria-live="polite"><CardHeader key={entidad.name} className="motion-safe:animate-fade-in"><CardTitle className="font-mono text-base">{entidad.name}</CardTitle><CardDescription>{entidad.detail}</CardDescription></CardHeader><CardContent><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Campos principales</p><code className="block rounded-lg bg-muted p-3 text-xs leading-6">{entidad.fields}</code></CardContent></Card>
           </div>
           <div className="overflow-x-auto rounded-xl border bg-card"><table className="w-full min-w-[560px] text-left text-sm"><thead className="bg-muted/60 text-xs uppercase text-muted-foreground"><tr><th className="px-4 py-3">Colección</th><th className="px-4 py-3">Índice / clave</th><th className="px-4 py-3">Uso</th></tr></thead><tbody className="divide-y"><tr><td className="px-4 py-3 font-mono">parcelas</td><td className="px-4 py-3">_id = id; ubicación 2dsphere</td><td className="px-4 py-3">Identidad, geobúsqueda y sincronización idempotente</td></tr><tr><td className="px-4 py-3 font-mono">parcelas</td><td className="px-4 py-3">codigo único sparse; estado; campaña; autor; fecha</td><td className="px-4 py-3">Búsquedas, filtros y restricciones de duplicados</td></tr><tr><td className="px-4 py-3 font-mono">schemas</td><td className="px-4 py-3">modulo</td><td className="px-4 py-3">Lectura y publicación de esquemas</td></tr><tr><td className="px-4 py-3 font-mono">levantamientos</td><td className="px-4 py-3">ciudad</td><td className="px-4 py-3">Consulta y administración de campañas</td></tr></tbody></table></div>
           <p className="text-xs leading-5 text-muted-foreground">El proveedor Cosmos DB puede variar en el soporte de índices; el bootstrap informa fallos por índice y continúa con los demás.</p>
