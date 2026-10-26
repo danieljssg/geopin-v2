@@ -195,7 +195,7 @@ export default function FormularioParcela({
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <Tabs value={moduloActivo} onValueChange={(value) => setModuloActivo(value as string)}>
-        <TabsList aria-label="Secciones del formulario" className="w-full max-w-full justify-start overflow-x-auto">
+        <TabsList aria-label="Secciones del formulario" className="capture-tabs w-full max-w-full">
           <TabsTrigger value="base">Datos base</TabsTrigger>
           {ordenados.map((esquema) => {
             const erroresModulo = moduloConErrores(esquema).length

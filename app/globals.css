@@ -327,3 +327,56 @@
 @media (prefers-reduced-motion: reduce) { .industrial *, .industrial *::before, .industrial *::after { animation: none!important; transition: none!important; scroll-behavior: auto!important; } .industrial :is(a,button):hover { transform: none; } }
 .docs-shell :is(code, button, [data-slot=card-description]) { overflow-wrap: anywhere; }
 .docs-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
+
+/* Shared visual language for every application surface. */
+:root {
+  --background: #f3f3ed; --foreground: #202723;
+  --card: #fafaf5; --card-foreground: #202723;
+  --popover: #fafaf5; --popover-foreground: #202723;
+  --primary: #edbc61; --primary-foreground: #202723;
+  --secondary: #e6e8df; --secondary-foreground: #303b32;
+  --muted: #eaece4; --muted-foreground: #606960;
+  --accent: #eee2c7; --accent-foreground: #483615;
+  --border: #d6d8d2; --input: #b9c0b6; --ring: #a65c0a;
+  --sidebar: #eaece4; --sidebar-foreground: #202723;
+  --sidebar-primary: #edbc61; --sidebar-primary-foreground: #202723;
+  --sidebar-accent: #eee2c7; --sidebar-accent-foreground: #483615;
+  --sidebar-border: #d6d8d2; --sidebar-ring: #a65c0a;
+  --chart-1: #a65c0a; --chart-2: #4d7466; --chart-3: #bd8c30;
+  --chart-4: #647d88; --chart-5: #926a4f; --radius: .25rem;
+}
+.dark {
+  --background: #191f1c; --foreground: #f0f1e9;
+  --card: #242d28; --card-foreground: #f0f1e9;
+  --popover: #242d28; --popover-foreground: #f0f1e9;
+  --primary: #edbc61; --primary-foreground: #202723;
+  --secondary: #303b33; --secondary-foreground: #e1e6db;
+  --muted: #29332d; --muted-foreground: #a9b2a9;
+  --accent: #433b28; --accent-foreground: #f4ce85;
+  --border: #39423c; --input: #576259; --ring: #edbc61;
+  --sidebar: #202723; --sidebar-foreground: #f0f1e9;
+  --sidebar-primary: #edbc61; --sidebar-primary-foreground: #202723;
+  --sidebar-accent: #433b28; --sidebar-accent-foreground: #f4ce85;
+  --sidebar-border: #39423c; --sidebar-ring: #edbc61;
+  --chart-1: #edbc61; --chart-2: #88baa3; --chart-3: #c49f60;
+  --chart-4: #90b6c7; --chart-5: #c99f83;
+}
+body { font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif; }
+[data-slot="card"] { border-radius: 4px; box-shadow: none; }
+[data-slot="card-title"] { letter-spacing: -.025em; }
+[data-slot="button"], [data-slot="input"], [data-slot="select-trigger"], [data-slot="textarea"] { border-radius: 3px; transition: background-color .18s, border-color .18s, box-shadow .18s; }
+[data-slot="input"]:focus-visible, [data-slot="textarea"]:focus-visible { border-color: var(--ring); }
+[data-slot="badge"] { border-radius: 3px; }
+[data-slot="tabs-list"] { border: 1px solid var(--border); border-radius: 3px; }
+[data-slot="tabs-trigger"] { border-radius: 2px; }
+[data-slot="tabs-trigger"][data-active] { background: var(--primary); color: var(--primary-foreground); }
+.app-navbar { border-bottom: 1px solid var(--border); }
+.app-navbar>div { max-width: 1440px; min-height: 66px; }
+.app-navbar nav a { font-size: 12px; border-radius: 2px; transition: background .2s; }
+.app-navbar>div>a { font-size: 21px; letter-spacing: -.05em; }
+.app-navbar>div>a>span { background: #202723; color: #edbc61; border-radius: 3px; }
+.login-panel { background-image: linear-gradient(color-mix(in srgb,var(--foreground) 4%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--foreground) 4%,transparent) 1px,transparent 1px); background-size: 56px 56px; }
+.login-panel>[data-slot="card"] { border-top: 3px solid var(--primary); }
+[data-slot="tabs-list"].capture-tabs { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); height: auto; gap: 5px; padding: 5px; overflow: visible; }
+.capture-tabs [data-slot="tabs-trigger"] { min-height: 44px; height: auto; padding: 10px 8px; white-space: normal; line-height: 1.3; font-size: 13px; }
+@media (min-width: 640px) { [data-slot="tabs-list"].capture-tabs { grid-template-columns: repeat(auto-fit,minmax(110px,1fr)); } }

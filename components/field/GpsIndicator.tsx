@@ -2,7 +2,7 @@
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { formatAccuracy, fixMessage, qualityOf, type GpsFix } from '@/lib/domain/gps'
+import { formatAccuracy, fixMessage, type GpsFix } from '@/lib/domain/gps'
 import { cn } from '@/lib/utils'
 
 /**
@@ -36,7 +36,6 @@ export default function GpsIndicator({
   variant = 'pill',
   onReintentar,
 }: GpsIndicatorProps) {
-  const calidad = qualityOf(accuracy)
 
   if (variant === 'pill') {
     return (
@@ -67,14 +66,14 @@ export default function GpsIndicator({
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="font-semibold">
-            {fix === 'fijado' && `Precisión ${formatAccuracy(accuracy)}`}
-            {fix === 'impreciso' && `Precisión ${formatAccuracy(accuracy)} — no alcanza`}
+            {fix === 'fijado' && `GPS ${formatAccuracy(accuracy)}`}
+            {fix === 'impreciso' && 'Ubica el pin en el mapa'}
             {fix === 'buscando' && 'Buscando señal GPS…'}
             {fix === 'sin-permiso' && 'Ubicación denegada'}
             {fix === 'sin-soporte' && 'Este dispositivo no tiene GPS'}
             {fix === 'error' && 'El GPS no pudo ubicarte'}
           </p>
-          <p className="mt-0.5 opacity-80">{fixMessage(fix)}</p>
+          <p className="mt-0.5 opacity-80">{fix === 'impreciso' ? 'La señal GPS es débil. Puedes colocar el pin manualmente.' : fixMessage(fix)}</p>
         </div>
 
         {(fix === 'sin-permiso' || fix === 'error' || fix === 'sin-soporte') && onReintentar && (
@@ -90,11 +89,6 @@ export default function GpsIndicator({
         )}
       </div>
 
-      {calidad === 'imprecisa' && (
-        <p className="mt-1 opacity-80">
-          Podés esperar a que mejore o tocar el mapa para ubicar el pin a mano.
-        </p>
-      )}
     </div>
   )
 }

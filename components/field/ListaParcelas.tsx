@@ -2,6 +2,8 @@
 
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
+import { List, Map as MapIcon } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -30,6 +32,8 @@ import { redirigirSiNoHaySesion } from '@/lib/field/sesion'
  * conexión pasan por la cola, igual que la captura.
  */
 
+const MapaListado = dynamic(() => import('@/components/admin/MapaCalor'), { ssr: false, loading: () => <Skeleton className="h-full w-full" /> })
+
 interface ParcelaFila {
   id: string
   nombre: string
@@ -54,17 +58,20 @@ async function pedirParcelas(
   mias: boolean,
 ): Promise<{ parcelas?: ParcelaFila[]; error?: string }> {
   try {
-    const consulta = mias ? '/api/parcelas?limite=200&mias=1' : '/api/parcelas?limite=200'
-    const respuesta = await fetch(consulta, { credentials: 'same-origin' })
-    // Un 401 manda al login (mismo mecanismo que /campo): el alert crudo
-    // con el código no le sirve de nada a quien no inició sesión.
-    if (redirigirSiNoHaySesion(respuesta.status)) {
-      return { error: 'Necesitás iniciar sesión para ver las parcelas.' }
+    const parcelas: ParcelaFila[] = []
+    let total = Infinity
+    while (parcelas.length < total) {
+      const consulta = `/api/parcelas?limite=200&skip=${parcelas.length}${mias ? '&mias=1' : ''}`
+      const respuesta = await fetch(consulta, { credentials: 'same-origin', cache: 'no-store' })
+      if (redirigirSiNoHaySesion(respuesta.status)) return { error: 'Necesitas iniciar sesión para ver las parcelas.' }
+      if (!respuesta.ok) return { error: `El servidor respondió ${respuesta.status}.` }
+      const cuerpo = await respuesta.json() as { parcelas?: ParcelaFila[]; total: number }
+      const pagina = cuerpo.parcelas ?? []
+      parcelas.push(...pagina)
+      total = cuerpo.total
+      if (!pagina.length) break
     }
-    if (!respuesta.ok) return { error: `El servidor respondió ${respuesta.status}.` }
-
-    const cuerpo = (await respuesta.json()) as { parcelas?: ParcelaFila[] }
-    return { parcelas: cuerpo.parcelas ?? [] }
+    return { parcelas }
   } catch (caught) {
     return { error: caught instanceof Error ? caught.message : 'No se pudo cargar la lista.' }
   }
@@ -145,6 +152,7 @@ function ListaParcelasContenido() {
   // primera carga sigue en curso. Guardarlo en estado obligaba a un setState
   // dentro del efecto, que React 19 marca porque provoca un render en cascada.
   const cargando = parcelas === null && error === null
+  const [vista, setVista] = useState<'lista' | 'mapa'>('lista')
   const [filtro, setFiltro] = useState<ParcelaEstado | ''>('')
   const [busqueda, setBusqueda] = useState('')
   const [eliminando, setEliminando] = useState<string | null>(null)
@@ -254,6 +262,13 @@ function ListaParcelasContenido() {
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div role="group" aria-label="Vista del listado" className="flex gap-2">
+          <Button variant={vista === 'lista' ? 'default' : 'outline'} aria-pressed={vista === 'lista'} onClick={() => setVista('lista')}><List /> Lista</Button>
+          <Button variant={vista === 'mapa' ? 'default' : 'outline'} aria-pressed={vista === 'mapa'} onClick={() => setVista('mapa')}><MapIcon /> Mapa online</Button>
+        </div>
+        {vista === 'mapa' && <span className="text-xs text-muted-foreground">Cartografía online · Todos los registros accesibles a tu cuenta</span>}
+      </div>
       <div className="flex flex-wrap items-center gap-3">
         {mias && <Badge variant="secondary">Mis registros</Badge>}
 
@@ -329,7 +344,9 @@ function ListaParcelasContenido() {
         </p>
       )}
 
-      {!cargando && visibles.length > 0 && (
+      {!cargando && !error && vista === 'mapa' && visibles.length > 0 && <div className="theme-map-light relative isolate h-[65dvh] min-h-96 overflow-hidden rounded-sm border" aria-label="Mapa de parcelas levantadas"><MapaListado celdas={[]} puntos={visibles.filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lng))} /></div>}
+
+      {!cargando && vista === 'lista' && visibles.length > 0 && (
         <Card size="sm">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

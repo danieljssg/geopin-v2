@@ -1,6 +1,8 @@
 'use client'
 
-import { Circle, CircleMarker, LayersControl, MapContainer, Popup, TileLayer } from 'react-leaflet'
+import { useEffect } from 'react'
+import { latLngBounds } from 'leaflet'
+import { useMap, Circle, CircleMarker, LayersControl, MapContainer, Popup, TileLayer } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { DensidadCelda } from '@/lib/domain/dashboard'
 import type { ParcelaEstado } from '@/lib/domain/types'
@@ -42,6 +44,14 @@ const ETIQUETA_ESTADO: Record<ParcelaEstado, string> = {
   en_revision: 'En revisión',
 }
 
+function AjustarVista({ puntos }: { puntos: PuntoMapa[] }) {
+  const map = useMap()
+  useEffect(() => {
+    if (puntos.length) map.fitBounds(latLngBounds(puntos.map(p => [p.lat, p.lng] as [number, number])), { padding: [30, 30], maxZoom: 16 })
+  }, [map, puntos])
+  return null
+}
+
 export default function MapaCalor({ celdas, puntos, centro }: MapaCalorProps) {
   const centroMapa: [number, number] =
     centro ??
@@ -61,6 +71,7 @@ export default function MapaCalor({ celdas, puntos, centro }: MapaCalorProps) {
       className="h-full w-full"
       scrollWheelZoom
     >
+      <AjustarVista puntos={puntos} />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
