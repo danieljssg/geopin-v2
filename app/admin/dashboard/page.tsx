@@ -5,6 +5,7 @@ import { getSessionUser } from '@/lib/server/session'
 import { hasPermission } from '@/lib/auth/roles'
 import { NavBar } from '@/components/NavBar'
 import DashboardV2 from '@/components/admin/DashboardV2'
+import { PageHeading } from '@/components/PageHeading'
 
 export const metadata: Metadata = {
   title: 'Dashboard del levantamiento | GeoPin',
@@ -45,12 +46,9 @@ export default async function AdminDashboardPage() {
   return (
     <main className="min-h-screen bg-muted">
       <NavBar />
-      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        <h1 className="text-lg font-semibold">Dashboard del levantamiento</h1>
-        <p className="text-muted-foreground mt-0.5 text-xs">
-          Avance, cobertura de servicios y mapa del levantamiento en curso.
-        </p>
-        <div className="mt-4">
+      <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-8">
+        <PageHeading title="Dashboard del levantamiento" description="Avance, cobertura de servicios y distribución territorial de la campaña." />
+        <div>
           <DashboardV2 />
         </div>
       </div>

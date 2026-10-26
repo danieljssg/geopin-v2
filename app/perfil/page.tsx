@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { PageHeading } from '@/components/PageHeading'
 
 /**
  * Perfil del usuario.
@@ -197,10 +198,11 @@ export default function PerfilPage() {
   return (
     <main className="min-h-screen bg-muted">
       <NavBar />
-      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        <Card className="mx-auto w-full max-w-md">
+      <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-8">
+        <PageHeading title="Perfil" description="Actualiza los datos de tu cuenta y la contraseña de acceso." />
+        <Card className="mx-auto w-full max-w-2xl">
           <CardHeader>
-            <CardTitle>Perfil</CardTitle>
+            <CardTitle>Datos de acceso</CardTitle>
             <CardDescription>
               {user.email} · {user.role === 'admin' ? 'Administrador' : 'Encuestador'}
             </CardDescription>

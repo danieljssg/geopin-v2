@@ -2,20 +2,15 @@ import { SerwistProvider } from '@serwist/turbopack/react'
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
 import { SyncProvider } from '@/components/field/SyncProvider'
-import { Outfit, Merriweather, JetBrains_Mono } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const fontSans = Outfit({
+const fontSans = Geist({
   subsets: ["latin"],
   variable: "--font-sans",
 });
 
-const fontSerif = Merriweather({
-  subsets: ["latin"],
-  variable: "--font-serif",
-});
-
-const fontMono = JetBrains_Mono({
+const fontMono = Geist_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
 });
@@ -63,7 +58,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className={`${fontSans.variable} ${fontSerif.variable} ${fontMono.variable} antialiased`}>
+      <body className={`${fontSans.variable} ${fontMono.variable} antialiased`}>
         <SerwistProvider swUrl="/serwist/sw.js">
           <SyncProvider>{children}</SyncProvider>
         </SerwistProvider>

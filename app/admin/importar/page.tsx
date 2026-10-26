@@ -6,6 +6,7 @@ import { getSessionUser } from '@/lib/server/session'
 import { hasPermission } from '@/lib/auth/roles'
 import { NavBar } from '@/components/NavBar'
 import Importador from '@/components/admin/Importador'
+import { PageHeading } from '@/components/PageHeading'
 
 export const metadata: Metadata = {
   title: 'Importar levantamiento | GeoPin',
@@ -41,12 +42,9 @@ export default async function ImportarPage() {
   return (
     <main className="min-h-screen bg-muted">
       <NavBar />
-      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-        <h1 className="text-lg font-semibold">Importar levantamiento</h1>
-        <p className="text-muted-foreground mt-0.5 text-xs">
-          Excel o CSV de campo, con cruce y detección de duplicados.
-        </p>
-        <div className="mt-4">
+      <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-8">
+        <PageHeading title="Importar levantamiento" description="Carga archivos Excel o CSV, revisa coincidencias y resuelve duplicados antes de incorporar registros." />
+        <div>
           <Importador />
         </div>
       </div>

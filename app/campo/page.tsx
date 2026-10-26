@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
+import { Crosshair, Plus, X } from 'lucide-react'
 import type { ParcelaCreateRequest } from '@/lib/api/contracts'
 import type { MapViewProps } from '@/components/MapView'
 import type { Parcela } from '@/lib/domain/types'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import FormularioParcela from '@/components/field/FormularioParcela'
 import GeometriaPanel from '@/components/field/GeometriaPanel'
 import PanelCapas from '@/components/field/PanelCapas'
@@ -34,11 +36,12 @@ import { ubicacionDeParcela } from '@/lib/domain/parcela'
 
 const MapView = dynamic<MapViewProps>(() => import('@/components/MapView'), {
   ssr: false,
-  loading: () => (
-    <div className="h-full w-full flex items-center justify-center bg-muted">
-      <p className="text-sm text-muted-foreground font-medium">Cargando mapa…</p>
-    </div>
-  ),
+  loading: () => <div className="relative h-full w-full overflow-hidden bg-[#f3f5f2]" aria-label="Cargando mapa" role="status">
+    <Skeleton className="absolute left-[18%] top-[20%] h-8 w-40 bg-white/80" />
+    <Skeleton className="absolute left-[40%] top-[42%] size-12 rounded-full bg-white/80" />
+    <Skeleton className="absolute bottom-5 left-4 h-9 w-32 bg-white/80" />
+    <span className="absolute bottom-5 right-4 text-xs text-slate-500">Cargando mapa…</span>
+  </div>,
 })
 
 /**
@@ -59,6 +62,17 @@ const CapaSuperpuesta = dynamic(() => import('@/components/field/CapaSuperpuesta
 
 const CENTRO_INICIAL = { lat: 10.4806, lng: -66.9036 }
 
+function FormularioSkeleton() {
+  return (
+    <div className="space-y-3" aria-label="Cargando formulario" role="status">
+      <Skeleton className="h-5 w-36" />
+      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-24 w-full" />
+    </div>
+  )
+}
+
 export default function CampoPage() {
   const { esquemas, cargando, desdeCache, error, recargar } = useSchemas()
   const { encolar } = useSync()
@@ -77,6 +91,19 @@ export default function CampoPage() {
   const [posicionTocada, setPosicionTocada] = useState(false)
   /** Coordenadas a las que el mapa vuela al abrir una parcela guardada. */
   const [enfoque, setEnfoque] = useState<{ lat: number; lng: number; zoom?: number } | null>(null)
+  const [formularioAbierto, setFormularioAbierto] = useState(false)
+  const [temaMapa, setTemaMapa] = useState<'light' | 'dark'>('light')
+
+  useEffect(() => {
+    const sincronizarTema = (event: Event) => {
+      const detail = (event as CustomEvent<'light' | 'dark'>).detail
+      setTemaMapa(detail === 'dark' ? 'dark' : 'light')
+    }
+    const guardado = window.localStorage.getItem('geopin-theme')
+    if (guardado === 'light' || guardado === 'dark') setTemaMapa(guardado)
+    window.addEventListener('geopin-theme-change', sincronizarTema)
+    return () => window.removeEventListener('geopin-theme-change', sincronizarTema)
+  }, [])
 
   const trazando = poligono.modo === 'trazando'
 
@@ -186,10 +213,10 @@ export default function CampoPage() {
   }
 
   return (
-    <main className="h-screen flex flex-col overflow-hidden bg-background">
+    <main className="h-[100dvh] flex flex-col overflow-hidden bg-background">
       <NavBar />
 
-      <div className="bg-primary flex flex-wrap items-center gap-3 px-3 py-2 text-primary-foreground shadow-sm z-10 shrink-0 sm:px-5">
+      <div className="bg-background/95 text-foreground border-b flex flex-wrap items-center gap-3 px-3 py-1.5 shadow-sm z-10 shrink-0 sm:px-5 sm:py-2">
         <GpsIndicator fix={geo.fix} accuracy={geo.reading?.accuracy} />
         <SyncStatus />
         {parcelaEnEdicion && (
@@ -199,8 +226,8 @@ export default function CampoPage() {
         )}
       </div>
 
-      <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
-        <aside className="w-full md:w-[400px] shrink-0 overflow-y-auto p-4 space-y-4 border-r border-border">
+      <div className="relative flex flex-1 min-h-0 overflow-hidden flex-col md:flex-row">
+        <aside className="hidden md:block md:w-[400px] shrink-0 overflow-y-auto p-4 space-y-4 border-r border-border bg-background">
           <GpsIndicator
             fix={geo.fix}
             accuracy={geo.reading?.accuracy}
@@ -223,7 +250,7 @@ export default function CampoPage() {
             </Alert>
           )}
 
-          {cargando && <p className="text-sm text-muted-foreground">Cargando formulario…</p>}
+          {cargando && <FormularioSkeleton />}
 
           {!cargando && (desdeCache || error) && (
             <Alert variant={error ? 'destructive' : 'default'}>
@@ -262,7 +289,7 @@ export default function CampoPage() {
           )}
         </aside>
 
-        <div className="flex-1 relative min-h-[50vh]">
+        <div className={`absolute inset-0 md:relative md:flex-1 md:min-h-0 ${temaMapa === 'dark' ? 'theme-map-light' : 'bg-white'}`}>
           <MapView
             lat={ubicacion.lat}
             lng={ubicacion.lng}
@@ -315,6 +342,34 @@ export default function CampoPage() {
             opacidades={capas.opacidades}
             onCambiarOpacidad={capas.setOpacidad}
           />
+
+          <div className="absolute right-3 top-3 z-[1001] flex flex-col gap-2 md:hidden">
+            <Button type="button" size="icon-lg" variant="outline" aria-label="Usar mi ubicación" className="size-11 rounded-full bg-background shadow-lg" onClick={usarMiUbicacion}>
+              <Crosshair />
+            </Button>
+          </div>
+          {!formularioAbierto && (
+            <Button type="button" size="lg" className="absolute bottom-5 right-4 z-[1001] h-12 rounded-full px-5 shadow-xl md:hidden" onClick={() => setFormularioAbierto(true)}>
+              <Plus /> Nuevo registro
+            </Button>
+          )}
+          {formularioAbierto && (
+            <div className="absolute inset-x-0 bottom-0 z-[1002] flex max-h-[82%] flex-col rounded-t-2xl border-t bg-background shadow-2xl md:hidden">
+              <div className="flex shrink-0 items-center justify-between border-b px-4 py-3">
+                <div><p className="text-sm font-semibold">{parcelaEnEdicion ? 'Editar parcela' : 'Nuevo levantamiento'}</p><p className="text-xs text-muted-foreground">Pin o perímetro · completa los datos</p></div>
+                <Button type="button" variant="ghost" size="icon" aria-label="Cerrar formulario" onClick={() => setFormularioAbierto(false)}><X /></Button>
+              </div>
+              <div className="space-y-4 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                <GpsIndicator fix={geo.fix} accuracy={geo.reading?.accuracy} variant="panel" onReintentar={usarMiUbicacion} />
+                {origen === 'manual' && <Alert><AlertDescription><p>{parcelaEnEdicion && !posicionTocada ? 'Posición guardada de la parcela. El sensor no la va a mover.' : 'Posición puesta a mano. El sensor no la va a mover.'}</p><Button type="button" variant="link" size="xs" onClick={usarMiUbicacion}>Usar mi ubicación</Button></AlertDescription></Alert>}
+                {cargando && <FormularioSkeleton />}
+                {!cargando && (desdeCache || error) && <Alert variant={error ? 'destructive' : 'default'}><AlertDescription><p>{error}</p><Button type="button" variant="link" size="xs" onClick={recargar}>Reintentar</Button></AlertDescription></Alert>}
+                <GeometriaPanel poligono={poligono} deshabilitado={cargando} />
+                <PanelDescargarMapa puntos={poligono.draft} posicionActual={{ lat: ubicacion.lat, lng: ubicacion.lng }} />
+                {!cargando && <FormularioParcela key={parcelaEnEdicion?.id ?? 'nueva'} esquemas={esquemas} id={parcelaEnEdicion?.id} initial={parcelaEnEdicion} ubicacion={ubicacion} gps={gps} geometria={poligono.geometria} areaM2={poligono.areaEfectiva} perimetroM={poligono.perimetroGeometria} onGuardar={onGuardar} />}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </main>

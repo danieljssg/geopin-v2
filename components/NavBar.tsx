@@ -2,12 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { MapPin } from 'lucide-react'
+import { MapPin, Menu } from 'lucide-react'
 
 import { signOut, useSession } from '@/lib/auth-client'
 import { isAdmin, ROLE_LABELS } from '@/lib/auth/roles'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +32,7 @@ import {
 const ENLACES_ENCUESTADOR = [
   { href: '/campo', label: 'Capturar' },
   { href: '/listado?mias=1', label: 'Mis registros' },
+  { href: '/docs', label: 'Docs' },
 ] as const
 
 const ENLACES_ADMIN = [
@@ -39,6 +42,8 @@ const ENLACES_ADMIN = [
   { href: '/admin/esquema', label: 'Esquemas' },
   { href: '/admin/usuarios', label: 'Usuarios' },
   { href: '/admin/levantamientos', label: 'Levantamientos' },
+  { href: '/admin/importar', label: 'Importar' },
+  { href: '/docs', label: 'Docs' },
 ] as const
 
 function inicialesDe(nombre: string): string {
@@ -95,7 +100,7 @@ export function NavBar() {
         </Link>
 
         {user && (
-          <nav aria-label="Principal" className="flex flex-1 items-center gap-1 overflow-x-auto">
+          <nav aria-label="Principal" className="hidden flex-1 items-center gap-1 overflow-x-auto sm:flex">
             {enlaces.map(({ href, label }) => (
               <Link
                 key={href}
@@ -114,6 +119,19 @@ export function NavBar() {
         )}
 
         {user ? (
+          <div className="ml-auto flex items-center gap-2">
+          <ThemeToggle />
+          <DropdownMenu>
+            <DropdownMenuTrigger className="sm:hidden" render={<Button variant="outline" size="icon" aria-label="Abrir menú de navegación"><Menu /></Button>} />
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Navegación</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {enlaces.map(({ href, label }) => <DropdownMenuItem key={href} render={<Link href={href} />}>{label}</DropdownMenuItem>)}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem render={<Link href="/perfil" />}>Perfil</DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onClick={cerrarSesion}>Cerrar sesión</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger className="hover:bg-accent flex items-center gap-2 rounded-md px-1.5 py-1 outline-none">
               <Avatar>
@@ -134,10 +152,9 @@ export function NavBar() {
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         ) : (
-          <Link href="/login" className="text-muted-foreground hover:text-foreground text-sm">
-            Entrar
-          </Link>
+          <div className="ml-auto flex items-center gap-2"><ThemeToggle /><Link href="/login" className="text-muted-foreground hover:text-foreground text-sm">Entrar</Link></div>
         )}
       </div>
     </header>

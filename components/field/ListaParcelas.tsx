@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Select,
   SelectContent,
@@ -106,10 +107,29 @@ const FILTROS: Record<string, string> = {
 export default function ListaParcelas() {
   return (
     <Suspense
-      fallback={<p className="text-sm text-muted-foreground">Cargando parcelas…</p>}
+      fallback={<ListaParcelasSkeleton />}
     >
       <ListaParcelasContenido />
     </Suspense>
+  )
+}
+
+function ListaParcelasSkeleton() {
+  return (
+    <div className="space-y-4" aria-label="Cargando parcelas" role="status">
+      <Skeleton className="h-10 w-full sm:max-w-md" />
+      <div className="overflow-hidden rounded-xl border bg-card p-3 sm:p-4">
+        <div className="space-y-3">
+          {Array.from({ length: 5 }, (_, index) => (
+            <div key={index} className="flex items-center gap-3">
+              <Skeleton className="h-9 flex-1" />
+              <Skeleton className="hidden h-9 w-28 sm:block" />
+              <Skeleton className="h-9 w-20" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -299,7 +319,7 @@ function ListaParcelasContenido() {
         </Alert>
       )}
 
-      {cargando && <p className="text-sm text-muted-foreground">Cargando parcelas…</p>}
+      {cargando && <ListaParcelasSkeleton />}
 
       {!cargando && !error && visibles.length === 0 && (
         <p className="text-sm text-muted-foreground">

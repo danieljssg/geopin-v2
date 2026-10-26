@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { PageHeading } from '@/components/PageHeading'
 
 /**
  * Panel de levantamientos.
@@ -295,13 +296,8 @@ export default function PanelLevantamientos() {
     <main className="min-h-screen bg-muted">
       <NavBar />
 
-      <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6">
-        <div>
-          <h1 className="text-lg font-semibold">Levantamientos</h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Campañas activas, su total esperado y cuántas parcelas llevan capturadas.
-          </p>
-        </div>
+      <div className="mx-auto w-full max-w-7xl space-y-5 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-8">
+        <PageHeading title="Levantamientos" description="Campañas activas, su total esperado y cuántas parcelas llevan capturadas." />
 
         {mensaje && (
           <Alert
