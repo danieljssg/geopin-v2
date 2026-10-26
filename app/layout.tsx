@@ -58,7 +58,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className={`${fontSans.variable} ${fontMono.variable} antialiased`}>
+      <body className={`${fontSans.variable} ${fontMono.variable} industrial antialiased`}>
         <SerwistProvider swUrl="/serwist/sw.js">
           <SyncProvider>{children}</SyncProvider>
         </SerwistProvider>

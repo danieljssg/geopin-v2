@@ -56,9 +56,9 @@ export default function PanelDescargarMapa({
   if (!bounds || !estimacion) return null
 
   return (
-    <section className="rounded-lg border border-border bg-card p-3">
+    <section className="rounded-lg border border-border bg-card px-3 py-1.5">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-xs font-bold tracking-wide uppercase text-muted-foreground">
+        <h3 className="text-[11px] font-medium text-muted-foreground">
           Mapa sin conexión
         </h3>
         <Button type="button" variant="ghost" size="xs" onClick={() => setAbierto((valor) => !valor)}>

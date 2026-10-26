@@ -1,5 +1,6 @@
 'use client'
 
+import { NavBar } from '@/components/NavBar'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn } from '@/lib/auth-client'
@@ -57,7 +58,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="bg-background flex min-h-screen items-center justify-center px-6">
+    <div className="min-h-screen bg-background"><NavBar /><main className="login-panel flex min-h-[calc(100dvh-65px)] items-center justify-center px-6 py-12">
       {/* Quien ya tiene sesión no necesita el formulario: al app por rol. */}
       <RedirigirSiSesion destino="/campo" destinoAdmin="/admin/dashboard" />
       <Card className="w-full max-w-sm">
@@ -104,6 +105,6 @@ export default function LoginPage() {
           </form>
         </CardContent>
       </Card>
-    </main>
+    </main></div>
   )
 }
