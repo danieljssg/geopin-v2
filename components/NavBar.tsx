@@ -26,9 +26,13 @@ import {
  * para que aparezca en todos lados.
  */
 
-const ENLACES_ENCUESTADOR = [{ href: '/listado?mias=1', label: 'Mis registros' }] as const
+const ENLACES_ENCUESTADOR = [
+  { href: '/campo', label: 'Capturar' },
+  { href: '/listado?mias=1', label: 'Mis registros' },
+] as const
 
 const ENLACES_ADMIN = [
+  { href: '/campo', label: 'Capturar' },
   { href: '/listado', label: 'Listado' },
   { href: '/admin/dashboard', label: 'Dashboard' },
   { href: '/admin/esquema', label: 'Esquemas' },
@@ -65,7 +69,14 @@ export function NavBar() {
   }
 
   async function cerrarSesion() {
-    await signOut()
+    // Si el cierre falla no se navega: el usuario sigue con sesión y puede
+    // reintentar, en vez de aterrizar en /login con la sesión viva.
+    try {
+      const { error } = await signOut()
+      if (error) return
+    } catch {
+      return
+    }
     router.push('/login')
     router.refresh()
   }

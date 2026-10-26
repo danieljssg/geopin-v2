@@ -45,8 +45,17 @@ function FormularioNombre({ inicial }: { inicial: string }) {
     setMensaje(null)
     setEnviando(true)
 
+    // El `required` solo mira el valor crudo: un nombre de puros espacios
+    // pasaría y se guardaría vacío.
+    const limpio = nombre.trim()
+    if (!limpio) {
+      setMensaje({ tipo: 'error', texto: 'El nombre no puede quedar vacío.' })
+      setEnviando(false)
+      return
+    }
+
     try {
-      const { error } = await updateUser({ name: nombre.trim() })
+      const { error } = await updateUser({ name: limpio })
       if (error) {
         setMensaje({ tipo: 'error', texto: error.message ?? 'No se pudo guardar el nombre.' })
         return
@@ -100,15 +109,20 @@ function FormularioContrasena() {
       const { error } = await changePassword({
         currentPassword: contrasenaActual,
         newPassword: contrasenaNueva,
-        revokeOtherSessions: false,
+        // Al cambiar la contraseña se revocan las demás sesiones: es la
+        // práctica estándar para expulsar una sesión robada.
+        revokeOtherSessions: true,
       })
       if (error) {
+        // Better Auth reporta la contraseña actual inválida como 400
+        // INVALID_PASSWORD; el 401 queda por si el contrato cambia.
+        const contrasenaInvalida =
+          error.code === 'INVALID_PASSWORD' || error.status === 400 || error.status === 401
         setMensaje({
           tipo: 'error',
-          texto:
-            error.status === 401
-              ? 'La contraseña actual no es correcta.'
-              : (error.message ?? 'No se pudo cambiar la contraseña.'),
+          texto: contrasenaInvalida
+            ? 'La contraseña actual no es correcta.'
+            : (error.message ?? 'No se pudo cambiar la contraseña.'),
         })
         return
       }
