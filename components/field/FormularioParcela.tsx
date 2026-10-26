@@ -96,7 +96,7 @@ export default function FormularioParcela({
     () => [...esquemas].sort((a, b) => a.moduleId.localeCompare(b.moduleId)),
     [esquemas],
   )
-  const moduloActivo = draft.moduloActivo || ordenados[0]?.moduleId || ''
+  const moduloActivo = draft.moduloActivo || 'base'
   const setModuloActivo = (moduloActivo: string) => setDraft({ ...draft, moduloActivo })
 
   const modulo = ordenados.find((esquema) => esquema.moduleId === moduloActivo) ?? ordenados[0]
@@ -194,7 +194,25 @@ export default function FormularioParcela({
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      {/* Campos núcleo de la parcela */}
+      <Tabs value={moduloActivo} onValueChange={(value) => setModuloActivo(value as string)}>
+        <TabsList aria-label="Secciones del formulario" className="w-full max-w-full justify-start overflow-x-auto">
+          <TabsTrigger value="base">Datos base</TabsTrigger>
+          {ordenados.map((esquema) => {
+            const erroresModulo = moduloConErrores(esquema).length
+            return (
+              <TabsTrigger key={esquema.moduleId} value={esquema.moduleId}>
+                {etiquetaModulo(esquema.moduleId)}
+                {erroresModulo > 0 && (
+                  <span aria-label={`${erroresModulo} errores`} className="text-destructive">
+                    {' '}
+                    •
+                  </span>
+                )}
+              </TabsTrigger>
+            )
+          })}
+        </TabsList>
+        <TabsContent value="base" className="rounded-lg border border-border bg-card p-3">
       <div className="space-y-3">
         <div>
           <Label htmlFor="parcela-nombre" className="mb-1.5">
@@ -248,27 +266,9 @@ export default function FormularioParcela({
         </div>
       </div>
 
-      {/* Pestañas por módulo */}
-      <Tabs value={modulo.moduleId} onValueChange={(value) => setModuloActivo(value as string)}>
-        <TabsList aria-label="Módulos">
-          {ordenados.map((esquema) => {
-            const erroresModulo = moduloConErrores(esquema).length
-            return (
-              <TabsTrigger key={esquema.moduleId} value={esquema.moduleId}>
-                {etiquetaModulo(esquema.moduleId)}
-                {erroresModulo > 0 && (
-                  <span aria-label={`${erroresModulo} errores`} className="text-destructive">
-                    {' '}
-                    •
-                  </span>
-                )}
-              </TabsTrigger>
-            )
-          })}
-        </TabsList>
-
-        <TabsContent value={modulo.moduleId} className="rounded-lg border border-border bg-card p-3">
-          {modulo.campos
+        </TabsContent>
+        <TabsContent value={moduloActivo} className="rounded-lg border border-border bg-card p-3">
+          {modulo && modulo.campos
             .slice()
             .sort((a, b) => a.orden - b.orden)
             .map((campo) => (
