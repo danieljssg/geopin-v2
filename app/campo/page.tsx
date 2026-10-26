@@ -97,15 +97,16 @@ function CampoContent() {
   /** Coordenadas a las que el mapa vuela al abrir una parcela guardada. */
   const [enfoque, setEnfoque] = useState<{ lat: number; lng: number; zoom?: number } | null>(null)
   const [formularioAbierto, setFormularioAbierto] = useState(false)
-  const [temaMapa, setTemaMapa] = useState<'light' | 'dark'>('light')
+  const [temaMapa, setTemaMapa] = useState<'light' | 'dark'>(() => {
+    if (typeof window === 'undefined') return 'light'
+    return window.localStorage.getItem('geopin-theme') === 'dark' ? 'dark' : 'light'
+  })
 
   useEffect(() => {
     const sincronizarTema = (event: Event) => {
       const detail = (event as CustomEvent<'light' | 'dark'>).detail
       setTemaMapa(detail === 'dark' ? 'dark' : 'light')
     }
-    const guardado = window.localStorage.getItem('geopin-theme')
-    if (guardado === 'light' || guardado === 'dark') setTemaMapa(guardado)
     window.addEventListener('geopin-theme-change', sincronizarTema)
     return () => window.removeEventListener('geopin-theme-change', sincronizarTema)
   }, [])
@@ -192,22 +193,14 @@ function CampoContent() {
     return geo.reading
   }, [geo.reading, origen, parcelaEnEdicion, posicionSensor])
 
-  useEffect(() => {
-    if (
-      parcelaEnEdicion ||
-      origen !== 'sensor' ||
-      !geo.reading ||
-      !Number.isFinite(geo.reading.accuracy) ||
-      geo.reading.accuracy <= 0
-    ) return
-
-    // La lectura imprecisa sirve para ubicar la vista y mostrar el área de
-    // incertidumbre, pero no mueve el pin de captura hasta pasar el umbral.
-    const zoom = Math.max(
-      3,
-      Math.min(17, Math.round(17 - Math.log2(Math.max(geo.reading.accuracy, 15) / 15))),
-    )
-    setEnfoque({ lat: geo.reading.lat, lng: geo.reading.lng, zoom })
+  // El enfoque GPS se deriva en el render para evitar una actualización de
+  // estado en cascada; el enfoque explícito conserva la prioridad al editar.
+  const enfoqueSensor = useMemo(() => {
+    if (parcelaEnEdicion || origen !== 'sensor' || !geo.reading ||
+      !Number.isFinite(geo.reading.accuracy) || geo.reading.accuracy <= 0) return null
+    const zoom = Math.max(3, Math.min(17,
+      Math.round(17 - Math.log2(Math.max(geo.reading.accuracy, 15) / 15))))
+    return { lat: geo.reading.lat, lng: geo.reading.lng, zoom }
   }, [geo.reading, origen, parcelaEnEdicion])
 
   const ubicacion = posicionSensor ?? posicionManual
@@ -350,7 +343,7 @@ function CampoContent() {
             onLocateRequest={usarMiUbicacion}
             capas={capas.capas}
             capaBase={capas.baseActiva}
-            enfoque={enfoque}
+            enfoque={enfoqueSensor ?? enfoque}
             initialView={{ lat: 0, lng: 0, zoom: 2 }}
             previewPosition={posicionAproximada}
             showPositionMarker={Boolean(parcelaEnEdicion || posicionTocada || posicionSensor)}
