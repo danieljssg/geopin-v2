@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { NavBar } from '@/components/NavBar'
-import { PageHeading } from '@/components/PageHeading'
 import { DocsExplorer } from '@/components/docs/DocsExplorer'
 
 export const metadata: Metadata = {
@@ -10,10 +9,10 @@ export const metadata: Metadata = {
 
 export default function DocsPage() {
   return (
-    <main className="min-h-screen bg-muted/40">
+    <main className="industrial docs-shell">
       <NavBar />
       <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-8">
-        <PageHeading title="Documentación del proyecto" description="Una guía práctica para entender GeoPin, cómo se guardan los datos y dónde vive cada capacidad." />
+        <header className="docs-masthead motion-safe:animate-fade-in-up"><p className="eyebrow">GEOPIN / CENTRO DE DOCUMENTACIÓN</p><h1>Conoce el sistema.<br />Construye sobre el conocimiento.</h1><p>La guía técnica de la plataforma de Ingeniería Civil y Urbanismo. Explora su arquitectura, entiende los datos y encuentra las herramientas para trabajar con el territorio.</p></header>
         <DocsExplorer />
       </div>
     </main>
