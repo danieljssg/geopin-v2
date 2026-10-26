@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useCaptureDraft } from './CaptureDraftProvider'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -64,10 +65,12 @@ export default function FormularioParcela({
   perimetroM,
   onGuardar,
 }: FormularioParcelaProps) {
-  const [nombre, setNombre] = useState(initial?.nombre ?? '')
-  const [categoria, setCategoria] = useState(initial?.categoria ?? 'Vivienda')
-  const [descripcion, setDescripcion] = useState(initial?.descripcion ?? '')
-  const [valores, setValores] = useState<Valores>(() => valoresIniciales(initial))
+  const { draft, setDraft, reset } = useCaptureDraft()
+  const { nombre, categoria, descripcion, valores } = draft
+  const setNombre = (nombre: string) => setDraft({ ...draft, nombre })
+  const setCategoria = (categoria: string) => setDraft({ ...draft, categoria })
+  const setDescripcion = (descripcion: string) => setDraft({ ...draft, descripcion })
+  const setValores = (update: (previous: Valores) => Valores) => setDraft({ ...draft, valores: update(draft.valores) })
   const [errores, setErrores] = useState<FieldError[]>([])
   const [guardando, setGuardando] = useState(false)
   const [mensaje, setMensaje] = useState<string | null>(null)
@@ -93,7 +96,8 @@ export default function FormularioParcela({
     () => [...esquemas].sort((a, b) => a.moduleId.localeCompare(b.moduleId)),
     [esquemas],
   )
-  const [moduloActivo, setModuloActivo] = useState<string>(ordenados[0]?.moduleId ?? '')
+  const moduloActivo = draft.moduloActivo || 'base'
+  const setModuloActivo = (moduloActivo: string) => setDraft({ ...draft, moduloActivo })
 
   const modulo = ordenados.find((esquema) => esquema.moduleId === moduloActivo) ?? ordenados[0]
 
@@ -168,9 +172,7 @@ export default function FormularioParcela({
 
       await onGuardar(payload)
 
-      setNombre('')
-      setDescripcion('')
-      setValores({})
+      reset()
       setMensaje('Guardado en el dispositivo. Se sincroniza solo.')
     } catch (error) {
       setMensaje(error instanceof Error ? error.message : 'No se pudo guardar.')
@@ -192,7 +194,25 @@ export default function FormularioParcela({
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      {/* Campos núcleo de la parcela */}
+      <Tabs value={moduloActivo} onValueChange={(value) => setModuloActivo(value as string)}>
+        <TabsList aria-label="Secciones del formulario" className="w-full max-w-full justify-start overflow-x-auto">
+          <TabsTrigger value="base">Datos base</TabsTrigger>
+          {ordenados.map((esquema) => {
+            const erroresModulo = moduloConErrores(esquema).length
+            return (
+              <TabsTrigger key={esquema.moduleId} value={esquema.moduleId}>
+                {etiquetaModulo(esquema.moduleId)}
+                {erroresModulo > 0 && (
+                  <span aria-label={`${erroresModulo} errores`} className="text-destructive">
+                    {' '}
+                    •
+                  </span>
+                )}
+              </TabsTrigger>
+            )
+          })}
+        </TabsList>
+        <TabsContent value="base" className="rounded-lg border border-border bg-card p-3">
       <div className="space-y-3">
         <div>
           <Label htmlFor="parcela-nombre" className="mb-1.5">
@@ -246,27 +266,9 @@ export default function FormularioParcela({
         </div>
       </div>
 
-      {/* Pestañas por módulo */}
-      <Tabs value={modulo.moduleId} onValueChange={(value) => setModuloActivo(value as string)}>
-        <TabsList aria-label="Módulos">
-          {ordenados.map((esquema) => {
-            const erroresModulo = moduloConErrores(esquema).length
-            return (
-              <TabsTrigger key={esquema.moduleId} value={esquema.moduleId}>
-                {etiquetaModulo(esquema.moduleId)}
-                {erroresModulo > 0 && (
-                  <span aria-label={`${erroresModulo} errores`} className="text-destructive">
-                    {' '}
-                    •
-                  </span>
-                )}
-              </TabsTrigger>
-            )
-          })}
-        </TabsList>
-
-        <TabsContent value={modulo.moduleId} className="rounded-lg border border-border bg-card p-3">
-          {modulo.campos
+        </TabsContent>
+        <TabsContent value={moduloActivo} className="rounded-lg border border-border bg-card p-3">
+          {modulo && modulo.campos
             .slice()
             .sort((a, b) => a.orden - b.orden)
             .map((campo) => (
@@ -412,15 +414,4 @@ function limpiar(datos: Record<string, unknown>): Record<string, unknown> {
 function nuevoId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-}
-
-/** Los datos de los módulos de una parcela, listos para editar. */
-function valoresIniciales(parcela: Parcela | null | undefined): Valores {
-  if (!parcela?.modulos) return {}
-
-  const resultado: Valores = {}
-  for (const [moduleId, modulo] of Object.entries(parcela.modulos)) {
-    resultado[moduleId] = { ...modulo.datos }
-  }
-  return resultado
 }
