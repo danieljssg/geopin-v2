@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { RedirigirSiSesion } from '@/components/auth/RedirigirSiSesion'
 
 export const metadata: Metadata = {
   title: 'GeoPin — Levantamiento GIS',
@@ -22,8 +23,9 @@ export const metadata: Metadata = {
  * Landing pública.
  *
  * Es la cara de la plataforma: presenta qué es GeoPin y reparte los accesos
- * por rol (campo, listado, administración). No hay lógica de sesión acá:
- * cada app interna decide su propia autorización al entrar.
+ * por rol (campo, listado, administración). Sigue siendo estática —el shell
+ * offline del service worker la precachea—, así que quien ya tiene sesión es
+ * redirigido del lado del cliente (`RedirigirSiSesion`), nunca por el server.
  */
 
 const CARACTERISTICAS = [
@@ -89,6 +91,8 @@ const ACCESOS = [
 export default function LandingPage() {
   return (
     <div className="flex min-h-screen flex-col">
+      {/* Con sesión el landing no aporta nada: directo a la app. */}
+      <RedirigirSiSesion destino="/listado" />
       <header className="border-border border-b">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
           <div className="flex items-center gap-2">

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn } from '@/lib/auth-client'
+import { RedirigirSiSesion } from '@/components/auth/RedirigirSiSesion'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -57,6 +58,8 @@ export default function LoginPage() {
 
   return (
     <main className="bg-background flex min-h-screen items-center justify-center px-6">
+      {/* Quien ya tiene sesión no necesita el formulario: al app por rol. */}
+      <RedirigirSiSesion destino="/campo" destinoAdmin="/admin/dashboard" />
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>Iniciar sesión</CardTitle>
