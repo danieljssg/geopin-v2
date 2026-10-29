@@ -380,3 +380,39 @@ body { font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif; }
 [data-slot="tabs-list"].capture-tabs { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); height: auto; gap: 5px; padding: 5px; overflow: visible; }
 .capture-tabs [data-slot="tabs-trigger"] { min-height: 44px; height: auto; padding: 10px 8px; white-space: normal; line-height: 1.3; font-size: 13px; }
 @media (min-width: 640px) { [data-slot="tabs-list"].capture-tabs { grid-template-columns: repeat(auto-fit,minmax(110px,1fr)); } }
+
+/* Project story and native, keyboard-accessible FAQ. */
+.about-geopin { border-top: 1px solid var(--industrial-line); }
+.about-intro { display: grid; grid-template-columns: 1.3fr 1fr; gap: 50px; align-items: end; }
+.about-intro .eyebrow,.about-faq .eyebrow { color: var(--industrial-accent); }
+.about-intro h2 { margin-top: 18px; font-size: clamp(30px,3.4vw,46px); font-weight: 550; letter-spacing: -.045em; line-height: 1.12; }
+.about-intro h2 span { color: var(--industrial-muted); }
+.about-intro>p { color: var(--industrial-muted); font-size: 14px; line-height: 1.9; }
+.about-moments { display: grid; grid-template-columns: repeat(4,1fr); margin: 40px 0 60px; background: #202723; color: #f1f2e9; border-top: 3px solid #edbc61; }
+.about-moments li { padding: 28px; border-right: 1px solid #ffffff20; }
+.moment-number { display: block; color: #edbc61; font-family: var(--font-mono); font-size: 40px; line-height: 1; letter-spacing: -.06em; margin-bottom: 30px; }
+.about-moments h3 { font-size: 18px; font-weight: 600; margin-bottom: 12px; }
+.about-moments p { color: #bcc4ba; font-size: 12px; line-height: 1.85; }
+.about-faq { display: grid; grid-template-columns: 1fr 1.8fr; gap: 60px; }
+.about-faq-heading h3 { font-size: 29px; line-height: 1.2; letter-spacing: -.035em; margin: 14px 0; font-weight: 550; }
+.about-faq-heading>p:not(.eyebrow) { font-size: 13px; color: var(--industrial-muted); line-height: 1.8; max-width: 300px; }
+.about-faq-heading>a { margin-top: 24px; color: var(--industrial-accent); }
+.faq-items { min-width: 0; border-top: 1px solid var(--industrial-line); }
+.faq-items details { border-bottom: 1px solid var(--industrial-line); }
+.faq-items summary { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 10px; font-size: 15px; font-weight: 600; cursor: pointer; list-style: none; transition: color .2s; }
+.faq-items summary::-webkit-details-marker { display: none; }
+.faq-items summary:hover { color: var(--industrial-accent); }
+.faq-items summary:focus-visible { outline: 2px solid var(--industrial-accent); outline-offset: 3px; }
+.faq-items summary svg { flex-shrink: 0; transition: transform .2s; color: var(--industrial-accent); }
+.faq-items details[open] summary svg { transform: rotate(45deg); }
+.faq-answer { padding: 0 10px 24px; font-size: 13px; line-height: 1.85; color: var(--industrial-muted); }
+.team-person { padding: 16px 20px; margin-top: 10px; border-left: 2px solid var(--industrial-accent); background: color-mix(in srgb,var(--industrial-accent) 5%,transparent); }
+.team-person h4 { font-size: 17px; font-weight: 600; color: var(--industrial-ink); margin: 5px 0; }
+.team-person a { display: inline-flex; align-items: center; gap: 6px; color: var(--industrial-accent); }
+.footer-links { display: flex; flex-wrap: wrap; gap: 14px 22px; }
+.footer-links a { display: inline-flex; align-items: center; gap: 5px; color: var(--industrial-muted); font-size: 11px; }
+.footer-links a:hover { color: var(--industrial-accent); }
+.industrial-footer { flex-wrap: wrap; }
+@media (prefers-reduced-motion: no-preference) { .faq-items details[open] .faq-answer { animation: fade-in .3s ease-out; } }
+@media (max-width: 900px) { .about-intro { grid-template-columns: 1fr; gap: 24px; } .about-moments { grid-template-columns: repeat(2,1fr); } .about-moments li { border-bottom: 1px solid #ffffff20; } .about-faq { gap: 30px; } }
+@media (max-width: 600px) { .about-faq { grid-template-columns: 1fr; } .about-moments { grid-template-columns: 1fr; margin-bottom: 40px; } .about-moments li { padding: 24px; } .moment-number { font-size: 30px; margin-bottom: 18px; } .footer-links { width: 100%; } }
