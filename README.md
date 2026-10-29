@@ -2,7 +2,7 @@
 
 GeoPin is a GIS field-survey platform for civil engineering, urban planning, and architecture teams. It captures points and parcel perimeters, collects configurable field data, supports offline work, and synchronizes records with a central workspace.
 
-**Project guide:** [interactive documentation route](/docs) · [Spanish README](tradme_es.md)
+**Project guide:** [interactive documentation route](/docs) · [Spanish README](README_ES.md)
 
 ## Contents
 
@@ -17,6 +17,7 @@ GeoPin is a GIS field-survey platform for civil engineering, urban planning, and
 - [Configuration](#configuration)
 - [Development commands](#development-commands)
 - [Maintenance notes](#maintenance-notes)
+- [License](#license)
 
 ## Capabilities
 
@@ -199,3 +200,8 @@ pnpm tiles:generar    # Generate configured tile data
 - When changing document fields, update domain types, persistence code, indexes if needed, and this data-model guide.
 - Do not remove compatibility routes or legacy map types without checking their current consumers first.
 - Follow `AGENTS.md` before changing Next.js conventions. The project currently uses the App Router and the installed Next.js documentation in `node_modules/next/dist/docs/`.
+
+## License
+
+GeoPin is distributed under the MIT License. See [LICENSE.md](LICENSE.md) for
+the original English text and [LICENCIA.md](LICENCIA.md) for the Spanish translation.
