@@ -1,3 +1,4 @@
+import { AboutGeoPin } from '@/components/landing/AboutGeoPin'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowDown, ArrowRight, ArrowUpRight, BarChart3, BookOpen, FileSliders, MapPin, MoveUpRight, WifiOff } from 'lucide-react'
@@ -32,7 +33,7 @@ export default function LandingPage() {
       <a href="#contenido" className="skip-link">Saltar al contenido</a>
       <header className="public-header"><div className="public-header-inner">
         <Link href="/" className="geopin-brand" aria-label="GeoPin, inicio"><span className="brand-symbol"><MapPin size={21} /></span>GeoPin<span className="brand-index">/ GIS</span></Link>
-        <nav aria-label="Navegación principal" className="public-nav"><a href="#plataforma" className="desktop-link">Plataforma</a><Link href="/docs">Docs <ArrowUpRight size={13} /></Link><ThemeToggle /><Link href="/login" className="header-login">Entrar <ArrowRight size={15} /></Link></nav>
+        <nav aria-label="Navegación principal" className="public-nav"><a href="#plataforma" className="desktop-link">Plataforma</a><a href="#acerca" className="desktop-link">Acerca de</a><Link href="/docs">Docs <ArrowUpRight size={13} /></Link><ThemeToggle /><Link href="/login" className="header-login">Entrar <ArrowRight size={15} /></Link></nav>
       </div></header>
       <main id="contenido">
         <section className="industrial-hero">
@@ -52,9 +53,10 @@ export default function LandingPage() {
         </section>
         <section className="workflow-strip"><div><p className="eyebrow">DEL CAMPO AL ANÁLISIS</p><h2>Un flujo de trabajo conectado.</h2></div><ol>{[['01','Prepara','Define el levantamiento y sus formularios.'],['02','Captura','Registra el territorio, incluso sin señal.'],['03','Analiza','Sincroniza, revisa y comparte los resultados.']].map(([n,title,text]) => <li key={n}><span>{n}</span><div><h3>{title}</h3><p>{text}</p></div></li>)}</ol></section>
         <section id="herramientas" className="industrial-section"><div className="section-heading"><p className="eyebrow">02 / ESPACIO DE TRABAJO</p><div><h2>Tu siguiente paso,<br /><span>en un solo lugar.</span></h2><p>Accede a las herramientas de GeoPin con los permisos de tu cuenta.</p></div></div><div className="access-grid">{ACCESOS.map(({ href, title, text, number }) => <Link key={href} href={href} className="access-card"><span className="technical-label">{number}</span><div><h3>{title}</h3><p>{text}</p></div><ArrowUpRight size={20} /></Link>)}</div></section>
+        <AboutGeoPin />
         <section className="docs-callout"><div><p className="eyebrow">CONOCIMIENTO COMPARTIDO</p><h2>La plataforma también<br />se entiende por dentro.</h2><p>Explora la arquitectura, los datos y las decisiones detrás de GeoPin.</p></div><Link href="/docs" className="industrial-button">Consultar documentación <ArrowUpRight size={18} /></Link></section>
       </main>
-      <footer className="industrial-footer"><Link href="/" className="geopin-brand"><MapPin size={20} /> GeoPin</Link><span>Ingeniería Civil y Urbanismo · Información para el territorio.</span><Link href="/docs">Documentación <ArrowUpRight size={14} /></Link></footer>
+      <footer className="industrial-footer"><Link href="/" className="geopin-brand"><MapPin size={20} /> GeoPin</Link><span>Ingeniería Civil y Urbanismo · Información para el territorio.</span><nav aria-label="Enlaces del proyecto" className="footer-links"><Link href="/docs">Documentación <ArrowUpRight size={14} /></Link><a href="https://github.com/danieljssg/geopin-v2">Repositorio <ArrowUpRight size={14} /></a><a href="https://github.com/danieljssg">Daniel Saud · GitHub <ArrowUpRight size={14} /></a></nav></footer>
     </div>
   )
 }
