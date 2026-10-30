@@ -42,6 +42,18 @@ function createAuth() {
     appName: 'GeoPin',
     baseURL: env.BETTER_AUTH_URL,
     secret: env.BETTER_AUTH_SECRET,
+    socialProviders: {
+      ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+        ? {
+            google: {
+              clientId: env.GOOGLE_CLIENT_ID,
+              clientSecret: env.GOOGLE_CLIENT_SECRET,
+              // El perfil externo nunca decide los permisos de GeoPin.
+              mapProfileToUser: () => ({ role: DEFAULT_ROLE }),
+            },
+          }
+        : {}),
+    },
     database: mongodbAdapter(client.db(env.MONGODB_DB), {
       client,
       /**

@@ -15,6 +15,30 @@ function entorno(
 }
 
 describe('parseServerEnv', () => {
+  it('Google es opcional y normaliza credenciales completas', () => {
+    expect(parseServerEnv(entorno()).GOOGLE_CLIENT_ID).toBeUndefined()
+    expect(parseServerEnv(entorno({ GOOGLE_CLIENT_ID: '  ', GOOGLE_CLIENT_SECRET: '' })).GOOGLE_CLIENT_ID).toBeUndefined()
+    const parsed = parseServerEnv(entorno({
+      GOOGLE_CLIENT_ID: ' google-client-id ',
+      GOOGLE_CLIENT_SECRET: ' google-client-secret ',
+    }))
+    expect(parsed.GOOGLE_CLIENT_ID).toBe('google-client-id')
+    expect(parsed.GOOGLE_CLIENT_SECRET).toBe('google-client-secret')
+  })
+
+  it('rechaza credenciales de Google incompletas sin exponer secretos', () => {
+    for (const overrides of [
+      { GOOGLE_CLIENT_ID: 'id-privado' },
+      { GOOGLE_CLIENT_SECRET: 'secreto-privado' },
+    ]) {
+      const error = captureError(() => parseServerEnv(entorno(overrides)))
+      expect(error.message).toContain('GOOGLE_CLIENT_ID')
+      expect(error.message).toContain('GOOGLE_CLIENT_SECRET')
+      expect(error.message).not.toContain('id-privado')
+      expect(error.message).not.toContain('secreto-privado')
+    }
+  })
+
   it('acepta un entorno completo', () => {
     const parsed = parseServerEnv(entorno())
     expect(parsed.MONGODB_DB).toBe('geopin')

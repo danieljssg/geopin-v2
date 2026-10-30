@@ -26,6 +26,8 @@ describe('getAuth', () => {
   const originalEnv = { ...process.env }
 
   beforeEach(() => {
+    delete process.env.GOOGLE_CLIENT_ID
+    delete process.env.GOOGLE_CLIENT_SECRET
     for (const key of Object.keys(ENTORNO_VALIDO)) delete process.env[key]
     Object.assign(process.env, ENTORNO_VALIDO)
     resetServerEnvCache()
@@ -41,6 +43,50 @@ describe('getAuth', () => {
 
   it('se construye sin lanzar con un entorno válido', () => {
     expect(() => getAuth()).not.toThrow()
+  })
+
+  it('no registra Google sin credenciales', () => {
+    expect(getAuth().options.socialProviders?.google).toBeUndefined()
+  })
+
+  it('Google usa las credenciales del servidor y asigna el rol mínimo aunque el perfil traiga admin', async () => {
+    process.env.GOOGLE_CLIENT_ID = 'google-client-id'
+    process.env.GOOGLE_CLIENT_SECRET = 'google-client-secret'
+    const google = getAuth().options.socialProviders?.google
+    expect(google?.clientId).toBe('google-client-id')
+    expect(google?.clientSecret).toBe('google-client-secret')
+    const mapProfile = google?.mapProfileToUser as (profile: Record<string, unknown>) => unknown
+    expect(await mapProfile({ sub: 'google-user', email: 'user@example.com', role: 'admin' }))
+      .toEqual({ role: 'encuestador' })
+  })
+
+  it('inicia OAuth con Google y construye el callback con BETTER_AUTH_URL', async () => {
+    process.env.GOOGLE_CLIENT_ID = 'google-client-id'
+    process.env.GOOGLE_CLIENT_SECRET = 'google-client-secret'
+    const ctx = await getAuth().$context
+    // Persistencia de state en memoria: este test no conecta con MongoDB.
+    ctx.internalAdapter.createVerificationValue = async (data) => ({
+      ...data,
+      id: 'oauth-state',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    const response = await getAuth().handler(new Request(
+      `${ENTORNO_VALIDO.BETTER_AUTH_URL}/api/auth/sign-in/social`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: ENTORNO_VALIDO.BETTER_AUTH_URL },
+        body: JSON.stringify({ provider: 'google', callbackURL: '/login', errorCallbackURL: '/login?error=google' }),
+      },
+    ))
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    const url = new URL(body.url)
+    expect(url.hostname).toBe('accounts.google.com')
+    expect(url.searchParams.get('client_id')).toBe('google-client-id')
+    expect(url.searchParams.get('redirect_uri')).toBe(`${ENTORNO_VALIDO.BETTER_AUTH_URL}/api/auth/callback/google`)
+    expect(url.searchParams.get('state')).toBeTruthy()
+    expect(url.searchParams.get('code_challenge')).toBeTruthy()
   })
 
   it('devuelve la misma instancia en llamadas sucesivas', () => {
