@@ -1,8 +1,8 @@
 'use client'
 
 import { NavBar } from '@/components/NavBar'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn } from '@/lib/auth-client'
 import { RedirigirSiSesion } from '@/components/auth/RedirigirSiSesion'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -24,11 +24,41 @@ import { Label } from '@/components/ui/label'
  * cuando el levantador entra por primera vez en un dispositivo.
  */
 export default function LoginPage() {
+  return <Suspense fallback={<p className="p-6" role="status">Cargando acceso…</p>}><LoginForm /></Suspense>
+}
+
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
+  const [googleEnviando, setGoogleEnviando] = useState(false)
+
+  const visibleError = error ?? (searchParams.has('error')
+    ? 'No se pudo iniciar sesión con Google. Inténtalo de nuevo.'
+    : null)
+
+  async function entrarConGoogle() {
+    setError(null)
+    setGoogleEnviando(true)
+    try {
+      const { error: authError } = await signIn.social({
+        provider: 'google',
+        // El login resuelve la sesión y redirige según el rol existente.
+        callbackURL: '/login',
+        errorCallbackURL: '/login?error=google',
+      })
+      if (authError) {
+        setError('No se pudo iniciar sesión con Google. Inténtalo de nuevo o usa tu correo y contraseña.')
+        setGoogleEnviando(false)
+      }
+    } catch {
+      setError('No se pudo contactar al servidor.')
+      setGoogleEnviando(false)
+    }
+  }
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -93,16 +123,23 @@ export default function LoginPage() {
               />
             </div>
 
-            {error && (
+            {visibleError && (
               <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{visibleError}</AlertDescription>
               </Alert>
             )}
 
-            <Button type="submit" disabled={enviando} className="w-full">
+            <Button type="submit" disabled={enviando || googleEnviando} className="w-full">
               {enviando ? 'Entrando…' : 'Entrar'}
             </Button>
           </form>
+          <div className="mt-4 space-y-3">
+            <p className="text-center text-sm text-muted-foreground">O continúa con</p>
+            <Button type="button" variant="outline" className="w-full"
+              disabled={enviando || googleEnviando} onClick={entrarConGoogle}>
+              {googleEnviando ? 'Conectando con Google…' : 'Continuar con Google'}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </main></div>

@@ -178,6 +178,32 @@ public/                 App icons and static assets
 
 Never commit `.env.local` or production credentials. `lib/server/env.ts` parses and checks server configuration. Only values explicitly prefixed with `NEXT_PUBLIC_` are exposed to browser bundles.
 
+### Google sign-in
+
+Create an OAuth 2.0 client of type **Web application** in Google Cloud Console.
+Set these server variables in `.env.local` locally and in the deployment's environment:
+
+| Variable | Value |
+| --- | --- |
+| `BETTER_AUTH_SECRET` | A stable random secret of at least 32 characters; generate with `openssl rand -base64 48`. |
+| `BETTER_AUTH_URL` | Public application origin, e.g. `https://geopin.example.com`, without a trailing slash. |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID. |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret. |
+
+In Google, add `BETTER_AUTH_URL` as an **Authorized JavaScript origin** and
+`https://geopin.example.com/api/auth/callback/google` as an **Authorized redirect URI**
+(replace the example origin with the real one). For local development add
+`http://localhost:3000` and `http://localhost:3000/api/auth/callback/google`, respectively.
+The callback URL is derived from `BETTER_AUTH_URL`; it needs no separate variable.
+Configure the consent screen and test users if the Google application is in testing mode.
+
+Both Google variables are optional together; configuring only one fails validation.
+Email/password sign-in remains available. New Google accounts receive `encuestador`;
+Google profile data cannot grant administrator access. Existing linked accounts keep
+their assigned role. After Google sign-in, `/login` redirects to `/campo` or
+`/admin/dashboard` according to the session's role. Credentials stay on the server;
+do not prefix these variables with `NEXT_PUBLIC_`.
+
 ## Development commands
 
 ```bash

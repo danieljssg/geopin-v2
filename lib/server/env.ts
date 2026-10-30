@@ -14,6 +14,9 @@ export interface ServerEnv {
   BETTER_AUTH_SECRET: string
   /** Origen público de la aplicación, sin barra final. */
   BETTER_AUTH_URL: string
+  /** Credenciales OAuth de Google; se configuran juntas o se omiten ambas. */
+  GOOGLE_CLIENT_ID?: string
+  GOOGLE_CLIENT_SECRET?: string
 }
 
 export class EnvError extends Error {
@@ -59,6 +62,14 @@ export function parseServerEnv(
   const db = source.MONGODB_DB!.trim()
   const secret = source.BETTER_AUTH_SECRET!.trim()
   const url = source.BETTER_AUTH_URL!.trim()
+  const googleClientId = source.GOOGLE_CLIENT_ID?.trim() || undefined
+  const googleClientSecret = source.GOOGLE_CLIENT_SECRET?.trim() || undefined
+
+  if (Boolean(googleClientId) !== Boolean(googleClientSecret)) {
+    throw new EnvError(
+      'Google Auth requiere GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET juntas.',
+    )
+  }
 
   if (secret.length < MIN_SECRET_LENGTH) {
     throw new EnvError(
@@ -86,6 +97,8 @@ export function parseServerEnv(
     MONGODB_DB: db,
     BETTER_AUTH_SECRET: secret,
     BETTER_AUTH_URL: url,
+    GOOGLE_CLIENT_ID: googleClientId,
+    GOOGLE_CLIENT_SECRET: googleClientSecret,
   }
 }
 
