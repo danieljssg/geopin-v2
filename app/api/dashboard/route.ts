@@ -12,6 +12,7 @@ import {
 } from '@/lib/domain/dashboard'
 import type { Parcela, ParcelaEstado } from '@/lib/domain/types'
 import { accessibleSurvey } from '@/lib/server/survey-access'
+import { filterSurveyRecords, parseSurveyFilters } from '@/lib/domain/survey-filters'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,10 +42,11 @@ export async function GET(request: Request): Promise<Response> {
     ])
 
     // Los documentos de Cosmos traen `_id`; el dominio no lo conoce.
-    const parcelas = documentos.map((documento) => {
+    const todasParcelas = documentos.map((documento) => {
       const { _id, ...resto } = documento
       return resto as Parcela
     })
+    const parcelas = filterSurveyRecords(todasParcelas, parseSurveyFilters(url.searchParams))
 
     const puntos = parcelas.map((parcela) => ({
       id: parcela.id,

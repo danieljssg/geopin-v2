@@ -26,6 +26,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import type { CoberturaServicio, DensidadCelda, EquipamientoResumen, ResumenLevantamiento, ResumenTerritorial } from '@/lib/domain/dashboard'
 import type { ParcelaEstado } from '@/lib/domain/types'
 import type { PuntoMapa } from './MapaCalor'
+import { CATEGORIAS_LIST } from '@/lib/categories'
+import { ESTADOS_CONSTRUCCION, MATERIALES, USOS_GENERALES, USOS_ESPECIFICOS } from '@/lib/urban-options'
 
 /**
  * Dashboard del levantamiento.
@@ -61,11 +63,17 @@ interface LevantamientoResumen {
  */
 async function pedirDashboard(
   levantamientoId: string,
+  filters: DashboardFilters,
 ): Promise<{ datos?: DashboardData; error?: string }> {
   try {
-    const url = levantamientoId
-      ? `/api/dashboard?levantamientoId=${encodeURIComponent(levantamientoId)}`
-      : '/api/dashboard'
+    const query = new URLSearchParams({ levantamientoId, dateField: filters.dateField })
+    if (filters.from) query.set('from', filters.from)
+    if (filters.to) query.set('to', filters.to)
+    for (const [key, values] of Object.entries(filters)) {
+      if (key === 'dateField' || key === 'from' || key === 'to') continue
+      for (const value of values) query.append(key, value)
+    }
+    const url = `/api/dashboard?${query}`
 
     const respuesta = await fetch(url, { credentials: 'same-origin' })
     if (!respuesta.ok) return { error: `El servidor respondió ${respuesta.status}.` }
@@ -76,6 +84,32 @@ async function pedirDashboard(
       error: caught instanceof Error ? caught.message : 'No se pudieron cargar los datos.',
     }
   }
+}
+
+interface DashboardFilters {
+  dateField: 'createdAt' | 'updatedAt'
+  from: string
+  to: string
+  category: string[]
+  generalUse: string[]
+  specificUse: string[]
+  constructionCondition: string[]
+  floors: string[]
+  material: string[]
+}
+
+const EMPTY_FILTERS: DashboardFilters = { dateField: 'createdAt', from: '', to: '', category: [], generalUse: [], specificUse: [], constructionCondition: [], floors: [], material: [] }
+
+function MultiFilter({ label, values, selected, onChange }: { label: string; values: readonly { value: string; label: string }[]; selected: string[]; onChange: (values: string[]) => void }) {
+  return <label className="grid gap-1 text-xs font-medium">{label}<select multiple value={selected} onChange={(event) => onChange(Array.from(event.target.selectedOptions, (option) => option.value))} className="min-h-20 rounded-md border bg-background p-2 text-sm" aria-label={label}>{values.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+}
+
+const LABEL_OPTIONS = (options: readonly { value: string; label: string }[]) => options.map(({ label }) => ({ value: label, label }))
+const SPECIFIC_BY_GENERAL: Record<string, string[]> = {
+  Residencial: ['Unifamiliar', 'Bifamiliar', 'Multifamiliar'],
+  Comercial: ['Comercio formal', 'Comercio informal'],
+  Equipamiento: ['Asistencial', 'Educativo', 'Seguridad y administrativo', 'Recreación y deportivo'],
+  'Espacio público': ['Área verde', 'Cultural', 'Recreación y deportivo'],
 }
 
 interface DashboardData {
@@ -95,6 +129,7 @@ export default function DashboardV2() {
   const [datos, setDatos] = useState<DashboardData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [recarga, setRecarga] = useState(0)
+  const [filters, setFilters] = useState<DashboardFilters>(EMPTY_FILTERS)
   // El estado de carga se deriva de los datos: guardar la bandera en estado
   // obligaba a un setState dentro del efecto, que React 19 marca porque
   // provoca un render en cascada.
@@ -134,7 +169,7 @@ export default function DashboardV2() {
 
     if (!seleccionado) return () => { vivo = false }
 
-    void pedirDashboard(seleccionado).then((resultado) => {
+    void pedirDashboard(seleccionado, filters).then((resultado) => {
       if (!vivo) return
       if (resultado.datos) setDatos(resultado.datos)
       if (resultado.error) setError(resultado.error)
@@ -143,7 +178,15 @@ export default function DashboardV2() {
     return () => {
       vivo = false
     }
-  }, [seleccionado, recarga])
+  }, [seleccionado, recarga, filters])
+
+  const exportQuery = useMemo(() => {
+    const query = new URLSearchParams({ format: 'xlsx', levantamientoId: seleccionado, dateField: filters.dateField })
+    if (filters.from) query.set('from', filters.from)
+    if (filters.to) query.set('to', filters.to)
+    for (const [key, values] of Object.entries(filters)) if (Array.isArray(values)) for (const value of values) query.append(key, value)
+    return query.toString()
+  }, [filters, seleccionado])
 
   const serviciosEnDeficit = useMemo(
     () => datos?.cobertura.filter((servicio) => servicio.enDeficit) ?? [],
@@ -154,6 +197,10 @@ export default function DashboardV2() {
     () => datos?.equipamiento.filter((item) => item.saturado) ?? [],
     [datos],
   )
+  const opcionesUsoEspecifico = useMemo(() => {
+    const validas = filters.generalUse.flatMap((value) => SPECIFIC_BY_GENERAL[value] ?? [])
+    return LABEL_OPTIONS(USOS_ESPECIFICOS).filter((option) => validas.length === 0 || validas.includes(option.value))
+  }, [filters.generalUse])
 
   return (
     <div className="space-y-6">
@@ -192,6 +239,23 @@ export default function DashboardV2() {
           </Select>
         )}
       </div>
+
+      <Card><CardHeader><CardTitle>Filtros del levantamiento</CardTitle><CardDescription>Las métricas, el mapa y la exportación usan estos filtros.</CardDescription></CardHeader><CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <label className="grid gap-1 text-xs font-medium">Filtrar fecha por<select className="h-9 rounded-md border bg-background px-2 text-sm" value={filters.dateField} onChange={(e) => setFilters((old) => ({ ...old, dateField: e.target.value as DashboardFilters['dateField'] }))}><option value="createdAt">Creación del registro</option><option value="updatedAt">Última modificación</option></select></label>
+          <label className="grid gap-1 text-xs font-medium">Desde<input type="date" className="h-9 rounded-md border bg-background px-2 text-sm" value={filters.from} onChange={(e) => setFilters((old) => ({ ...old, from: e.target.value }))} /></label>
+          <label className="grid gap-1 text-xs font-medium">Hasta<input type="date" className="h-9 rounded-md border bg-background px-2 text-sm" value={filters.to} onChange={(e) => setFilters((old) => ({ ...old, to: e.target.value }))} /></label>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <MultiFilter label="Categorías" values={CATEGORIAS_LIST} selected={filters.category} onChange={(category) => setFilters((old) => ({ ...old, category }))} />
+          <MultiFilter label="Uso general" values={LABEL_OPTIONS(USOS_GENERALES)} selected={filters.generalUse} onChange={(generalUse) => setFilters((old) => ({ ...old, generalUse, specificUse: [] }))} />
+          <MultiFilter label="Uso específico" values={opcionesUsoEspecifico} selected={filters.specificUse} onChange={(specificUse) => setFilters((old) => ({ ...old, specificUse }))} />
+          <MultiFilter label="Estado de construcción" values={LABEL_OPTIONS(ESTADOS_CONSTRUCCION)} selected={filters.constructionCondition} onChange={(constructionCondition) => setFilters((old) => ({ ...old, constructionCondition }))} />
+          <MultiFilter label="Pisos" values={Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))} selected={filters.floors} onChange={(floors) => setFilters((old) => ({ ...old, floors }))} />
+          <MultiFilter label="Materiales" values={LABEL_OPTIONS(MATERIALES)} selected={filters.material} onChange={(material) => setFilters((old) => ({ ...old, material }))} />
+        </div>
+        <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => setFilters(EMPTY_FILTERS)}>Limpiar filtros</Button>{seleccionado && <a className="inline-flex h-8 items-center rounded-md border px-3 text-sm hover:bg-accent" href={`/api/export?${exportQuery}`}>Exportar resultados a Excel</a>}</div>
+      </CardContent></Card>
 
       {cargando && (
         <div className="space-y-3">

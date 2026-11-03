@@ -15,6 +15,7 @@ import {
   type FormatoExport,
 } from '@/lib/domain/export'
 import type { Parcela } from '@/lib/domain/types'
+import { filterSurveyRecords, parseSurveyFilters } from '@/lib/domain/survey-filters'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,10 +60,11 @@ export async function GET(request: Request): Promise<Response> {
       getModuleSchemas(),
     ])
 
-    const parcelas = documentos.map((documento) => {
+    const todasParcelas = documentos.map((documento) => {
       const { _id, ...resto } = documento
       return resto as unknown as Parcela
     })
+    const parcelas = filterSurveyRecords(todasParcelas, parseSurveyFilters(url.searchParams))
 
     const listaEsquemas = [...esquemas.values()]
     const marca = new Date().toISOString().split('T')[0]
