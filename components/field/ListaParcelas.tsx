@@ -179,7 +179,9 @@ function ListaParcelasContenido() {
   useEffect(() => {
     let vivo = true
 
-    void pedirParcelas(mias, levantamientoActivo).then((resultado) => {
+    if (!userId || !session.data?.user?.role) return
+    const managerSinSeleccion = session.data?.user?.role === 'manager' && !levantamientoActivo
+    void (managerSinSeleccion ? Promise.resolve({ parcelas: [] as ParcelaFila[], error: undefined }) : pedirParcelas(mias, levantamientoActivo)).then((resultado) => {
       if (!vivo) return
       if (resultado.parcelas) { setParcelas(resultado.parcelas); setError(null) }
       if (resultado.error) setError(resultado.error)
@@ -188,7 +190,7 @@ function ListaParcelasContenido() {
     return () => {
       vivo = false
     }
-  }, [recarga, mias, levantamientoActivo])
+  }, [recarga, mias, levantamientoActivo, session.data?.user?.role, userId])
 
   useEffect(() => {
     let vivo = true
@@ -314,7 +316,7 @@ function ListaParcelasContenido() {
 
         <div className="ml-auto flex gap-2">
           <select aria-label="Levantamiento para registros y exportación" className="h-8 max-w-48 rounded-md border bg-background px-2 text-xs" value={levantamientoActivo} onChange={(event) => { setLevantamientoActivo(event.target.value); if (userId) window.localStorage.setItem(`geopin-active-survey:${userId}`, event.target.value) }}>
-            <option value="">Todos los levantamientos</option>
+            <option value="">{session.data?.user?.role === 'manager' ? 'Selecciona un levantamiento' : 'Todos los levantamientos'}</option>
             {levantamientos.map((item) => <option key={item.id} value={item.id}>{item.nombre}</option>)}
           </select>
           {(['geojson', 'csv', 'xlsx', 'shp'] as const).map((formato) => (
@@ -356,7 +358,7 @@ function ListaParcelasContenido() {
       {!cargando && !error && visibles.length === 0 && (
         <p className="text-sm text-muted-foreground">
           {(parcelas?.length ?? 0) === 0
-            ? 'Todavía no hay parcelas levantadas.'
+            ? (levantamientos.length === 0 ? 'No hay levantamientos en este entorno. Crea uno desde Gestión del entorno para comenzar.' : 'No hay registros en el levantamiento seleccionado.')
             : 'Ninguna parcela coincide con el filtro.'}
         </p>
       )}
