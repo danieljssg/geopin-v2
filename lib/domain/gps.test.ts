@@ -96,6 +96,11 @@ describe('formatAccuracy', () => {
     expect(formatAccuracy(0.4)).toBe('< 1 m')
   })
 
+  it('muestra lecturas grandes en kilómetros para no confundir su magnitud', () => {
+    expect(formatAccuracy(50_000)).toBe('±50 km')
+    expect(formatAccuracy(1_250)).toBe('±1.3 km')
+  })
+
   it('dice sin dato cuando no hay valor', () => {
     expect(formatAccuracy(0)).toBe('sin dato')
     expect(formatAccuracy(undefined)).toBe('sin dato')

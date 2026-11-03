@@ -104,6 +104,10 @@ export function formatAccuracy(accuracy: number | undefined | null): string {
     return 'sin dato'
   }
   if (accuracy < 1) return '< 1 m'
+  if (accuracy >= 1_000) {
+    const kilometers = accuracy / 1_000
+    return `±${Number.isInteger(kilometers) ? kilometers : kilometers.toFixed(1)} km`
+  }
   return `±${Math.round(accuracy)} m`
 }
 

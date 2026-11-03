@@ -10,6 +10,7 @@ import type { Pin, Category } from '@/lib/types'
 import { getCategoryConfig } from '@/lib/categories'
 import { getUrbanDetails } from '@/lib/urban-options'
 import { capasBasePorDefecto, capasDeTipo, type CapaMapa } from '@/lib/map/capas'
+import { formatAccuracy } from '@/lib/domain/gps'
 
 // ---------------------------------------------------------------------------
 // Icon factory — uses divIcon so no webpack asset-path issues
@@ -124,7 +125,7 @@ function GPSDetector({ onPositionChange, onGPSStatus }: GPSDetectorProps) {
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         onGPSStatus('found')
-        map.flyTo([coords.latitude, coords.longitude], 17, { animate: true, duration: 1.2 })
+        map.flyTo([coords.latitude, coords.longitude], 19, { animate: true, duration: 1.2 })
         onPositionChange(coords.latitude, coords.longitude)
       },
       (err) => {
@@ -210,7 +211,7 @@ function MapActionControls({
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         onGPSStatus('found')
-        map.flyTo([coords.latitude, coords.longitude], 17, { animate: true, duration: 1.2 })
+        map.flyTo([coords.latitude, coords.longitude], 19, { animate: true, duration: 1.2 })
         onPositionChange(coords.latitude, coords.longitude)
       },
       (err) => {
@@ -221,7 +222,7 @@ function MapActionControls({
   }, [map, onGPSStatus, onPositionChange, onLocateRequest])
 
   return (
-    <div ref={controlsRef} className="leaflet-control absolute right-4 bottom-7 z-[1000] flex flex-col gap-1">
+    <div ref={controlsRef} className="absolute right-4 bottom-7 z-[1000] flex flex-col gap-1">
       <Button
         variant="outline"
         size="icon"
@@ -359,6 +360,7 @@ export default function MapView({
       zoom={initialView?.zoom ?? (hasValidPosition ? 16 : 6)}
       className="h-full w-full"
       zoomControl={false}
+      maxZoom={19}
       scrollWheelZoom
     >
       {capasBase.map((capa) => capa.id === baseActiva && (
@@ -377,11 +379,13 @@ export default function MapView({
 
       {previewPosition && (
         <>
-          <Circle
-            center={[previewPosition.lat, previewPosition.lng]}
-            radius={previewPosition.accuracy}
-            pathOptions={{ color: '#2563eb', fillColor: '#3b82f6', fillOpacity: 0.12, weight: 2 }}
-          />
+          {previewPosition.accuracy <= 150 && (
+            <Circle
+              center={[previewPosition.lat, previewPosition.lng]}
+              radius={previewPosition.accuracy}
+              pathOptions={{ color: '#2563eb', fillColor: '#3b82f6', fillOpacity: 0.12, weight: 2 }}
+            />
+          )}
           <CircleMarker
             center={[previewPosition.lat, previewPosition.lng]}
             radius={8}
@@ -390,7 +394,7 @@ export default function MapView({
             <Popup>
               <div className="text-sm font-semibold">Tu ubicación aproximada</div>
               <div className="mt-1 text-xs text-muted-foreground">
-                Precisión actual: ±{Math.round(previewPosition.accuracy)} m. El pin de captura se fijará cuando mejore la señal.
+                Precisión actual: {formatAccuracy(previewPosition.accuracy)}. El pin de captura se fijará cuando mejore la señal.
               </div>
             </Popup>
           </CircleMarker>
