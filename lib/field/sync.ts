@@ -26,6 +26,7 @@ export interface SyncSummary {
 
 export interface SyncOptions {
   db?: CampoDB
+  actorId?: string
   endpoint?: string
   now?: () => number
   random?: () => number
@@ -77,7 +78,7 @@ export async function runSync(options: SyncOptions = {}): Promise<SyncSummary> {
       // La sesión vive en una cookie de primera parte: sin esto, el service
       // worker no la mandaría y la API respondería 401.
       credentials: 'same-origin',
-      body: JSON.stringify({ parcels: payloads }),
+      body: JSON.stringify({ parcels: payloads, ...(options.actorId ? { actorId: options.actorId } : {}) }),
     })
 
     if (!respuesta.ok) {

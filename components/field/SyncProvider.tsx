@@ -14,6 +14,8 @@ import type { ParcelaCreateRequest } from '@/lib/api/contracts'
 import { countPending, enqueueParcela, getConflictedEntries } from '@/lib/field/outbox'
 import { runSync } from '@/lib/field/sync'
 import { registerSyncTriggers } from '@/lib/field/triggers'
+import { getCampoDB } from '@/lib/field/db'
+import { useSession } from '@/lib/auth-client'
 
 /**
  * Proveedor de sincronización del cliente de campo.
@@ -37,10 +39,10 @@ export interface SyncState {
 }
 
 /** Lee los contadores de la cola. Fuera del componente a propósito. */
-async function leerContadores(): Promise<{ pendientes: number; conflictos: number }> {
+async function leerContadores(db = getCampoDB()): Promise<{ pendientes: number; conflictos: number }> {
   const [pendientes, conflictos] = await Promise.all([
-    countPending(),
-    getConflictedEntries().then((entradas) => entradas.length),
+    countPending({ db }),
+    getConflictedEntries({ db }).then((entradas) => entradas.length),
   ])
   return { pendientes, conflictos }
 }
@@ -48,6 +50,9 @@ async function leerContadores(): Promise<{ pendientes: number; conflictos: numbe
 const SyncContext = createContext<SyncState | null>(null)
 
 export function SyncProvider({ children }: { children: ReactNode }) {
+  const session = useSession()
+  const userId = session.data?.user?.id
+  const db = useMemo(() => getCampoDB(userId ?? 'anonymous'), [userId])
   const [pendientes, setPendientes] = useState(0)
   const [conflictos, setConflictos] = useState(0)
   const [sincronizando, setSincronizando] = useState(false)
@@ -57,12 +62,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   const refrescar = useCallback(async () => {
     const [pendientesActuales, conflictosActuales] = await Promise.all([
-      countPending(),
-      getConflictedEntries().then((entradas) => entradas.length),
+      countPending({ db }),
+      getConflictedEntries({ db }).then((entradas) => entradas.length),
     ])
     setPendientes(pendientesActuales)
     setConflictos(conflictosActuales)
-  }, [])
+  }, [db])
 
   const sincronizar = useCallback(async () => {
     if (enCurso.current) return
@@ -70,7 +75,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     setSincronizando(true)
 
     try {
-      const resumen = await runSync()
+      if (!userId) return
+      const resumen = await runSync({ db, actorId: userId })
       setUltimoError(resumen.error)
       if (!resumen.omitida) setUltimaSincronizacion(new Date().toISOString())
     } catch (error) {
@@ -78,19 +84,20 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     } finally {
       enCurso.current = false
       setSincronizando(false)
-      await refrescar()
+      if (userId) await refrescar()
     }
-  }, [refrescar])
+  }, [db, refrescar, userId])
 
   const encolar = useCallback(
     async (payload: ParcelaCreateRequest) => {
-      await enqueueParcela(payload)
+      if (!userId) throw new Error('Inicia sesión para guardar datos en la cola de sincronización.')
+      await enqueueParcela(payload, { db })
       await refrescar()
       // No se espera al sincronizador: encolar no tiene por qué bloquear la
       // captura. El drenado ocurre por los disparadores.
       void sincronizar()
     },
-    [refrescar, sincronizar],
+    [db, refrescar, sincronizar, userId],
   )
 
   /**
@@ -100,7 +107,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let vivo = true
 
-    void leerContadores().then(({ pendientes: p, conflictos: c }) => {
+    if (!userId) return
+    void leerContadores(db).then(({ pendientes: p, conflictos: c }) => {
       if (!vivo) return
       setPendientes(p)
       setConflictos(c)
@@ -112,7 +120,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       vivo = false
       handle.stop()
     }
-  }, [sincronizar])
+  }, [db, sincronizar, userId])
 
   const valor = useMemo<SyncState>(
     () => ({

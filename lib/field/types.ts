@@ -51,7 +51,9 @@ export interface ParcelaCache {
 
 /** Un esquema publicado, guardado para poder renderizar el formulario offline. */
 export interface SchemaCache {
+  /** Primary key includes the survey scope to prevent custom fields crossing environments. */
   moduleId: string
+  surveyId?: string
   schema: ModuleSchema
   cachedAt: string
 }

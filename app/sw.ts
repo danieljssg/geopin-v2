@@ -3,7 +3,6 @@ import {
   CacheableResponsePlugin,
   CacheFirst,
   ExpirationPlugin,
-  NetworkFirst,
   NetworkOnly,
   Serwist,
   StaleWhileRevalidate,
@@ -64,25 +63,11 @@ const serwist = new Serwist({
       method: 'GET',
     },
 
-    /**
-     * API de lectura: red primero, cache de respaldo.
-     *
-     * En campo la red se cae constantly. Con `networkTimeoutSeconds` corto
-     * la app responde desde el cache en vez de quedarse esperando, que es la
-     * diferencia entre "no hay datos" y "los datos están viejos".
-     */
+    /** Authenticated API data is kept in account-scoped IndexedDB/local snapshots,
+     * never in a shared service-worker cache that can survive account changes. */
     {
-      matcher: ({ url }) => url.pathname.startsWith('/api/parcelas'),
-      handler: new NetworkFirst({
-        networkTimeoutSeconds: 5,
-        plugins: [
-          new CacheableResponsePlugin({ statuses: [200] }),
-          new ExpirationPlugin({
-            maxEntries: 50,
-            maxAgeSeconds: 60 * 60 * 24 * 7,
-          }),
-        ],
-      }),
+      matcher: ({ url }) => url.pathname.startsWith('/api/'),
+      handler: new NetworkOnly(),
       method: 'GET',
     },
 

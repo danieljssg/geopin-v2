@@ -30,19 +30,33 @@ export class CampoDB extends Dexie {
       parcelas: 'id, estado, syncedAt',
       esquemas: 'moduleId',
     })
+    this.version(2).stores({
+      outbox: 'id, estado, proximoIntentoEn, creadoEn',
+      parcelas: 'id, estado, syncedAt',
+      esquemas: 'moduleId, surveyId',
+    }).upgrade((transaction) => transaction.table('esquemas').toCollection().modify((entry: { surveyId?: string }) => {
+      entry.surveyId ??= 'global'
+    }))
   }
 }
 
-let singleton: CampoDB | null = null
+const instances = new Map<string, CampoDB>()
 
 /** Instancia compartida del cliente. */
-export function getCampoDB(): CampoDB {
-  if (!singleton) singleton = new CampoDB()
-  return singleton
+export function getCampoDB(userId = 'anonymous'): CampoDB {
+  const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, '_')
+  const name = `geopin-field:${safeUserId}`
+  let database = instances.get(name)
+  if (!database) {
+    database = new CampoDB(name)
+    instances.set(name, database)
+  }
+  return database
 }
 
 /** Borra la base y la vuelve a crear. Solo para tests. */
 export async function resetCampoDB(db: CampoDB): Promise<void> {
   await db.delete()
+  instances.delete(db.name)
   await db.open()
 }

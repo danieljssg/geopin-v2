@@ -53,7 +53,7 @@ export async function getCachedParcela(
 /** Guarda los esquemas publicados para poder renderizar el formulario offline. */
 export async function cacheEsquemas(
   esquemas: ModuleSchema[],
-  options: { db?: CampoDB; now?: string } = {},
+  options: { db?: CampoDB; now?: string; surveyId?: string } = {},
 ): Promise<void> {
   const db = options.db ?? getCampoDB()
   const now = options.now ?? new Date().toISOString()
@@ -61,7 +61,8 @@ export async function cacheEsquemas(
   await db.transaction('rw', db.esquemas, async () => {
     for (const esquema of esquemas) {
       const entrada: SchemaCache = {
-        moduleId: esquema.moduleId,
+        moduleId: `${options.surveyId ?? 'global'}:${esquema.moduleId}`,
+        surveyId: options.surveyId ?? 'global',
         schema: esquema,
         cachedAt: now,
       }
@@ -70,7 +71,7 @@ export async function cacheEsquemas(
   })
 }
 
-export async function getCachedEsquemas(options: { db?: CampoDB } = {}): Promise<SchemaCache[]> {
+export async function getCachedEsquemas(options: { db?: CampoDB; surveyId?: string } = {}): Promise<SchemaCache[]> {
   const db = options.db ?? getCampoDB()
-  return db.esquemas.toArray()
+  return db.esquemas.where('surveyId').equals(options.surveyId ?? 'global').toArray()
 }
