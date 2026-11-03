@@ -257,6 +257,20 @@ export default function PanelUsuarios() {
     recargar()
   }
 
+  async function repararEntorno(usuario: UsuarioAdmin) {
+    setMensaje(null)
+    setAccionEnCurso(`entorno:${usuario.id}`)
+    try {
+      const response = await fetch('/api/admin/manager-workspace', {
+        method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: usuario.id }),
+      })
+      if (!response.ok) { setMensaje({ tipo: 'error', texto: await leerError(response) }); return }
+      setMensaje({ tipo: 'ok', texto: `Entorno de ${usuario.email} activo. Se conservaron sus levantamientos y registros.` })
+    } catch { setMensaje({ tipo: 'error', texto: 'No se pudo contactar al servidor.' }) }
+    finally { setAccionEnCurso(null) }
+  }
+
   async function alternarSuspension(usuario: UsuarioAdmin) {
     const suspendido = Boolean(usuario.banned)
 
@@ -482,6 +496,7 @@ export default function PanelUsuarios() {
                               </SelectContent>
                             </Select>
 
+                            {rol === 'manager' && <Button type="button" size="xs" variant="outline" disabled={accionEnCurso !== null} onClick={() => void repararEntorno(usuario)}>{accionEnCurso === `entorno:${usuario.id}` ? 'Reparando…' : 'Reparar entorno'}</Button>}
                             <Button
                               type="button"
                               size="xs"

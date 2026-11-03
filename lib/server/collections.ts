@@ -35,6 +35,7 @@ export const COLLECTION_SESSIONS = 'session'
  * rol, y las consultas se hacen por email.
  */
 export interface UserDoc {
+  name?: string
   _id: ObjectId | string
   email: string
   role?: string
