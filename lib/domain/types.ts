@@ -112,6 +112,28 @@ export interface Levantamiento {
   totalEsperado: number
   creadoEn: string
   creadoPor: string
+  /** Manager workspace that owns this survey; absent for legacy/global surveys. */
+  workspaceId?: string
+  /** User that owns a personal survey. */
+  propietarioId?: string
+}
+
+export interface Workspace {
+  id: string
+  nombre: string
+  managerId: string
+  creadoEn: string
+  creadoPor: string
+  estado: 'activo' | 'suspendido'
+}
+
+export interface WorkspaceMembership {
+  id: string
+  workspaceId: string
+  userId: string
+  surveyId?: string
+  creadoEn: string
+  invitacionId: string
 }
 
 /** Error de validación de un campo del esquema. */

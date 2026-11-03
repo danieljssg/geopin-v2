@@ -32,6 +32,7 @@ const EDIFICACION_CAMPOS: FieldDef[] = [
   { key: 'metros_cuadrados_parcela', label: 'Metros cuadrados de la parcela', tipo: 'decimal', orden: 7 },
   { key: 'metros_cuadrados_manzana', label: 'Metros cuadrados de la manzana', tipo: 'decimal', orden: 8 },
   { key: 'poblacion_rango', label: 'Población', tipo: 'texto', orden: 9 },
+  { key: 'habitantes', label: 'Cantidad de habitantes', tipo: 'entero', orden: 10 },
 ]
 
 const INFRAESTRUCTURA_CAMPOS: FieldDef[] = [

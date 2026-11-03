@@ -98,6 +98,81 @@ export interface ResumenLevantamiento {
   faltantes: number
 }
 
+export interface ResumenTerritorial {
+  pines: number
+  superficieM2: number
+  parcelasConSuperficie: number
+  poblacionEstimada: number | null
+  registrosConPoblacion: number
+}
+
+export interface DistribucionCategoria { categoria: string; cantidad: number; porcentaje: number }
+export interface AnalisisCampo { field: string; label: string; denominator: number; values: Array<{ value: string; count: number; percentage: number }> }
+
+export function distribucionCategorias(parcelas: readonly Parcela[]): DistribucionCategoria[] {
+  const counts = new Map<string, number>()
+  for (const parcela of parcelas) {
+    const categoria = parcela.categoria.trim() || 'Sin categoría'
+    counts.set(categoria, (counts.get(categoria) ?? 0) + 1)
+  }
+  return [...counts].map(([categoria, cantidad]) => ({ categoria, cantidad, porcentaje: parcelas.length ? redondear(cantidad / parcelas.length * 100) : 0 })).sort((a, b) => b.cantidad - a.cantidad)
+}
+
+export function analizarCampos(parcelas: readonly Parcela[]): AnalisisCampo[] {
+  const fields = [
+    ['uso_general', 'Uso general'],
+    ['uso_especifico', 'Uso específico'],
+    ['estado_construccion', 'Estado de construcción'],
+    ['pisos_construccion', 'Pisos'],
+    ['material', 'Materiales'],
+  ] as const
+  return fields.map(([field, label]) => {
+    const counts = new Map<string, number>()
+    let denominator = 0
+    for (const parcela of parcelas) {
+      const raw = parcela.modulos?.edificacion?.datos?.[field]
+      const values = (Array.isArray(raw) ? raw : [raw]).map((item) => String(item ?? '').trim()).filter((item) => item && item !== SIN_DATO)
+      if (!values.length) continue
+      denominator += 1
+      for (const value of new Set(values)) counts.set(value, (counts.get(value) ?? 0) + 1)
+    }
+    return { field, label, denominator, values: [...counts].map(([value, count]) => ({ value, count, percentage: denominator ? redondear(count / denominator * 100) : 0 })).sort((a, b) => b.count - a.count) }
+  })
+}
+
+/** Aggregate the metrics that have unambiguous numeric fields in the current model. */
+export function resumirTerritorio(parcelas: readonly Parcela[]): ResumenTerritorial {
+  let superficieM2 = 0
+  let parcelasConSuperficie = 0
+  let poblacionEstimada = 0
+  let registrosConPoblacion = 0
+  let hayCampoPoblacionNumerico = false
+
+  for (const parcela of parcelas) {
+    if (typeof parcela.areaM2 === 'number' && Number.isFinite(parcela.areaM2) && parcela.areaM2 >= 0) {
+      superficieM2 += parcela.areaM2
+      parcelasConSuperficie += 1
+    }
+    for (const modulo of Object.values(parcela.modulos ?? {})) {
+      for (const [key, value] of Object.entries(modulo.datos ?? {})) {
+        if (!/(habitantes|poblacion_personas|personas_hogar)/i.test(key)) continue
+        if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) continue
+        hayCampoPoblacionNumerico = true
+        poblacionEstimada += value
+        registrosConPoblacion += 1
+      }
+    }
+  }
+
+  return {
+    pines: parcelas.length,
+    superficieM2,
+    parcelasConSuperficie,
+    poblacionEstimada: hayCampoPoblacionNumerico ? poblacionEstimada : null,
+    registrosConPoblacion,
+  }
+}
+
 /**
  * Resumen de avance.
  *

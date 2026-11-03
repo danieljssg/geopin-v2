@@ -3,7 +3,7 @@
 import { NavBar } from '@/components/NavBar'
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { signIn } from '@/lib/auth-client'
+import { signIn, signUp } from '@/lib/auth-client'
 import { RedirigirSiSesion } from '@/components/auth/RedirigirSiSesion'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -30,8 +30,12 @@ export default function LoginPage() {
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const invite = searchParams.get('invite')
+  const postAuthUrl = invite ? `/join?invite=${encodeURIComponent(invite)}` : undefined
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
+  const [registrando, setRegistrando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [googleEnviando, setGoogleEnviando] = useState(false)
@@ -47,7 +51,7 @@ function LoginForm() {
       const { error: authError } = await signIn.social({
         provider: 'google',
         // El login resuelve la sesión y redirige según el rol existente.
-        callbackURL: '/login',
+        callbackURL: postAuthUrl ?? '/login',
         errorCallbackURL: '/login?error=google',
       })
       if (authError) {
@@ -66,7 +70,10 @@ function LoginForm() {
     setEnviando(true)
 
     try {
-      const { error: authError, data } = await signIn.email({ email, password })
+      const result = registrando
+        ? await signUp.email({ email, password, name, callbackURL: postAuthUrl ?? '/campo' })
+        : await signIn.email({ email, password })
+      const { error: authError, data } = result
       if (authError) {
         setError(
           authError.status === 401
@@ -78,7 +85,7 @@ function LoginForm() {
       // Cada rol aterriza en su herramienta: el encuestador va a capturar y
       // el admin al panel. Aterrizar siempre en /admin/esquema le mostraba
       // "Sin permiso" al encuestador.
-      router.push(data?.user?.role === 'admin' ? '/admin/dashboard' : '/campo')
+      router.push(postAuthUrl ?? (data?.user?.role === 'admin' ? '/admin/dashboard' : '/campo'))
       router.refresh()
     } catch {
       setError('No se pudo contactar al servidor.')
@@ -93,19 +100,20 @@ function LoginForm() {
       <RedirigirSiSesion destino="/campo" destinoAdmin="/admin/dashboard" />
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>Iniciar sesión</CardTitle>
+          <CardTitle>{registrando ? 'Crear cuenta de encuestador' : 'Iniciar sesión'}</CardTitle>
           <CardDescription>GeoPin — levantamiento GIS</CardDescription>
         </CardHeader>
 
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
+            {registrando && <div className="space-y-2"><Label htmlFor="name">Nombre</Label><Input id="name" required autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} /></div>}
             <div className="space-y-2">
               <Label htmlFor="email">Correo</Label>
               <Input
                 id="email"
                 type="email"
                 required
-                autoComplete="username"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
@@ -117,7 +125,7 @@ function LoginForm() {
                 id="password"
                 type="password"
                 required
-                autoComplete="current-password"
+                autoComplete={registrando ? 'new-password' : 'current-password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -130,9 +138,12 @@ function LoginForm() {
             )}
 
             <Button type="submit" disabled={enviando || googleEnviando} className="w-full">
-              {enviando ? 'Entrando…' : 'Entrar'}
+              {enviando ? 'Procesando…' : registrando ? 'Crear cuenta' : 'Entrar'}
             </Button>
           </form>
+          <Button type="button" variant="link" className="mt-2 w-full" onClick={() => { setRegistrando((v) => !v); setError(null) }}>
+            {registrando ? 'Ya tengo cuenta' : 'Crear cuenta con correo y contraseña'}
+          </Button>
           <div className="mt-4 space-y-3">
             <p className="text-center text-sm text-muted-foreground">O continúa con</p>
             <Button type="button" variant="outline" className="w-full"

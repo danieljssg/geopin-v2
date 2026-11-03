@@ -2,6 +2,8 @@ import { headers } from 'next/headers'
 import * as XLSX from 'xlsx'
 import { apiRoute, jsonError } from '@/lib/server/http'
 import { requireSessionUser } from '@/lib/server/session'
+import { isAdmin } from '@/lib/auth/roles'
+import { accessibleSurvey } from '@/lib/server/survey-access'
 import { findParcelasParaDashboard } from '@/lib/server/repositories/levantamientos'
 import { getModuleSchemas } from '@/lib/server/repositories/esquemas'
 import {
@@ -13,6 +15,7 @@ import {
   type FormatoExport,
 } from '@/lib/domain/export'
 import type { Parcela } from '@/lib/domain/types'
+import { filterSurveyRecords, parseSurveyFilters } from '@/lib/domain/survey-filters'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,7 +39,7 @@ const TIPOS: Record<FormatoExport, { contentType: string; extension: string }> =
 export async function GET(request: Request): Promise<Response> {
   return apiRoute(async () => {
     const requestHeaders = await headers()
-    await requireSessionUser(requestHeaders)
+    const user = await requireSessionUser(requestHeaders)
 
     const url = new URL(request.url)
     const formato = url.searchParams.get('format') ?? 'geojson'
@@ -49,16 +52,19 @@ export async function GET(request: Request): Promise<Response> {
     }
 
     const levantamientoId = url.searchParams.get('levantamientoId')?.trim() || undefined
+    if (!levantamientoId) return jsonError('Selecciona un levantamiento para exportar.', 400)
+    if (!await accessibleSurvey(user, levantamientoId)) return jsonError('No tienes acceso a este levantamiento.', 403)
 
     const [documentos, esquemas] = await Promise.all([
-      findParcelasParaDashboard(levantamientoId),
+      findParcelasParaDashboard(levantamientoId, isAdmin(user.role) || user.role === 'manager' ? undefined : user.id),
       getModuleSchemas(),
     ])
 
-    const parcelas = documentos.map((documento) => {
+    const todasParcelas = documentos.map((documento) => {
       const { _id, ...resto } = documento
       return resto as unknown as Parcela
     })
+    const parcelas = filterSurveyRecords(todasParcelas, parseSurveyFilters(url.searchParams))
 
     const listaEsquemas = [...esquemas.values()]
     const marca = new Date().toISOString().split('T')[0]

@@ -2,6 +2,8 @@ import { headers } from 'next/headers'
 import { parseSyncRequest, type SyncItemResult, type SyncResponse } from '@/lib/api/contracts'
 import { apiRoute, jsonError, jsonOk, readJsonBody } from '@/lib/server/http'
 import { requireSessionUser } from '@/lib/server/session'
+import { findParcela } from '@/lib/server/repositories/parcelas'
+import { accessibleSurvey } from '@/lib/server/survey-access'
 import {
   DuplicateCodigoError,
   validateModuleInputs,
@@ -28,12 +30,24 @@ export async function POST(request: Request): Promise<Response> {
     const user = await requireSessionUser(requestHeaders)
 
     const raw = await readJsonBody(request)
+    if (typeof raw !== 'object' || raw === null || (raw as Record<string, unknown>).actorId !== user.id) {
+      return jsonError('La cuenta activa cambió. Inicia una nueva sincronización desde tu sesión actual.', 403)
+    }
     const parsed = parseSyncRequest(raw)
     if (!parsed.ok) return jsonError(parsed.error, 400)
 
     const resultados: SyncItemResult[] = []
 
     for (const parcela of parsed.value.parcels) {
+      const existing = await findParcela(parcela.id)
+      if (existing && user.role !== 'admin' && existing.creadoPor !== user.id) {
+        resultados.push({ id: parcela.id, estado: 'bloqueado', error: 'El usuario actual no es dueño de este registro.' })
+        continue
+      }
+      if (parcela.levantamientoId && !await accessibleSurvey(user, parcela.levantamientoId)) {
+        resultados.push({ id: parcela.id, estado: 'bloqueado', error: 'El acceso al levantamiento ya no está disponible.' })
+        continue
+      }
       const failures = await validateModuleInputs(parcela.modulos ?? [])
 
       if (failures.length > 0) {

@@ -19,6 +19,7 @@ export interface SyncSummary {
   confirmadas: number
   reintentadas: number
   conflictos: number
+  bloqueadas: number
   /** La tanda no se hizo porque no había red. */
   omitida: boolean
   error?: string
@@ -26,6 +27,7 @@ export interface SyncSummary {
 
 export interface SyncOptions {
   db?: CampoDB
+  actorId?: string
   endpoint?: string
   now?: () => number
   random?: () => number
@@ -56,12 +58,12 @@ export async function runSync(options: SyncOptions = {}): Promise<SyncSummary> {
   const online = options.isOnline ?? isOnline
 
   if (!online()) {
-    return { enviadas: 0, confirmadas: 0, reintentadas: 0, conflictos: 0, omitida: true }
+    return { enviadas: 0, confirmadas: 0, reintentadas: 0, conflictos: 0, bloqueadas: 0, omitida: true }
   }
 
   const pendientes = await getEnviableEntries(now(), { db })
   if (pendientes.length === 0) {
-    return { enviadas: 0, confirmadas: 0, reintentadas: 0, conflictos: 0, omitida: false }
+    return { enviadas: 0, confirmadas: 0, reintentadas: 0, conflictos: 0, bloqueadas: 0, omitida: false }
   }
 
   const tanda = pendientes.slice(0, MAX_SYNC_BATCH)
@@ -77,11 +79,14 @@ export async function runSync(options: SyncOptions = {}): Promise<SyncSummary> {
       // La sesión vive en una cookie de primera parte: sin esto, el service
       // worker no la mandaría y la API respondería 401.
       credentials: 'same-origin',
-      body: JSON.stringify({ parcels: payloads }),
+      body: JSON.stringify({ parcels: payloads, ...(options.actorId ? { actorId: options.actorId } : {}) }),
     })
 
     if (!respuesta.ok) {
       error = `El servidor respondió ${respuesta.status}.`
+      if (respuesta.status === 401 || respuesta.status === 403) {
+        resultados = new Map(tanda.map((entrada) => [entrada.id, { id: entrada.id, estado: 'bloqueado', error: 'La cuenta o el acceso al levantamiento debe verificarse antes de sincronizar.' }]))
+      }
     } else {
       const cuerpo = (await respuesta.json()) as SyncResponse
       resultados = new Map(cuerpo.resultados.map((item) => [item.id, item]))
@@ -98,6 +103,7 @@ export async function runSync(options: SyncOptions = {}): Promise<SyncSummary> {
     confirmadas: plan.confirmadas.length,
     reintentadas: plan.aReintentar.length,
     conflictos: plan.enConflicto.length,
+    bloqueadas: plan.entradas.filter((entrada) => entrada.accion === 'bloqueado').length,
     omitida: false,
     error,
   }

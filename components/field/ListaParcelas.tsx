@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select'
 import type { ParcelaEstado } from '@/lib/domain/types'
 import { redirigirSiNoHaySesion } from '@/lib/field/sesion'
+import { useSession } from '@/lib/auth-client'
 
 /**
  * Lista de parcelas levantadas.
@@ -56,12 +57,13 @@ interface ParcelaFila {
  */
 async function pedirParcelas(
   mias: boolean,
+  levantamientoId = '',
 ): Promise<{ parcelas?: ParcelaFila[]; error?: string }> {
   try {
     const parcelas: ParcelaFila[] = []
     let total = Infinity
     while (parcelas.length < total) {
-      const consulta = `/api/parcelas?limite=200&skip=${parcelas.length}${mias ? '&mias=1' : ''}`
+      const consulta = `/api/parcelas?limite=200&skip=${parcelas.length}${mias ? '&mias=1' : ''}${levantamientoId ? `&levantamientoId=${encodeURIComponent(levantamientoId)}` : ''}`
       const respuesta = await fetch(consulta, { credentials: 'same-origin', cache: 'no-store' })
       if (redirigirSiNoHaySesion(respuesta.status)) return { error: 'Necesitas iniciar sesión para ver las parcelas.' }
       if (!respuesta.ok) return { error: `El servidor respondió ${respuesta.status}.` }
@@ -141,6 +143,8 @@ function ListaParcelasSkeleton() {
 }
 
 function ListaParcelasContenido() {
+  const session = useSession()
+  const userId = session.data?.user?.id
   const searchParams = useSearchParams()
   // `mias=1` es el atajo de "Mis registros": el servidor lo traduce al dueño
   // de la sesión, así que el cliente no manda ningún id de usuario.
@@ -159,6 +163,7 @@ function ListaParcelasContenido() {
   const [parcheando, setParcheando] = useState<string | null>(null)
   // Campañas disponibles para la columna y el selector de levantamiento.
   const [levantamientos, setLevantamientos] = useState<LevantamientoOp[]>([])
+  const [levantamientoActivo, setLevantamientoActivo] = useState('')
   const nombreDeLevantamiento = useMemo(
     () => new Map(levantamientos.map((levantamiento) => [levantamiento.id, levantamiento.nombre])),
     [levantamientos],
@@ -174,28 +179,34 @@ function ListaParcelasContenido() {
   useEffect(() => {
     let vivo = true
 
-    void pedirParcelas(mias).then((resultado) => {
+    void pedirParcelas(mias, levantamientoActivo).then((resultado) => {
       if (!vivo) return
-      if (resultado.parcelas) setParcelas(resultado.parcelas)
+      if (resultado.parcelas) { setParcelas(resultado.parcelas); setError(null) }
       if (resultado.error) setError(resultado.error)
     })
 
     return () => {
       vivo = false
     }
-  }, [recarga, mias])
+  }, [recarga, mias, levantamientoActivo])
 
   useEffect(() => {
     let vivo = true
 
     void pedirLevantamientos().then((campanias) => {
-      if (vivo) setLevantamientos(campanias)
+      if (vivo) {
+        setLevantamientos(campanias)
+        const saved = userId ? window.localStorage.getItem(`geopin-active-survey:${userId}`) ?? '' : ''
+        const active = campanias.some((item) => item.id === saved) ? saved : campanias[0]?.id ?? ''
+        setLevantamientoActivo((current) => current || active)
+        if (userId && active) window.localStorage.setItem(`geopin-active-survey:${userId}`, active)
+      }
     })
 
     return () => {
       vivo = false
     }
-  }, [recarga])
+  }, [recarga, userId])
 
   const visibles = useMemo(() => {
     const texto = busqueda.trim().toLowerCase()
@@ -302,10 +313,16 @@ function ListaParcelasContenido() {
         </span>
 
         <div className="ml-auto flex gap-2">
+          <select aria-label="Levantamiento para registros y exportación" className="h-8 max-w-48 rounded-md border bg-background px-2 text-xs" value={levantamientoActivo} onChange={(event) => { setLevantamientoActivo(event.target.value); if (userId) window.localStorage.setItem(`geopin-active-survey:${userId}`, event.target.value) }}>
+            <option value="">Todos los levantamientos</option>
+            {levantamientos.map((item) => <option key={item.id} value={item.id}>{item.nombre}</option>)}
+          </select>
           {(['geojson', 'csv', 'xlsx', 'shp'] as const).map((formato) => (
             <a
               key={formato}
-              href={`/api/export?format=${formato}`}
+              href={levantamientoActivo ? `/api/export?format=${formato}&levantamientoId=${encodeURIComponent(levantamientoActivo)}` : '#'}
+              aria-disabled={!levantamientoActivo}
+              onClick={(event) => { if (!levantamientoActivo) event.preventDefault() }}
               className={buttonVariants({ variant: 'outline', size: 'xs' })}
             >
               {formato === 'shp' ? 'SHP' : formato.toUpperCase()}

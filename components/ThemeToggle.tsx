@@ -1,25 +1,29 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useSyncExternalStore } from 'react'
 import { Moon, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 type Theme = 'light' | 'dark'
 
-export function ThemeToggle({ className }: { className?: string }) {
-  const [theme, setTheme] = useState<Theme>('light')
+function readTheme(): Theme {
+  return window.localStorage.getItem('geopin-theme') === 'dark' ? 'dark' : 'light'
+}
 
-  useEffect(() => {
-    const stored = window.localStorage.getItem('geopin-theme')
-    const initial = stored === 'dark' || stored === 'light' ? stored : 'light'
-    setTheme(initial)
-    document.documentElement.classList.toggle('dark', initial === 'dark')
-    window.dispatchEvent(new CustomEvent('geopin-theme-change', { detail: initial }))
-  }, [])
+function subscribeTheme(callback: () => void) {
+  window.addEventListener('geopin-theme-change', callback)
+  window.addEventListener('storage', callback)
+  return () => {
+    window.removeEventListener('geopin-theme-change', callback)
+    window.removeEventListener('storage', callback)
+  }
+}
+
+export function ThemeToggle({ className }: { className?: string }) {
+  const theme = useSyncExternalStore(subscribeTheme, readTheme, () => 'light')
 
   function toggleTheme() {
     const next = theme === 'dark' ? 'light' : 'dark'
-    setTheme(next)
     window.localStorage.setItem('geopin-theme', next)
     document.documentElement.classList.toggle('dark', next === 'dark')
     window.dispatchEvent(new CustomEvent('geopin-theme-change', { detail: next }))

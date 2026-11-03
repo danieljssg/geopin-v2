@@ -21,6 +21,7 @@ export interface PuntoMapa {
   id: string
   nombre: string
   estado: ParcelaEstado
+  categoria?: string
   lat: number
   lng: number
 }

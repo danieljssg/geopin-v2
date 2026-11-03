@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ModuleSchema } from '@/lib/domain/types'
 import { cacheEsquemas, getCachedEsquemas } from './cache'
 import { redirigirSiNoHaySesion } from './sesion'
+import { useSession } from '@/lib/auth-client'
+import { getCampoDB } from './db'
 
 /**
  * Esquemas publicados, con respaldo en la caché local.
@@ -21,7 +23,10 @@ export interface UseSchemasResult {
   recargar: () => void
 }
 
-export function useSchemas(): UseSchemasResult {
+export function useSchemas(surveyId?: string): UseSchemasResult {
+  const session = useSession()
+  const userId = session.data?.user?.id
+  const db = useMemo(() => getCampoDB(userId ?? 'anonymous'), [userId])
   const [esquemas, setEsquemas] = useState<ModuleSchema[] | null>(null)
   const [desdeCache, setDesdeCache] = useState(false)
   const [error, setError] = useState<string | undefined>()
@@ -37,7 +42,8 @@ export function useSchemas(): UseSchemasResult {
       if (mostrarCarga) setError(undefined)
 
       try {
-        const respuesta = await fetch('/api/esquemas', {
+        const query = surveyId ? `?levantamientoId=${encodeURIComponent(surveyId)}` : ''
+        const respuesta = await fetch(`/api/esquemas${query}`, {
           credentials: 'same-origin',
           headers: { Accept: 'application/json' },
         })
@@ -53,9 +59,9 @@ export function useSchemas(): UseSchemasResult {
 
         setEsquemas(lista)
         setDesdeCache(false)
-        await cacheEsquemas(lista)
+        await cacheEsquemas(lista, { db, surveyId })
       } catch (caught) {
-        const cache = await getCachedEsquemas()
+        const cache = await getCachedEsquemas({ db, surveyId })
         if (!vivo) return
 
         setEsquemas(cache.map((entrada) => entrada.schema))
@@ -76,7 +82,7 @@ export function useSchemas(): UseSchemasResult {
     return () => {
       vivo = false
     }
-  }, [tick])
+  }, [tick, db, surveyId])
 
   return {
     esquemas: esquemas ?? [],

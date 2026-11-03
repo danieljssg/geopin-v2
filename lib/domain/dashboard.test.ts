@@ -8,6 +8,9 @@ import {
   distribucionEstados,
   equipamientoResumen,
   resumirLevantamiento,
+  resumirTerritorio,
+  distribucionCategorias,
+  analizarCampos,
 } from './dashboard'
 import type { Parcela } from './types'
 
@@ -73,6 +76,48 @@ describe('resumirLevantamiento', () => {
     expect(resumen.enRevision).toBe(1)
     expect(resumen.completadas).toBe(0)
     expect(resumen.pendientes).toBe(0)
+  })
+})
+
+describe('resumirTerritorio', () => {
+  it('sums pin count and nonnegative area in square meters, without treating population ranges as numbers', () => {
+    const parcelas = [
+      parcela({ id: '1', areaM2: 100, modulos: { edificacion: { version: 1, schemaVersion: 1, datos: { poblacion_rango: '1–3' }, actualizadoEn: '', actualizadoPor: 'u1' } } }),
+      parcela({ id: '2', areaM2: 200 }),
+    ]
+    expect(resumirTerritorio(parcelas)).toEqual({ pines: 2, superficieM2: 300, parcelasConSuperficie: 2, poblacionEstimada: null, registrosConPoblacion: 0 })
+  })
+
+  it('sums numeric inhabitant fields and accepts zero', () => {
+    const parcels = [
+      parcela({ id: '1', modulos: { edificacion: { version: 1, schemaVersion: 1, datos: { habitantes: 0 }, actualizadoEn: '', actualizadoPor: 'u1' } } }),
+      parcela({ id: '2', modulos: { edificacion: { version: 1, schemaVersion: 1, datos: { habitantes: 4 }, actualizadoEn: '', actualizadoPor: 'u1' } } }),
+    ]
+    expect(resumirTerritorio(parcels).poblacionEstimada).toBe(4)
+    expect(resumirTerritorio(parcels).registrosConPoblacion).toBe(2)
+  })
+})
+
+describe('distribucionCategorias', () => {
+  it('returns counts and percentages against the filtered result set', () => {
+    const rows = [parcela({ id: 'a', categoria: 'Vivienda' }), parcela({ id: 'b', categoria: 'Vivienda' }), parcela({ id: 'c', categoria: 'Comercio' })]
+    expect(distribucionCategorias(rows)).toEqual([
+      { categoria: 'Vivienda', cantidad: 2, porcentaje: 66.7 },
+      { categoria: 'Comercio', cantidad: 1, porcentaje: 33.3 },
+    ])
+  })
+})
+
+describe('analizarCampos', () => {
+  it('uses valid responders as the denominator and handles multi-valued fields', () => {
+    const items = [
+      parcela({ id: 'a', modulos: { edificacion: { version: 1, schemaVersion: 1, datos: { uso_general: 'Residencial', material: ['Bloque', 'Madera'] }, actualizadoEn: '', actualizadoPor: 'a' } } }),
+      parcela({ id: 'b', modulos: { edificacion: { version: 1, schemaVersion: 1, datos: { uso_general: 'Residencial', material: ['Bloque'] }, actualizadoEn: '', actualizadoPor: 'b' } } }),
+      parcela({ id: 'c' }),
+    ]
+    const analysis = analizarCampos(items)
+    expect(analysis.find((group) => group.field === 'uso_general')).toMatchObject({ denominator: 2, values: [{ value: 'Residencial', count: 2, percentage: 100 }] })
+    expect(analysis.find((group) => group.field === 'material')).toMatchObject({ denominator: 2, values: [{ value: 'Bloque', count: 2, percentage: 100 }, { value: 'Madera', count: 1, percentage: 50 }] })
   })
 })
 
