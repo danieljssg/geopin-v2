@@ -108,7 +108,7 @@ function createAuth() {
       admin({
         adminRoles: ['admin'],
         defaultRole: DEFAULT_ROLE,
-        roles: { encuestador: userAc, admin: adminPanel },
+        roles: { encuestador: userAc, manager: userAc, admin: adminPanel },
       }),
     ],
   })

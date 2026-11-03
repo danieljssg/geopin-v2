@@ -106,8 +106,9 @@ describe('rol por defecto', () => {
     expect(USER_ROLES).toContain(DEFAULT_ROLE)
   })
 
-  it('el rol de administración existe y es distinto del de por defecto', () => {
+  it('los roles elevados existen y el rol de por defecto sigue siendo encuestador', () => {
     expect(USER_ROLES).toContain('admin')
-    expect(USER_ROLES.filter((role) => role !== DEFAULT_ROLE)).toEqual(['admin'])
+    expect(USER_ROLES).toContain('manager')
+    expect(DEFAULT_ROLE).toBe('encuestador')
   })
 })

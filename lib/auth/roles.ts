@@ -5,7 +5,7 @@
  * servidor (para decidir). La decisión real siempre la toma el servidor.
  */
 
-export const USER_ROLES = ['encuestador', 'admin'] as const
+export const USER_ROLES = ['encuestador', 'manager', 'admin'] as const
 
 export type UserRole = (typeof USER_ROLES)[number]
 
@@ -39,11 +39,13 @@ const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'parcela:eliminar',
     'esquema:leer',
   ],
+  manager: ['parcela:crear', 'parcela:editar', 'parcela:eliminar', 'esquema:leer'],
   admin: PERMISSIONS,
 }
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   encuestador: 'Encuestador',
+  manager: 'Manager',
   admin: 'Administrador',
 }
 
