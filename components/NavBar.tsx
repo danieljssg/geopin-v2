@@ -13,6 +13,7 @@ import { Separator } from '@/components/ui/separator'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
 const USER_LINKS = [{ href: '/campo', label: 'Capturar' }, { href: '/listado?mias=1', label: 'Mis registros' }, { href: '/docs', label: 'Docs' }]
+const MANAGER_LINKS = [{ href: '/campo', label: 'Capturar' }, { href: '/listado', label: 'Registros' }, { href: '/admin/dashboard', label: 'Dashboard' }, { href: '/manager', label: 'Entorno e invitaciones' }, { href: '/docs', label: 'Docs' }]
 const ADMIN_LINKS = [{ href: '/campo', label: 'Capturar' }, { href: '/listado', label: 'Listado' }, { href: '/admin/dashboard', label: 'Dashboard' }, { href: '/admin/esquema', label: 'Esquemas' }, { href: '/admin/usuarios', label: 'Usuarios' }, { href: '/admin/levantamientos', label: 'Levantamientos' }, { href: '/admin/importar', label: 'Importar' }, { href: '/docs', label: 'Docs' }]
 
 export function NavBar() {
@@ -23,7 +24,7 @@ export function NavBar() {
   const [signingOut, setSigningOut] = useState(false)
   const [signOutError, setSignOutError] = useState(false)
   const user = session.data?.user
-  const links = isAdmin(user?.role) ? ADMIN_LINKS : USER_LINKS
+  const links = isAdmin(user?.role) ? [...ADMIN_LINKS, { href: '/manager', label: 'Solicitudes Manager' }] : user?.role === 'manager' ? MANAGER_LINKS : [...USER_LINKS, { href: '/join', label: 'Unirme con código' }, { href: '/manager', label: 'Solicitar rol Manager' }]
   async function closeSession() {
     setSigningOut(true)
     setSignOutError(false)

@@ -30,6 +30,8 @@ export default function LoginPage() {
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const invite = searchParams.get('invite')
+  const postAuthUrl = invite ? `/join?invite=${encodeURIComponent(invite)}` : undefined
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
@@ -49,7 +51,7 @@ function LoginForm() {
       const { error: authError } = await signIn.social({
         provider: 'google',
         // El login resuelve la sesión y redirige según el rol existente.
-        callbackURL: '/login',
+        callbackURL: postAuthUrl ?? '/login',
         errorCallbackURL: '/login?error=google',
       })
       if (authError) {
@@ -69,7 +71,7 @@ function LoginForm() {
 
     try {
       const result = registrando
-        ? await signUp.email({ email, password, name, callbackURL: '/campo' })
+        ? await signUp.email({ email, password, name, callbackURL: postAuthUrl ?? '/campo' })
         : await signIn.email({ email, password })
       const { error: authError, data } = result
       if (authError) {
@@ -83,7 +85,7 @@ function LoginForm() {
       // Cada rol aterriza en su herramienta: el encuestador va a capturar y
       // el admin al panel. Aterrizar siempre en /admin/esquema le mostraba
       // "Sin permiso" al encuestador.
-      router.push(data?.user?.role === 'admin' ? '/admin/dashboard' : '/campo')
+      router.push(postAuthUrl ?? (data?.user?.role === 'admin' ? '/admin/dashboard' : '/campo'))
       router.refresh()
     } catch {
       setError('No se pudo contactar al servidor.')
