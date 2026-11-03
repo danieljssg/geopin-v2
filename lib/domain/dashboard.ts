@@ -107,6 +107,7 @@ export interface ResumenTerritorial {
 }
 
 export interface DistribucionCategoria { categoria: string; cantidad: number; porcentaje: number }
+export interface AnalisisCampo { field: string; label: string; denominator: number; values: Array<{ value: string; count: number; percentage: number }> }
 
 export function distribucionCategorias(parcelas: readonly Parcela[]): DistribucionCategoria[] {
   const counts = new Map<string, number>()
@@ -115,6 +116,28 @@ export function distribucionCategorias(parcelas: readonly Parcela[]): Distribuci
     counts.set(categoria, (counts.get(categoria) ?? 0) + 1)
   }
   return [...counts].map(([categoria, cantidad]) => ({ categoria, cantidad, porcentaje: parcelas.length ? redondear(cantidad / parcelas.length * 100) : 0 })).sort((a, b) => b.cantidad - a.cantidad)
+}
+
+export function analizarCampos(parcelas: readonly Parcela[]): AnalisisCampo[] {
+  const fields = [
+    ['uso_general', 'Uso general'],
+    ['uso_especifico', 'Uso específico'],
+    ['estado_construccion', 'Estado de construcción'],
+    ['pisos_construccion', 'Pisos'],
+    ['material', 'Materiales'],
+  ] as const
+  return fields.map(([field, label]) => {
+    const counts = new Map<string, number>()
+    let denominator = 0
+    for (const parcela of parcelas) {
+      const raw = parcela.modulos?.edificacion?.datos?.[field]
+      const values = (Array.isArray(raw) ? raw : [raw]).map((item) => String(item ?? '').trim()).filter((item) => item && item !== SIN_DATO)
+      if (!values.length) continue
+      denominator += 1
+      for (const value of new Set(values)) counts.set(value, (counts.get(value) ?? 0) + 1)
+    }
+    return { field, label, denominator, values: [...counts].map(([value, count]) => ({ value, count, percentage: denominator ? redondear(count / denominator * 100) : 0 })).sort((a, b) => b.count - a.count) }
+  })
 }
 
 /** Aggregate the metrics that have unambiguous numeric fields in the current model. */

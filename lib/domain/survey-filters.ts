@@ -12,6 +12,8 @@ export interface SurveyFilters {
   materials: string[]
 }
 
+const APP_UTC_OFFSET = '-04:00' // GeoPin's existing es-VE date convention (Venezuela Standard Time).
+
 export function parseSurveyFilters(params: URLSearchParams): SurveyFilters {
   const dateField = params.get('dateField') === 'updatedAt' ? 'updatedAt' : 'createdAt'
   const read = (key: string) => [...new Set(params.getAll(key).flatMap((v) => v.split(',')).map((v) => v.trim()).filter(Boolean))].slice(0, 50)
@@ -29,8 +31,8 @@ export function parseSurveyFilters(params: URLSearchParams): SurveyFilters {
 }
 
 export function filterSurveyRecords(records: readonly Parcela[], filters: SurveyFilters): Parcela[] {
-  const from = filters.from ? Date.parse(`${filters.from}T00:00:00.000Z`) : undefined
-  const to = filters.to ? Date.parse(`${addDay(filters.to)}T00:00:00.000Z`) : undefined
+  const from = filters.from ? Date.parse(`${filters.from}T00:00:00.000${APP_UTC_OFFSET}`) : undefined
+  const to = filters.to ? Date.parse(`${addDay(filters.to)}T00:00:00.000${APP_UTC_OFFSET}`) : undefined
   if (from !== undefined && to !== undefined && from >= to) return []
   return records.filter((record) => {
     const timestamp = Date.parse(filters.dateField === 'updatedAt' ? record.actualizadoEn : record.creadoEn)

@@ -10,6 +10,7 @@ import {
   resumirLevantamiento,
   resumirTerritorio,
   distribucionCategorias,
+  analizarCampos,
 } from './dashboard'
 import type { Parcela } from './types'
 
@@ -104,6 +105,19 @@ describe('distribucionCategorias', () => {
       { categoria: 'Vivienda', cantidad: 2, porcentaje: 66.7 },
       { categoria: 'Comercio', cantidad: 1, porcentaje: 33.3 },
     ])
+  })
+})
+
+describe('analizarCampos', () => {
+  it('uses valid responders as the denominator and handles multi-valued fields', () => {
+    const items = [
+      parcela({ id: 'a', modulos: { edificacion: { version: 1, schemaVersion: 1, datos: { uso_general: 'Residencial', material: ['Bloque', 'Madera'] }, actualizadoEn: '', actualizadoPor: 'a' } } }),
+      parcela({ id: 'b', modulos: { edificacion: { version: 1, schemaVersion: 1, datos: { uso_general: 'Residencial', material: ['Bloque'] }, actualizadoEn: '', actualizadoPor: 'b' } } }),
+      parcela({ id: 'c' }),
+    ]
+    const analysis = analizarCampos(items)
+    expect(analysis.find((group) => group.field === 'uso_general')).toMatchObject({ denominator: 2, values: [{ value: 'Residencial', count: 2, percentage: 100 }] })
+    expect(analysis.find((group) => group.field === 'material')).toMatchObject({ denominator: 2, values: [{ value: 'Bloque', count: 2, percentage: 100 }, { value: 'Madera', count: 1, percentage: 50 }] })
   })
 })
 
