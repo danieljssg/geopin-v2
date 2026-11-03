@@ -146,7 +146,7 @@ export default function DashboardV2() {
   // El estado de carga se deriva de los datos: guardar la bandera en estado
   // obligaba a un setState dentro del efecto, que React 19 marca porque
   // provoca un render en cascada.
-  const cargando = datos === null && error === null
+  const cargando = datos === null && error === null && Boolean(seleccionado)
   const snapshotKey = useMemo(() => `geopin-dashboard:${userId ?? 'unknown'}:${seleccionado}:${JSON.stringify(filters)}`, [filters, seleccionado, userId])
 
   useEffect(() => {
@@ -163,7 +163,7 @@ export default function DashboardV2() {
           setLevantamientos(lista)
           setSeleccionado((actual) => actual || lista[0]?.id || '')
           if (userId) localStorage.setItem(`geopin-surveys:${userId}`, JSON.stringify(lista))
-          if (lista.length === 0) setError('No tienes levantamientos disponibles en este entorno.')
+          setError(null)
         }
       } catch {
         const cached = userId ? localStorage.getItem(`geopin-surveys:${userId}`) : null
@@ -332,6 +332,7 @@ export default function DashboardV2() {
         </div>
       )}
 
+      {!seleccionado && !error && <Card><CardHeader><CardTitle>No hay levantamientos en este entorno</CardTitle><CardDescription>Crea un levantamiento desde Gestión del entorno para comenzar. Aquí aparecerán sus métricas cuando captures registros.</CardDescription></CardHeader></Card>}
       {error && (
         <Alert variant="destructive">
           <AlertDescription>
@@ -352,8 +353,9 @@ export default function DashboardV2() {
         </Alert>
       )}
 
-      {!cargando && datos && (
+      {!cargando && datos && seleccionado && (
         <>
+          {datos.territorio.pines === 0 && <Card><CardHeader><CardTitle>No hay registros para este levantamiento y estos filtros</CardTitle><CardDescription>Captura registros o ajusta los filtros para ver las métricas.</CardDescription></CardHeader></Card>}
           <Card><CardHeader><CardTitle>Registros por categoría</CardTitle><CardAction><Button variant="outline" size="sm" onClick={() => setMostrarPorcentaje((value) => !value)}>{mostrarPorcentaje ? 'Ver cantidades' : 'Ver porcentajes'}</Button></CardAction></CardHeader><CardContent className="space-y-2">{datos.categorias.length === 0 ? <p className="text-sm text-muted-foreground">No hay registros para estos filtros.</p> : datos.categorias.map((item) => <div key={item.categoria} className="flex justify-between gap-3 border-b py-2 text-sm"><span>{item.categoria}</span><strong>{mostrarPorcentaje ? `${item.porcentaje}%` : item.cantidad}</strong></div>)}</CardContent></Card>
           <Card><CardHeader><CardTitle>Resumen analítico</CardTitle><CardDescription>Porcentajes calculados sobre los registros que respondieron cada campo. En materiales, un registro puede aportar más de un valor.</CardDescription><CardAction><Button variant="outline" size="sm" onClick={() => setMostrarPorcentaje((value) => !value)}>{mostrarPorcentaje ? 'Ver cantidades' : 'Ver porcentajes'}</Button></CardAction></CardHeader><CardContent className="grid gap-4 md:grid-cols-2">{datos.analisis.map((group) => <section key={group.field} className="rounded-lg border p-3"><h3 className="font-semibold">{group.label}</h3><p className="text-xs text-muted-foreground">Base: {group.denominator} registros válidos</p>{group.values.length ? group.values.map((item) => <div key={item.value} className="flex justify-between gap-3 border-t py-1.5 text-sm"><span>{item.value}</span><strong>{mostrarPorcentaje ? `${item.percentage}%` : item.count}</strong></div>) : <p className="py-2 text-sm text-muted-foreground">Sin respuestas</p>}</section>)}</CardContent></Card>
           <div className="grid gap-3 sm:grid-cols-3">

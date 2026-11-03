@@ -21,7 +21,12 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
       const workspace = await workspacesCollection().findOne({ id: survey.workspaceId, managerId: user.id, estado: 'activo' })
       if (!workspace) return jsonError('Solo el Manager del entorno puede agregar campos.', 403)
     }
-    const parsed = parseSchemaSave(await readJsonBody(request))
+    const raw = await readJsonBody(request)
+    if (typeof raw !== 'object' || raw === null || !Array.isArray((raw as { campos?: unknown }).campos)) return jsonError('Falta la lista de campos.', 400)
+    const input = raw as { campos: Record<string, unknown>[] }
+    if (input.campos.some((item) => typeof item !== 'object' || item === null || Array.isArray(item))) return jsonError('Cada campo debe ser un objeto.', 400)
+    const campos = input.campos.map((item) => ({ ...item, key: `campo_${id.replace(/[^a-z0-9]/g, '').slice(0, 24)}_${crypto.randomUUID().replaceAll('-', '').slice(0, 12)}`, label: typeof item.label === 'string' && item.label.trim() ? item.label.trim() : `Campo de ${survey.nombre}`.slice(0, 120) }))
+    const parsed = parseSchemaSave({ campos })
     if (!parsed.ok) return jsonError(parsed.error, 400)
     if (parsed.value.campos.length !== 1) return jsonError('Agrega un solo campo por solicitud.', 400)
     const field = parsed.value.campos[0]
