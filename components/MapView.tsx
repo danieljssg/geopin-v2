@@ -183,6 +183,14 @@ function MapActionControls({
   onLocateRequest?: () => void
 }) {
   const map = useMap()
+  const controlsRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const controls = controlsRef.current
+    if (!controls) return
+    L.DomEvent.disableClickPropagation(controls)
+    L.DomEvent.disableScrollPropagation(controls)
+  }, [])
 
   const handleLocateMe = useCallback(() => {
     // Si el llamador maneja el GPS, no se pide una lectura acá: una lectura
@@ -213,7 +221,7 @@ function MapActionControls({
   }, [map, onGPSStatus, onPositionChange, onLocateRequest])
 
   return (
-    <div className="absolute right-4 bottom-7 z-[1000] flex flex-col gap-1">
+    <div ref={controlsRef} className="leaflet-control absolute right-4 bottom-7 z-[1000] flex flex-col gap-1">
       <Button
         variant="outline"
         size="icon"
