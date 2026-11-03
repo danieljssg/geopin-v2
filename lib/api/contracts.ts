@@ -57,7 +57,7 @@ export interface SyncRequest {
   parcels: ParcelaCreateRequest[]
 }
 
-export type ParcelaEstadoSync = 'creado' | 'actualizado' | 'ignorado' | 'conflicto' | 'error'
+export type ParcelaEstadoSync = 'creado' | 'actualizado' | 'ignorado' | 'conflicto' | 'error' | 'bloqueado'
 
 export interface SyncItemResult {
   id: string

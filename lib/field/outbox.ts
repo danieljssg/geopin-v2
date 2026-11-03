@@ -66,7 +66,17 @@ export async function getAllEntries(options: { db?: CampoDB } = {}): Promise<Out
 /** Cuántas entradas quedan sin sincronizar. */
 export async function countPending(options: { db?: CampoDB } = {}): Promise<number> {
   const db = options.db ?? getCampoDB()
-  return db.outbox.count()
+  return db.outbox.where('estado').anyOf('pendiente', 'fallido').count()
+}
+
+export async function countBlocked(options: { db?: CampoDB } = {}): Promise<number> {
+  return (options.db ?? getCampoDB()).outbox.where('estado').equals('bloqueado').count()
+}
+
+export async function releaseBlockedEntries(options: { db?: CampoDB; now?: string } = {}): Promise<number> {
+  const db = options.db ?? getCampoDB()
+  const now = options.now ?? new Date().toISOString()
+  return db.outbox.where('estado').equals('bloqueado').modify({ estado: 'pendiente', intentos: 0, proximoIntentoEn: now, ultimoError: undefined, actualizadoEn: now })
 }
 
 /** Entradas que necesitan atención humana. */
@@ -101,7 +111,7 @@ export async function applySyncPlan(
 
       await db.outbox.put({
         ...existente,
-        estado: entrada.accion === 'conflicto' ? 'conflicto' : 'fallido',
+        estado: entrada.accion === 'conflicto' ? 'conflicto' : entrada.accion === 'bloqueado' ? 'bloqueado' : 'fallido',
         intentos: entrada.intentos,
         proximoIntentoEn: entrada.proximoIntentoEn,
         ultimoError: entrada.ultimoError,

@@ -41,11 +41,11 @@ export async function POST(request: Request): Promise<Response> {
     for (const parcela of parsed.value.parcels) {
       const existing = await findParcela(parcela.id)
       if (existing && user.role !== 'admin' && existing.creadoPor !== user.id) {
-        resultados.push({ id: parcela.id, estado: 'error', error: 'No tienes permiso para sincronizar este registro.' })
+        resultados.push({ id: parcela.id, estado: 'bloqueado', error: 'El usuario actual no es dueño de este registro.' })
         continue
       }
       if (parcela.levantamientoId && !await accessibleSurvey(user, parcela.levantamientoId)) {
-        resultados.push({ id: parcela.id, estado: 'error', error: 'No tienes acceso al levantamiento asociado.' })
+        resultados.push({ id: parcela.id, estado: 'bloqueado', error: 'El acceso al levantamiento ya no está disponible.' })
         continue
       }
       const failures = await validateModuleInputs(parcela.modulos ?? [])

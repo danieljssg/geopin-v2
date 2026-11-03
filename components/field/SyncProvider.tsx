@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { ParcelaCreateRequest } from '@/lib/api/contracts'
-import { countPending, enqueueParcela, getConflictedEntries } from '@/lib/field/outbox'
+import { countBlocked, countPending, enqueueParcela, getConflictedEntries, releaseBlockedEntries } from '@/lib/field/outbox'
 import { runSync } from '@/lib/field/sync'
 import { registerSyncTriggers } from '@/lib/field/triggers'
 import { getCampoDB } from '@/lib/field/db'
@@ -31,20 +31,23 @@ import { useSession } from '@/lib/auth-client'
 export interface SyncState {
   pendientes: number
   conflictos: number
+  bloqueadas: number
   sincronizando: boolean
   ultimoError?: string
   ultimaSincronizacion?: string
   sincronizar: () => Promise<void>
+  reintentarBloqueadas: () => Promise<void>
   encolar: (payload: ParcelaCreateRequest) => Promise<void>
 }
 
 /** Lee los contadores de la cola. Fuera del componente a propósito. */
-async function leerContadores(db = getCampoDB()): Promise<{ pendientes: number; conflictos: number }> {
-  const [pendientes, conflictos] = await Promise.all([
+async function leerContadores(db = getCampoDB()): Promise<{ pendientes: number; conflictos: number; bloqueadas: number }> {
+  const [pendientes, conflictos, bloqueadas] = await Promise.all([
     countPending({ db }),
     getConflictedEntries({ db }).then((entradas) => entradas.length),
+    countBlocked({ db }),
   ])
-  return { pendientes, conflictos }
+  return { pendientes, conflictos, bloqueadas }
 }
 
 const SyncContext = createContext<SyncState | null>(null)
@@ -55,18 +58,21 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const db = useMemo(() => getCampoDB(userId ?? 'anonymous'), [userId])
   const [pendientes, setPendientes] = useState(0)
   const [conflictos, setConflictos] = useState(0)
+  const [bloqueadas, setBloqueadas] = useState(0)
   const [sincronizando, setSincronizando] = useState(false)
   const [ultimoError, setUltimoError] = useState<string | undefined>()
   const [ultimaSincronizacion, setUltimaSincronizacion] = useState<string | undefined>()
   const enCurso = useRef(false)
 
   const refrescar = useCallback(async () => {
-    const [pendientesActuales, conflictosActuales] = await Promise.all([
+    const [pendientesActuales, conflictosActuales, bloqueadasActuales] = await Promise.all([
       countPending({ db }),
       getConflictedEntries({ db }).then((entradas) => entradas.length),
+      countBlocked({ db }),
     ])
     setPendientes(pendientesActuales)
     setConflictos(conflictosActuales)
+    setBloqueadas(bloqueadasActuales)
   }, [db])
 
   const sincronizar = useCallback(async () => {
@@ -88,6 +94,13 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     }
   }, [db, refrescar, userId])
 
+  const reintentarBloqueadas = useCallback(async () => {
+    if (!userId) return
+    await releaseBlockedEntries({ db })
+    await refrescar()
+    await sincronizar()
+  }, [db, refrescar, sincronizar, userId])
+
   const encolar = useCallback(
     async (payload: ParcelaCreateRequest) => {
       if (!userId) throw new Error('Inicia sesión para guardar datos en la cola de sincronización.')
@@ -108,10 +121,11 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     let vivo = true
 
     if (!userId) return
-    void leerContadores(db).then(({ pendientes: p, conflictos: c }) => {
+    void leerContadores(db).then(({ pendientes: p, conflictos: c, bloqueadas: b }) => {
       if (!vivo) return
       setPendientes(p)
       setConflictos(c)
+      setBloqueadas(b)
     })
 
     const handle = registerSyncTriggers({ runSync: sincronizar })
@@ -126,13 +140,15 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     () => ({
       pendientes,
       conflictos,
+      bloqueadas,
       sincronizando,
       ultimoError,
       ultimaSincronizacion,
       sincronizar,
+      reintentarBloqueadas,
       encolar,
     }),
-    [pendientes, conflictos, sincronizando, ultimoError, ultimaSincronizacion, sincronizar, encolar],
+    [pendientes, conflictos, bloqueadas, sincronizando, ultimoError, ultimaSincronizacion, sincronizar, reintentarBloqueadas, encolar],
   )
 
   return <SyncContext.Provider value={valor}>{children}</SyncContext.Provider>

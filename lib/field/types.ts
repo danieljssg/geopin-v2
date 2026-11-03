@@ -18,7 +18,7 @@ import type { ModuleSchema, ParcelaEstado } from '@/lib/domain/types'
  * entrada queda "pendiente" y se reintenta. Es entrega al menos una vez, y
  * la idempotencia del lado del servidor la convierte en exactamente una.
  */
-export type OutboxEstado = 'pendiente' | 'fallido' | 'conflicto'
+export type OutboxEstado = 'pendiente' | 'fallido' | 'conflicto' | 'bloqueado'
 
 export interface OutboxEntry {
   /** Id de la parcela. Es la clave primaria: una parcela no ocupa dos filas. */
@@ -59,7 +59,7 @@ export interface SchemaCache {
 }
 
 /** Qué hay que hacer con cada entrada después de una tanda de sync. */
-export type SyncAccion = 'confirmado' | 'reintentar' | 'conflicto'
+export type SyncAccion = 'confirmado' | 'reintentar' | 'conflicto' | 'bloqueado'
 
 export interface SyncPlanEntry {
   id: string

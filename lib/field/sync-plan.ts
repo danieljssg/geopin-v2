@@ -94,6 +94,11 @@ export function planSync(
         break
       }
 
+      case 'bloqueado': {
+        plan.push({ id: entrada.id, accion: 'bloqueado', intentos: entrada.intentos, proximoIntentoEn: entrada.proximoIntentoEn, ultimoError: resultado.error ?? 'El acceso al levantamiento fue revocado.' })
+        break
+      }
+
       case 'error':
       default: {
         const reintento = reintentar(entrada, now, random, resultado.error)
