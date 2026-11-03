@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import * as XLSX from 'xlsx'
 import { apiRoute, jsonError } from '@/lib/server/http'
 import { requireSessionUser } from '@/lib/server/session'
+import { isAdmin } from '@/lib/auth/roles'
 import { findParcelasParaDashboard } from '@/lib/server/repositories/levantamientos'
 import { getModuleSchemas } from '@/lib/server/repositories/esquemas'
 import {
@@ -36,7 +37,7 @@ const TIPOS: Record<FormatoExport, { contentType: string; extension: string }> =
 export async function GET(request: Request): Promise<Response> {
   return apiRoute(async () => {
     const requestHeaders = await headers()
-    await requireSessionUser(requestHeaders)
+    const user = await requireSessionUser(requestHeaders)
 
     const url = new URL(request.url)
     const formato = url.searchParams.get('format') ?? 'geojson'
@@ -51,7 +52,7 @@ export async function GET(request: Request): Promise<Response> {
     const levantamientoId = url.searchParams.get('levantamientoId')?.trim() || undefined
 
     const [documentos, esquemas] = await Promise.all([
-      findParcelasParaDashboard(levantamientoId),
+      findParcelasParaDashboard(levantamientoId, isAdmin(user.role) ? undefined : user.id),
       getModuleSchemas(),
     ])
 

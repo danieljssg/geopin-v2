@@ -65,8 +65,13 @@ export async function updateLevantamiento(
  */
 export const MAX_PARCELAS_DASHBOARD = 5_000
 
-export async function findParcelasParaDashboard(levantamientoId?: string) {
-  const filtro = levantamientoId ? { levantamientoId } : {}
+export async function findParcelasParaDashboard(
+  levantamientoId?: string,
+  creadoPor?: string,
+) {
+  const filtro: Record<string, string> = {}
+  if (levantamientoId) filtro.levantamientoId = levantamientoId
+  if (creadoPor) filtro.creadoPor = creadoPor
   return parcelasCollection().find(filtro).limit(MAX_PARCELAS_DASHBOARD).toArray()
 }
 
