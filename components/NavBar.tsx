@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
-const USER_LINKS = [{ href: '/campo', label: 'Capturar' }, { href: '/listado?mias=1', label: 'Mis registros' }, { href: '/docs', label: 'Docs' }]
+const USER_LINKS = [{ href: '/campo', label: 'Capturar' }, { href: '/mi-dashboard', label: 'Mi resumen' }, { href: '/listado?mias=1', label: 'Mis registros' }, { href: '/docs', label: 'Docs' }]
 const MANAGER_LINKS = [{ href: '/campo', label: 'Capturar' }, { href: '/listado', label: 'Registros' }, { href: '/admin/dashboard', label: 'Dashboard' }, { href: '/manager', label: 'Entorno e invitaciones' }, { href: '/docs', label: 'Docs' }]
 const ADMIN_LINKS = [{ href: '/campo', label: 'Capturar' }, { href: '/listado', label: 'Listado' }, { href: '/admin/dashboard', label: 'Dashboard' }, { href: '/admin/esquema', label: 'Esquemas' }, { href: '/admin/usuarios', label: 'Usuarios' }, { href: '/admin/levantamientos', label: 'Levantamientos' }, { href: '/admin/importar', label: 'Importar' }, { href: '/docs', label: 'Docs' }]
 

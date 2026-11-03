@@ -10,6 +10,7 @@ import {
   resumirLevantamiento,
   resumirTerritorio,
   distribucionCategorias,
+  analizarCampos,
 } from '@/lib/domain/dashboard'
 import type { Parcela, ParcelaEstado } from '@/lib/domain/types'
 import { accessibleSurvey } from '@/lib/server/survey-access'
@@ -70,6 +71,7 @@ export async function GET(request: Request): Promise<Response> {
       resumen: resumirLevantamiento(parcelas, levantamiento?.totalEsperado),
       territorio: resumirTerritorio(parcelas),
       categorias: distribucionCategorias(parcelas),
+      analisis: analizarCampos(parcelas),
       distribucion: distribucionEstados(parcelas),
       cobertura: coberturaServicios(parcelas),
       equipamiento: equipamientoResumen(parcelas),

@@ -30,6 +30,9 @@ export async function POST(request: Request): Promise<Response> {
     const user = await requireSessionUser(requestHeaders)
 
     const raw = await readJsonBody(request)
+    if (typeof raw !== 'object' || raw === null || (raw as Record<string, unknown>).actorId !== user.id) {
+      return jsonError('La cuenta activa cambió. Inicia una nueva sincronización desde tu sesión actual.', 403)
+    }
     const parsed = parseSyncRequest(raw)
     if (!parsed.ok) return jsonError(parsed.error, 400)
 

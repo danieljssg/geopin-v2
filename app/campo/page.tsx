@@ -24,6 +24,7 @@ import { usePoligono } from '@/lib/field/use-poligono'
 import { useGeolocation } from '@/lib/field/use-geolocation'
 import { shouldFollowSensor, type OrigenPosicion } from '@/lib/domain/gps'
 import { ubicacionDeParcela } from '@/lib/domain/parcela'
+import { useSession } from '@/lib/auth-client'
 
 /**
  * Página de campo v2.
@@ -77,8 +78,11 @@ function FormularioSkeleton() {
 export default function CampoPage() { return <CaptureDraftProvider><CampoContent /></CaptureDraftProvider> }
 
 function CampoContent() {
+  const session = useSession()
+  const [levantamientos, setLevantamientos] = useState<Array<{ id: string; nombre: string }>>([])
+  const [levantamientoActivo, setLevantamientoActivo] = useState('')
   const { reset } = useCaptureDraft()
-  const { esquemas, cargando, desdeCache, error, recargar } = useSchemas()
+  const { esquemas, cargando, desdeCache, error, recargar } = useSchemas(levantamientoActivo || undefined)
   const { encolar } = useSync()
   const poligono = usePoligono()
   const geometryBeforeDrawing = useRef<{ geometry: typeof poligono.geometria; area: string } | null>(null)
@@ -110,6 +114,35 @@ function CampoContent() {
     window.addEventListener('geopin-theme-change', sincronizarTema)
     return () => window.removeEventListener('geopin-theme-change', sincronizarTema)
   }, [])
+
+  useEffect(() => {
+    const userId = session.data?.user?.id
+    if (!userId) return
+    let vivo = true
+    void fetch('/api/levantamientos', { credentials: 'same-origin' }).then(async (response) => {
+      if (!response.ok) return
+      const data = await response.json() as { levantamientos?: Array<{ id: string; nombre: string }> }
+      if (!vivo) return
+      const lista = data.levantamientos ?? []
+      setLevantamientos(lista)
+      const storageKey = `geopin-active-survey:${userId}`
+      const saved = window.localStorage.getItem(storageKey) ?? ''
+      const active = lista.some((item) => item.id === saved) ? saved : (lista[0]?.id ?? '')
+      setLevantamientoActivo(active)
+      window.localStorage.setItem(`geopin-surveys:${userId}`, JSON.stringify(lista))
+      if (active) window.localStorage.setItem(storageKey, active)
+    }).catch(() => {
+      const cached = window.localStorage.getItem(`geopin-surveys:${userId}`)
+      if (!vivo || !cached) return
+      try {
+        const lista = JSON.parse(cached) as Array<{ id: string; nombre: string }>
+        setLevantamientos(lista)
+        const saved = window.localStorage.getItem(`geopin-active-survey:${userId}`) ?? ''
+        setLevantamientoActivo(lista.some((item) => item.id === saved) ? saved : lista[0]?.id ?? '')
+      } catch { /* Ignore corrupt local context metadata without deleting pending records. */ }
+    })
+    return () => { vivo = false }
+  }, [session.data?.user?.id])
 
   const beginDrawing = () => { geometryBeforeDrawing.current = { geometry: poligono.geometria, area: poligono.areaManual }; setFormularioAbierto(false); (document.activeElement as HTMLElement | null)?.blur() }
   const cancelDrawing = () => { poligono.cancelar(); const previous = geometryBeforeDrawing.current; if (previous) poligono.cargar(previous.geometry, previous.area); setFormularioAbierto(true) }
@@ -247,7 +280,7 @@ function CampoContent() {
     if (!parcelaEnEdicion && !posicionSensor && !posicionTocada) {
       throw new Error('Espera a que el GPS mejore o toca el mapa para colocar el pin manualmente.')
     }
-    await encolar(payload)
+    await encolar({ ...payload, levantamientoId: payload.levantamientoId ?? (levantamientoActivo || undefined) })
     poligono.limpiar()
   }
 
@@ -258,6 +291,7 @@ function CampoContent() {
       <div className="bg-background/95 text-foreground border-b flex flex-wrap items-center gap-3 px-3 py-1.5 shadow-sm z-10 shrink-0 sm:px-5 sm:py-2">
         <GpsIndicator fix={geo.fix} accuracy={geo.reading?.accuracy} />
         <SyncStatus />
+        {levantamientos.length > 0 && <label className="flex items-center gap-2 text-xs">Levantamiento activo<select aria-label="Levantamiento activo" className="h-8 max-w-56 rounded-md border bg-background px-2 text-sm" value={levantamientoActivo} onChange={(event) => { const value = event.target.value; setLevantamientoActivo(value); const userId = session.data?.user?.id; if (userId) window.localStorage.setItem(`geopin-active-survey:${userId}`, value) }}><option value="">Sin levantamiento</option>{levantamientos.map((survey) => <option key={survey.id} value={survey.id}>{survey.nombre}</option>)}</select></label>}
         {parcelaEnEdicion && (
           <span className="ml-auto text-xs text-primary-foreground/70">
             Editando: {parcelaEnEdicion.nombre}

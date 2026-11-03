@@ -16,8 +16,22 @@ export async function GET(): Promise<Response> {
     const user = await requireSessionUser(await headers())
     const workspace = await managerWorkspace(user.id)
     if (!workspace && user.role !== 'admin') return jsonError('No tienes un entorno Manager activo.', 403)
-    const invitations = await invitationsCollection().find({ workspaceId: workspace?.id }).sort({ creadoEn: -1 }).toArray()
+    const invitations = await invitationsCollection().find(workspace ? { workspaceId: workspace.id, _id: { $not: /^code:/ } } : {}).sort({ creadoEn: -1 }).toArray()
     return jsonOk({ invitations: invitations.map(({ digest: _digest, ...invitation }) => invitation) })
+  })
+}
+
+export async function PATCH(request: Request): Promise<Response> {
+  return apiRoute(async () => {
+    const user = await requireSessionUser(await headers())
+    const workspace = await managerWorkspace(user.id)
+    if (!workspace) return jsonError('No tienes un entorno Manager activo.', 403)
+    const body = await readJsonBody(request)
+    if (typeof body !== 'object' || body === null || typeof (body as Record<string, unknown>).id !== 'string') return jsonError('Invitación inválida.', 400)
+    const id = (body as { id: string }).id
+    const result = await invitationsCollection().updateMany({ _id: { $in: [id, `code:${id}`] }, workspaceId: workspace.id }, { $set: { revocado: true } })
+    if (!result.matchedCount) return jsonError('La invitación no existe en tu entorno.', 404)
+    return jsonOk({ revocada: true })
   })
 }
 

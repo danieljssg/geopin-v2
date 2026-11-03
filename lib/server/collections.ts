@@ -18,6 +18,8 @@ export const COLLECTION_WORKSPACES = 'workspaces'
 export const COLLECTION_MEMBERSHIPS = 'workspace_memberships'
 export const COLLECTION_MANAGER_REQUESTS = 'manager_requests'
 export const COLLECTION_INVITATIONS = 'invitations'
+export const COLLECTION_WORKSPACE_FIELDS = 'workspace_fields'
+export const COLLECTION_INVITE_ATTEMPTS = 'invite_attempts'
 
 /**
  * Colecciones que administra Better Auth. El adaptador de MongoDB usa
@@ -72,6 +74,14 @@ export interface InvitationDoc {
   revocado: boolean
 }
 
+export interface WorkspaceFieldDoc {
+  _id: string
+  workspaceId: string
+  field: import('@/lib/domain/types').FieldDef
+  creadoPor: string
+  creadoEn: string
+}
+
 export function parcelasCollection(): Collection<ParcelaDoc> {
   return getDb().collection<ParcelaDoc>(COLLECTION_PARECLAS)
 }
@@ -98,6 +108,14 @@ export function managerRequestsCollection(): Collection<ManagerRequestDoc> {
 
 export function invitationsCollection(): Collection<InvitationDoc> {
   return getDb().collection<InvitationDoc>(COLLECTION_INVITATIONS)
+}
+
+export function workspaceFieldsCollection(): Collection<WorkspaceFieldDoc> {
+  return getDb().collection<WorkspaceFieldDoc>(COLLECTION_WORKSPACE_FIELDS)
+}
+
+export function inviteAttemptsCollection(): Collection<{ _id: string; attempts: number; expiraEn: Date }> {
+  return getDb().collection(COLLECTION_INVITE_ATTEMPTS)
 }
 
 export function usuariosCollection(): Collection<UserDoc> {
@@ -177,6 +195,12 @@ export const INDEX_SPECS: IndexSpec[] = [
       name: 'ciudad',
     },
   },
+  { collection: COLLECTION_WORKSPACES, index: { key: { managerId: 1 }, name: 'workspace_manager_unique', unique: true } },
+  { collection: COLLECTION_MEMBERSHIPS, index: { key: { userId: 1, workspaceId: 1, surveyId: 1 }, name: 'membership_scope' } },
+  { collection: COLLECTION_INVITATIONS, index: { key: { digest: 1 }, name: 'invitation_digest_unique', unique: true } },
+  { collection: COLLECTION_MANAGER_REQUESTS, index: { key: { userId: 1, estado: 1 }, name: 'manager_request_status' } },
+  { collection: COLLECTION_WORKSPACE_FIELDS, index: { key: { workspaceId: 1 }, name: 'workspace_field_scope' } },
+  { collection: COLLECTION_INVITE_ATTEMPTS, index: { key: { expiraEn: 1 }, name: 'invite_attempts_ttl', expireAfterSeconds: 0 } },
 ]
 
 export interface IndexFailure {
