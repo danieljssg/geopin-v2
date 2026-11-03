@@ -362,7 +362,7 @@ export default function MapView({
       scrollWheelZoom
     >
       {capasBase.map((capa) => capa.id === baseActiva && (
-        <TileLayer key={capa.id} url={capa.url} attribution={capa.attribution} />
+      <TileLayer key={capa.id} url={capa.url} attribution={capa.attribution} maxZoom={19} />
       ))}
 
       {autoLocate && <GPSDetector onPositionChange={onPositionChange} onGPSStatus={onGPSStatus} />}

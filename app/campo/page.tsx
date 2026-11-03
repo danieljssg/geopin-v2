@@ -231,8 +231,10 @@ function CampoContent() {
   const enfoqueSensor = useMemo(() => {
     if (parcelaEnEdicion || origen !== 'sensor' || !geo.reading ||
       !Number.isFinite(geo.reading.accuracy) || geo.reading.accuracy <= 0) return null
-    const zoom = Math.max(3, Math.min(17,
-      Math.round(17 - Math.log2(Math.max(geo.reading.accuracy, 15) / 15))))
+    // GPS recentering should resolve to the location indicator, not remain
+    // at country scale. Keep the map's useful street-level ceiling at z19.
+    const zoom = Math.max(3, Math.min(19,
+      Math.round(19 - Math.log2(Math.max(geo.reading.accuracy, 15) / 15))))
     return { lat: geo.reading.lat, lng: geo.reading.lng, zoom }
   }, [geo.reading, origen, parcelaEnEdicion])
 
