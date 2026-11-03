@@ -109,7 +109,10 @@ export default function DashboardV2() {
         const { levantamientos: lista } = (await respuesta.json()) as {
           levantamientos: LevantamientoResumen[]
         }
-        if (vivo) setLevantamientos(lista)
+        if (vivo) {
+          setLevantamientos(lista)
+          setSeleccionado((actual) => actual || lista[0]?.id || '')
+        }
       } catch {
         // Sin campañas el dashboard igual funciona sobre todas las parcelas.
       }
@@ -127,6 +130,8 @@ export default function DashboardV2() {
    */
   useEffect(() => {
     let vivo = true
+
+    if (!seleccionado) return () => { vivo = false }
 
     void pedirDashboard(seleccionado).then((resultado) => {
       if (!vivo) return
@@ -172,12 +177,11 @@ export default function DashboardV2() {
                 {(valor) =>
                   valor
                     ? levantamientos.find((levantamiento) => levantamiento.id === valor)?.nombre
-                    : 'Todas las parcelas'
+                    : 'Selecciona un levantamiento'
                 }
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todas las parcelas</SelectItem>
               {levantamientos.map((levantamiento) => (
                 <SelectItem key={levantamiento.id} value={levantamiento.id}>
                   {levantamiento.nombre}

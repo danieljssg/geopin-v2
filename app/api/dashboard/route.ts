@@ -27,6 +27,9 @@ export async function GET(request: Request): Promise<Response> {
 
     const url = new URL(request.url)
     const levantamientoId = url.searchParams.get('levantamientoId')?.trim() || undefined
+    if (!levantamientoId) {
+      return jsonOk({ error: 'Selecciona un levantamiento para consultar el dashboard.' }, 400)
+    }
 
     const [levantamiento, documentos] = await Promise.all([
       levantamientoId ? findLevantamiento(levantamientoId) : Promise.resolve(null),
