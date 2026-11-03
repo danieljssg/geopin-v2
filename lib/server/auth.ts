@@ -4,7 +4,7 @@ import { admin } from 'better-auth/plugins'
 import { defaultAc, userAc } from 'better-auth/plugins/admin/access'
 import { getMongoClient } from './cosmos'
 import { getServerEnv } from './env'
-import { ensureManagerWorkspace } from './manager-workspace'
+import { provisionManagerAccount } from './manager-workspace'
 import { DEFAULT_ROLE, USER_ROLES } from '@/lib/auth/roles'
 
 /**
@@ -92,11 +92,11 @@ function createAuth() {
     },
     databaseHooks: {
       user: {
-        create: { after: async (user) => {
-          if (user.role === 'manager') await ensureManagerWorkspace(user)
+        create: { after: async (user, ctx) => {
+          if (user.role === 'manager') await provisionManagerAccount(user, { actorId: ctx?.context.session?.user.id })
         } },
-        update: { after: async (user) => {
-          if (user.role === 'manager') await ensureManagerWorkspace(user)
+        update: { after: async (user, ctx) => {
+          if (user.role === 'manager') await provisionManagerAccount(user, { actorId: ctx?.context.session?.user.id })
         } },
       },
     },
