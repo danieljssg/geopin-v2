@@ -233,9 +233,7 @@ function CampoContent() {
       !Number.isFinite(geo.reading.accuracy) || geo.reading.accuracy <= 0) return null
     // GPS recentering should resolve to the location indicator, not remain
     // at country scale. Keep the map's useful street-level ceiling at z19.
-    const zoom = Math.max(3, Math.min(19,
-      Math.round(19 - Math.log2(Math.max(geo.reading.accuracy, 15) / 15))))
-    return { lat: geo.reading.lat, lng: geo.reading.lng, zoom }
+    return { lat: geo.reading.lat, lng: geo.reading.lng, zoom: 19 }
   }, [geo.reading, origen, parcelaEnEdicion])
 
   const ubicacion = posicionSensor ?? posicionManual
