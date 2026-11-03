@@ -4,10 +4,10 @@ import {
   parseParcelaCreate,
   type ParcelasListResponse,
 } from '@/lib/api/contracts'
-import { isAdmin } from '@/lib/auth/roles'
 import { apiRoute, jsonError, jsonOk, readJsonBody } from '@/lib/server/http'
 import { requirePermission, requireSessionUser } from '@/lib/server/session'
 import { countParcelas, listParcelas } from '@/lib/server/repositories/parcelas'
+import { accessibleSurvey } from '@/lib/server/survey-access'
 import {
   DuplicateCodigoError,
   validateModuleInputs,
@@ -30,6 +30,9 @@ export async function GET(request: Request): Promise<Response> {
 
     const url = new URL(request.url)
     const query = parseListQuery(url)
+    if (user.role === 'manager' && !query.levantamientoId) {
+      return jsonError('Selecciona un levantamiento de tu entorno.', 400)
+    }
 
     /**
      * Regla de visibilidad: un encuestador solo ve sus propios registros y el
@@ -38,7 +41,9 @@ export async function GET(request: Request): Promise<Response> {
      * dueño solo lo aplica un admin.
      */
     const mias = url.searchParams.get('mias') === '1'
-    const creadoPor = mias || !isAdmin(user.role) ? user.id : query.creadoPor
+    const survey = query.levantamientoId ? await accessibleSurvey(user, query.levantamientoId) : null
+    if (query.levantamientoId && !survey) return jsonError('No tienes acceso a este levantamiento.', 403)
+    const creadoPor = mias || user.role === 'encuestador' ? user.id : query.creadoPor
 
     const filtro = { ...query, creadoPor }
     const [parcelas, total] = await Promise.all([
@@ -64,6 +69,9 @@ export async function POST(request: Request): Promise<Response> {
     const raw = await readJsonBody(request)
     const parsed = parseParcelaCreate(raw)
     if (!parsed.ok) return jsonError(parsed.error, 400)
+    if (parsed.value.levantamientoId && !await accessibleSurvey(user, parsed.value.levantamientoId)) {
+      return jsonError('No tienes acceso a este levantamiento.', 403)
+    }
 
     const failures = await validateModuleInputs(parsed.value.modulos ?? [])
     if (failures.length > 0) {

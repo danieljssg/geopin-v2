@@ -2,6 +2,8 @@ import { headers } from 'next/headers'
 import { parseSyncRequest, type SyncItemResult, type SyncResponse } from '@/lib/api/contracts'
 import { apiRoute, jsonError, jsonOk, readJsonBody } from '@/lib/server/http'
 import { requireSessionUser } from '@/lib/server/session'
+import { findParcela } from '@/lib/server/repositories/parcelas'
+import { accessibleSurvey } from '@/lib/server/survey-access'
 import {
   DuplicateCodigoError,
   validateModuleInputs,
@@ -34,6 +36,15 @@ export async function POST(request: Request): Promise<Response> {
     const resultados: SyncItemResult[] = []
 
     for (const parcela of parsed.value.parcels) {
+      const existing = await findParcela(parcela.id)
+      if (existing && user.role !== 'admin' && existing.creadoPor !== user.id) {
+        resultados.push({ id: parcela.id, estado: 'error', error: 'No tienes permiso para sincronizar este registro.' })
+        continue
+      }
+      if (parcela.levantamientoId && !await accessibleSurvey(user, parcela.levantamientoId)) {
+        resultados.push({ id: parcela.id, estado: 'error', error: 'No tienes acceso al levantamiento asociado.' })
+        continue
+      }
       const failures = await validateModuleInputs(parcela.modulos ?? [])
 
       if (failures.length > 0) {

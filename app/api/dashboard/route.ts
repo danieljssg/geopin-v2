@@ -1,6 +1,6 @@
 import { headers } from 'next/headers'
 import { apiRoute, jsonOk } from '@/lib/server/http'
-import { requirePermission } from '@/lib/server/session'
+import { requireSessionUser } from '@/lib/server/session'
 import { findLevantamiento, findParcelasParaDashboard } from '@/lib/server/repositories/levantamientos'
 import {
   coberturaServicios,
@@ -11,6 +11,7 @@ import {
   resumirTerritorio,
 } from '@/lib/domain/dashboard'
 import type { Parcela, ParcelaEstado } from '@/lib/domain/types'
+import { accessibleSurvey } from '@/lib/server/survey-access'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,17 +25,19 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: Request): Promise<Response> {
   return apiRoute(async () => {
     const requestHeaders = await headers()
-    await requirePermission(requestHeaders, 'levantamiento:gestionar')
+    const user = await requireSessionUser(requestHeaders)
 
     const url = new URL(request.url)
     const levantamientoId = url.searchParams.get('levantamientoId')?.trim() || undefined
     if (!levantamientoId) {
       return jsonOk({ error: 'Selecciona un levantamiento para consultar el dashboard.' }, 400)
     }
+    const permitido = await accessibleSurvey(user, levantamientoId)
+    if (!permitido) return jsonOk({ error: 'No tienes acceso a este levantamiento.' }, 403)
 
     const [levantamiento, documentos] = await Promise.all([
       levantamientoId ? findLevantamiento(levantamientoId) : Promise.resolve(null),
-      findParcelasParaDashboard(levantamientoId),
+      findParcelasParaDashboard(levantamientoId, user.role === 'encuestador' ? user.id : undefined),
     ])
 
     // Los documentos de Cosmos traen `_id`; el dominio no lo conoce.

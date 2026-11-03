@@ -3,6 +3,7 @@ import { parseParcelaPatch } from '@/lib/api/contracts'
 import { apiRoute, jsonError, jsonOk, readJsonBody } from '@/lib/server/http'
 import { requirePermission, requireSessionUser } from '@/lib/server/session'
 import { deleteParcela, findParcela } from '@/lib/server/repositories/parcelas'
+import { accessibleSurvey } from '@/lib/server/survey-access'
 import { applyModuleUpdates } from '@/lib/domain/sync'
 import { toGeoPoint } from '@/lib/domain/parcela'
 import { buildParcelaDoc, saveParcela } from '@/lib/server/repositories/parcelas'
@@ -20,11 +21,13 @@ interface RouteContext {
 export async function GET(_request: Request, context: RouteContext): Promise<Response> {
   return apiRoute(async () => {
     const requestHeaders = await headers()
-    await requireSessionUser(requestHeaders)
+    const user = await requireSessionUser(requestHeaders)
 
     const { id } = await context.params
     const parcela = await findParcela(id)
     if (!parcela) return jsonError('La parcela no existe.', 404)
+    if (user.role === 'encuestador' && parcela.creadoPor !== user.id) return jsonError('No tienes acceso a este registro.', 403)
+    if (parcela.levantamientoId && !await accessibleSurvey(user, parcela.levantamientoId)) return jsonError('No tienes acceso a este levantamiento.', 403)
 
     return jsonOk({ parcela })
   })
@@ -38,6 +41,8 @@ export async function PATCH(request: Request, context: RouteContext): Promise<Re
     const { id } = await context.params
     const existing = await findParcela(id)
     if (!existing) return jsonError('La parcela no existe.', 404)
+    if (user.role !== 'admin' && existing.creadoPor !== user.id) return jsonError('Solo puedes editar registros que creaste.', 403)
+    if (existing.levantamientoId && !await accessibleSurvey(user, existing.levantamientoId)) return jsonError('No tienes acceso a este levantamiento.', 403)
 
     const raw = await readJsonBody(request)
     const parsed = parseParcelaPatch(raw)
@@ -114,6 +119,7 @@ export async function DELETE(_request: Request, context: RouteContext): Promise<
     const { id } = await context.params
     const existing = await findParcela(id)
     if (!existing) return jsonError('La parcela no existe.', 404)
+    if (existing.levantamientoId && !await accessibleSurvey(user, existing.levantamientoId)) return jsonError('No tienes acceso a este levantamiento.', 403)
 
     // Un administrador borra lo que sea; un encuestador solo lo que él creó.
     if (user.role !== 'admin' && existing.creadoPor !== user.id) {

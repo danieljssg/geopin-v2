@@ -1,7 +1,9 @@
 import { headers } from 'next/headers'
 import { apiRoute, jsonError, jsonOk, readJsonBody } from '@/lib/server/http'
-import { requirePermission, requireSessionUser } from '@/lib/server/session'
-import { createLevantamiento, listLevantamientos } from '@/lib/server/repositories/levantamientos'
+import { requireSessionUser } from '@/lib/server/session'
+import { createLevantamiento } from '@/lib/server/repositories/levantamientos'
+import { visibleSurveys } from '@/lib/server/survey-access'
+import { workspacesCollection } from '@/lib/server/collections'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,9 +11,8 @@ export const dynamic = 'force-dynamic'
 export async function GET(): Promise<Response> {
   return apiRoute(async () => {
     const requestHeaders = await headers()
-    await requireSessionUser(requestHeaders)
-
-    const levantamientos = await listLevantamientos()
+    const user = await requireSessionUser(requestHeaders)
+    const levantamientos = await visibleSurveys(user)
     return jsonOk({ levantamientos })
   })
 }
@@ -20,7 +21,7 @@ export async function GET(): Promise<Response> {
 export async function POST(request: Request): Promise<Response> {
   return apiRoute(async () => {
     const requestHeaders = await headers()
-    const user = await requirePermission(requestHeaders, 'levantamiento:gestionar')
+    const user = await requireSessionUser(requestHeaders)
 
     const raw = await readJsonBody(request)
     if (typeof raw !== 'object' || raw === null) {
@@ -39,6 +40,15 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const ahora = new Date().toISOString()
+    let workspaceId: string | undefined
+    let propietarioId: string | undefined
+    if (user.role === 'manager') {
+      const workspace = await workspacesCollection().findOne({ managerId: user.id, estado: 'activo' })
+      if (!workspace) return jsonError('No tienes un entorno Manager activo.', 403)
+      workspaceId = workspace.id
+    } else if (user.role === 'encuestador') {
+      propietarioId = user.id
+    }
     const levantamiento = await createLevantamiento({
       id: crypto.randomUUID(),
       nombre,
@@ -46,6 +56,8 @@ export async function POST(request: Request): Promise<Response> {
       totalEsperado,
       creadoEn: ahora,
       creadoPor: user.id,
+      ...(workspaceId ? { workspaceId } : {}),
+      ...(propietarioId ? { propietarioId } : {}),
     })
 
     return jsonOk({ levantamiento }, 201)

@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 import { apiRoute, jsonError } from '@/lib/server/http'
 import { requireSessionUser } from '@/lib/server/session'
 import { isAdmin } from '@/lib/auth/roles'
+import { accessibleSurvey } from '@/lib/server/survey-access'
 import { findParcelasParaDashboard } from '@/lib/server/repositories/levantamientos'
 import { getModuleSchemas } from '@/lib/server/repositories/esquemas'
 import {
@@ -50,9 +51,11 @@ export async function GET(request: Request): Promise<Response> {
     }
 
     const levantamientoId = url.searchParams.get('levantamientoId')?.trim() || undefined
+    if (!levantamientoId) return jsonError('Selecciona un levantamiento para exportar.', 400)
+    if (!await accessibleSurvey(user, levantamientoId)) return jsonError('No tienes acceso a este levantamiento.', 403)
 
     const [documentos, esquemas] = await Promise.all([
-      findParcelasParaDashboard(levantamientoId, isAdmin(user.role) ? undefined : user.id),
+      findParcelasParaDashboard(levantamientoId, isAdmin(user.role) || user.role === 'manager' ? undefined : user.id),
       getModuleSchemas(),
     ])
 
