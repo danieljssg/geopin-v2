@@ -98,6 +98,47 @@ export interface ResumenLevantamiento {
   faltantes: number
 }
 
+export interface ResumenTerritorial {
+  pines: number
+  superficieM2: number
+  parcelasConSuperficie: number
+  poblacionEstimada: number | null
+  registrosConPoblacion: number
+}
+
+/** Aggregate the metrics that have unambiguous numeric fields in the current model. */
+export function resumirTerritorio(parcelas: readonly Parcela[]): ResumenTerritorial {
+  let superficieM2 = 0
+  let parcelasConSuperficie = 0
+  let poblacionEstimada = 0
+  let registrosConPoblacion = 0
+  let hayCampoPoblacionNumerico = false
+
+  for (const parcela of parcelas) {
+    if (typeof parcela.areaM2 === 'number' && Number.isFinite(parcela.areaM2) && parcela.areaM2 >= 0) {
+      superficieM2 += parcela.areaM2
+      parcelasConSuperficie += 1
+    }
+    for (const modulo of Object.values(parcela.modulos ?? {})) {
+      for (const [key, value] of Object.entries(modulo.datos ?? {})) {
+        if (!/(habitantes|poblacion_personas|personas_hogar)/i.test(key)) continue
+        if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) continue
+        hayCampoPoblacionNumerico = true
+        poblacionEstimada += value
+        registrosConPoblacion += 1
+      }
+    }
+  }
+
+  return {
+    pines: parcelas.length,
+    superficieM2,
+    parcelasConSuperficie,
+    poblacionEstimada: hayCampoPoblacionNumerico ? poblacionEstimada : null,
+    registrosConPoblacion,
+  }
+}
+
 /**
  * Resumen de avance.
  *

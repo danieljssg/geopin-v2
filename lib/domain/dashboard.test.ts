@@ -8,6 +8,7 @@ import {
   distribucionEstados,
   equipamientoResumen,
   resumirLevantamiento,
+  resumirTerritorio,
 } from './dashboard'
 import type { Parcela } from './types'
 
@@ -73,6 +74,25 @@ describe('resumirLevantamiento', () => {
     expect(resumen.enRevision).toBe(1)
     expect(resumen.completadas).toBe(0)
     expect(resumen.pendientes).toBe(0)
+  })
+})
+
+describe('resumirTerritorio', () => {
+  it('sums pin count and nonnegative area in square meters, without treating population ranges as numbers', () => {
+    const parcelas = [
+      parcela({ id: '1', areaM2: 100, modulos: { edificacion: { version: 1, schemaVersion: 1, datos: { poblacion_rango: '1–3' }, actualizadoEn: '', actualizadoPor: 'u1' } } }),
+      parcela({ id: '2', areaM2: 200 }),
+    ]
+    expect(resumirTerritorio(parcelas)).toEqual({ pines: 2, superficieM2: 300, parcelasConSuperficie: 2, poblacionEstimada: null, registrosConPoblacion: 0 })
+  })
+
+  it('sums numeric inhabitant fields and accepts zero', () => {
+    const parcels = [
+      parcela({ id: '1', modulos: { edificacion: { version: 1, schemaVersion: 1, datos: { habitantes: 0 }, actualizadoEn: '', actualizadoPor: 'u1' } } }),
+      parcela({ id: '2', modulos: { edificacion: { version: 1, schemaVersion: 1, datos: { habitantes: 4 }, actualizadoEn: '', actualizadoPor: 'u1' } } }),
+    ]
+    expect(resumirTerritorio(parcels).poblacionEstimada).toBe(4)
+    expect(resumirTerritorio(parcels).registrosConPoblacion).toBe(2)
   })
 })
 

@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { CoberturaServicio, DensidadCelda, EquipamientoResumen, ResumenLevantamiento } from '@/lib/domain/dashboard'
+import type { CoberturaServicio, DensidadCelda, EquipamientoResumen, ResumenLevantamiento, ResumenTerritorial } from '@/lib/domain/dashboard'
 import type { ParcelaEstado } from '@/lib/domain/types'
 import type { PuntoMapa } from './MapaCalor'
 
@@ -81,6 +81,7 @@ async function pedirDashboard(
 interface DashboardData {
   levantamiento: LevantamientoResumen | null
   resumen: ResumenLevantamiento
+  territorio: ResumenTerritorial
   distribucion: Array<{ estado: ParcelaEstado; label: string; cantidad: number }>
   cobertura: CoberturaServicio[]
   equipamiento: EquipamientoResumen[]
@@ -222,6 +223,11 @@ export default function DashboardV2() {
 
       {!cargando && datos && (
         <>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Card><CardContent className="pt-5"><p className="text-xs font-semibold uppercase text-muted-foreground">Pines en el levantamiento</p><p className="mt-1 text-2xl font-bold">{datos.territorio.pines.toLocaleString('es-VE')}</p></CardContent></Card>
+            <Card><CardContent className="pt-5"><p className="text-xs font-semibold uppercase text-muted-foreground">Superficie reportada</p><p className="mt-1 text-2xl font-bold">{datos.territorio.superficieM2.toLocaleString('es-VE')} m²</p><p className="text-xs text-muted-foreground">{datos.territorio.parcelasConSuperficie} registros con superficie</p></CardContent></Card>
+            <Card><CardContent className="pt-5"><p className="text-xs font-semibold uppercase text-muted-foreground">Población estimada</p><p className="mt-1 text-2xl font-bold">{datos.territorio.poblacionEstimada === null ? 'Sin campo cuantitativo' : datos.territorio.poblacionEstimada.toLocaleString('es-VE')}</p><p className="text-xs text-muted-foreground">{datos.territorio.registrosConPoblacion} registros numéricos</p></CardContent></Card>
+          </div>
           {/* Avance contra el total esperado */}
           <Card>
             <CardContent>

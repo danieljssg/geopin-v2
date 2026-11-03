@@ -8,6 +8,7 @@ import {
   distribucionEstados,
   equipamientoResumen,
   resumirLevantamiento,
+  resumirTerritorio,
 } from '@/lib/domain/dashboard'
 import type { Parcela, ParcelaEstado } from '@/lib/domain/types'
 
@@ -60,6 +61,7 @@ export async function GET(request: Request): Promise<Response> {
           }
         : null,
       resumen: resumirLevantamiento(parcelas, levantamiento?.totalEsperado),
+      territorio: resumirTerritorio(parcelas),
       distribucion: distribucionEstados(parcelas),
       cobertura: coberturaServicios(parcelas),
       equipamiento: equipamientoResumen(parcelas),
