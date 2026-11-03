@@ -1,6 +1,6 @@
 import type { Collection, IndexDescription, ObjectId } from 'mongodb'
 import { getDb } from './cosmos'
-import type { Levantamiento, ModuleSchema, Parcela } from '@/lib/domain/types'
+import type { Levantamiento, ModuleSchema, Parcela, Workspace, WorkspaceMembership } from '@/lib/domain/types'
 
 /**
  * Colecciones de la base de datos y sus índices.
@@ -14,6 +14,10 @@ import type { Levantamiento, ModuleSchema, Parcela } from '@/lib/domain/types'
 export const COLLECTION_PARECLAS = 'parcelas'
 export const COLLECTION_SCHEMAS = 'schemas'
 export const COLLECTION_LEVANTAMIENTOS = 'levantamientos'
+export const COLLECTION_WORKSPACES = 'workspaces'
+export const COLLECTION_MEMBERSHIPS = 'workspace_memberships'
+export const COLLECTION_MANAGER_REQUESTS = 'manager_requests'
+export const COLLECTION_INVITATIONS = 'invitations'
 
 /**
  * Colecciones que administra Better Auth. El adaptador de MongoDB usa
@@ -40,6 +44,33 @@ export type ParcelaDoc = Parcela & { _id: string }
 export type SchemaDoc = ModuleSchema & { _id: string }
 
 export type LevantamientoDoc = Levantamiento & { _id: string }
+export type WorkspaceDoc = Workspace & { _id: string }
+export type MembershipDoc = WorkspaceMembership & { _id: string }
+
+export interface ManagerRequestDoc {
+  _id: string
+  userId: string
+  nombreWorkspace: string
+  proposito: string
+  participantesEsperados: number
+  estado: 'pendiente' | 'aprobada' | 'rechazada'
+  creadoEn: string
+  revisadoEn?: string
+  revisadoPor?: string
+  workspaceId?: string
+}
+
+export interface InvitationDoc {
+  _id: string
+  digest: string
+  targetType: 'workspace' | 'survey'
+  targetId: string
+  workspaceId: string
+  creadoPor: string
+  creadoEn: string
+  expiraEn: string
+  revocado: boolean
+}
 
 export function parcelasCollection(): Collection<ParcelaDoc> {
   return getDb().collection<ParcelaDoc>(COLLECTION_PARECLAS)
@@ -51,6 +82,22 @@ export function schemasCollection(): Collection<SchemaDoc> {
 
 export function levantamientosCollection(): Collection<LevantamientoDoc> {
   return getDb().collection<LevantamientoDoc>(COLLECTION_LEVANTAMIENTOS)
+}
+
+export function workspacesCollection(): Collection<WorkspaceDoc> {
+  return getDb().collection<WorkspaceDoc>(COLLECTION_WORKSPACES)
+}
+
+export function membershipsCollection(): Collection<MembershipDoc> {
+  return getDb().collection<MembershipDoc>(COLLECTION_MEMBERSHIPS)
+}
+
+export function managerRequestsCollection(): Collection<ManagerRequestDoc> {
+  return getDb().collection<ManagerRequestDoc>(COLLECTION_MANAGER_REQUESTS)
+}
+
+export function invitationsCollection(): Collection<InvitationDoc> {
+  return getDb().collection<InvitationDoc>(COLLECTION_INVITATIONS)
 }
 
 export function usuariosCollection(): Collection<UserDoc> {
