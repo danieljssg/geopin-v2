@@ -106,6 +106,17 @@ export interface ResumenTerritorial {
   registrosConPoblacion: number
 }
 
+export interface DistribucionCategoria { categoria: string; cantidad: number; porcentaje: number }
+
+export function distribucionCategorias(parcelas: readonly Parcela[]): DistribucionCategoria[] {
+  const counts = new Map<string, number>()
+  for (const parcela of parcelas) {
+    const categoria = parcela.categoria.trim() || 'Sin categoría'
+    counts.set(categoria, (counts.get(categoria) ?? 0) + 1)
+  }
+  return [...counts].map(([categoria, cantidad]) => ({ categoria, cantidad, porcentaje: parcelas.length ? redondear(cantidad / parcelas.length * 100) : 0 })).sort((a, b) => b.cantidad - a.cantidad)
+}
+
 /** Aggregate the metrics that have unambiguous numeric fields in the current model. */
 export function resumirTerritorio(parcelas: readonly Parcela[]): ResumenTerritorial {
   let superficieM2 = 0

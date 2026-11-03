@@ -116,6 +116,7 @@ interface DashboardData {
   levantamiento: LevantamientoResumen | null
   resumen: ResumenLevantamiento
   territorio: ResumenTerritorial
+  categorias: Array<{ categoria: string; cantidad: number; porcentaje: number }>
   distribucion: Array<{ estado: ParcelaEstado; label: string; cantidad: number }>
   cobertura: CoberturaServicio[]
   equipamiento: EquipamientoResumen[]
@@ -130,6 +131,7 @@ export default function DashboardV2() {
   const [error, setError] = useState<string | null>(null)
   const [recarga, setRecarga] = useState(0)
   const [filters, setFilters] = useState<DashboardFilters>(EMPTY_FILTERS)
+  const [mostrarPorcentaje, setMostrarPorcentaje] = useState(false)
   // El estado de carga se deriva de los datos: guardar la bandera en estado
   // obligaba a un setState dentro del efecto, que React 19 marca porque
   // provoca un render en cascada.
@@ -287,6 +289,7 @@ export default function DashboardV2() {
 
       {!cargando && datos && (
         <>
+          <Card><CardHeader><CardTitle>Registros por categoría</CardTitle><CardAction><Button variant="outline" size="sm" onClick={() => setMostrarPorcentaje((value) => !value)}>{mostrarPorcentaje ? 'Ver cantidades' : 'Ver porcentajes'}</Button></CardAction></CardHeader><CardContent className="space-y-2">{datos.categorias.length === 0 ? <p className="text-sm text-muted-foreground">No hay registros para estos filtros.</p> : datos.categorias.map((item) => <div key={item.categoria} className="flex justify-between gap-3 border-b py-2 text-sm"><span>{item.categoria}</span><strong>{mostrarPorcentaje ? `${item.porcentaje}%` : item.cantidad}</strong></div>)}</CardContent></Card>
           <div className="grid gap-3 sm:grid-cols-3">
             <Card><CardContent className="pt-5"><p className="text-xs font-semibold uppercase text-muted-foreground">Pines en el levantamiento</p><p className="mt-1 text-2xl font-bold">{datos.territorio.pines.toLocaleString('es-VE')}</p></CardContent></Card>
             <Card><CardContent className="pt-5"><p className="text-xs font-semibold uppercase text-muted-foreground">Superficie reportada</p><p className="mt-1 text-2xl font-bold">{datos.territorio.superficieM2.toLocaleString('es-VE')} m²</p><p className="text-xs text-muted-foreground">{datos.territorio.parcelasConSuperficie} registros con superficie</p></CardContent></Card>
@@ -326,6 +329,7 @@ export default function DashboardV2() {
               </div>
             </CardContent>
           </Card>
+          <Card><CardHeader><CardTitle>Resultados filtrados</CardTitle><CardDescription>{datos.puntos.length} registros en este resultado; se muestran los primeros 100.</CardDescription></CardHeader><CardContent><div className="max-h-96 overflow-auto"><table className="w-full text-sm"><thead className="sticky top-0 bg-background text-left"><tr><th className="p-2">Nombre</th><th className="p-2">Categoría</th><th className="p-2">Estado</th></tr></thead><tbody>{datos.puntos.slice(0, 100).map((punto) => <tr key={punto.id} className="border-t"><td className="p-2">{punto.nombre}</td><td className="p-2">{punto.categoria ?? '—'}</td><td className="p-2">{punto.estado}</td></tr>)}</tbody></table></div></CardContent></Card>
 
           {/* Cobertura de servicios */}
           <Card>

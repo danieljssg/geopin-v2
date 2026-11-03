@@ -9,6 +9,7 @@ import {
   equipamientoResumen,
   resumirLevantamiento,
   resumirTerritorio,
+  distribucionCategorias,
 } from './dashboard'
 import type { Parcela } from './types'
 
@@ -93,6 +94,16 @@ describe('resumirTerritorio', () => {
     ]
     expect(resumirTerritorio(parcels).poblacionEstimada).toBe(4)
     expect(resumirTerritorio(parcels).registrosConPoblacion).toBe(2)
+  })
+})
+
+describe('distribucionCategorias', () => {
+  it('returns counts and percentages against the filtered result set', () => {
+    const rows = [parcela({ id: 'a', categoria: 'Vivienda' }), parcela({ id: 'b', categoria: 'Vivienda' }), parcela({ id: 'c', categoria: 'Comercio' })]
+    expect(distribucionCategorias(rows)).toEqual([
+      { categoria: 'Vivienda', cantidad: 2, porcentaje: 66.7 },
+      { categoria: 'Comercio', cantidad: 1, porcentaje: 33.3 },
+    ])
   })
 })
 

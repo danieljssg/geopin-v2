@@ -9,6 +9,7 @@ import {
   equipamientoResumen,
   resumirLevantamiento,
   resumirTerritorio,
+  distribucionCategorias,
 } from '@/lib/domain/dashboard'
 import type { Parcela, ParcelaEstado } from '@/lib/domain/types'
 import { accessibleSurvey } from '@/lib/server/survey-access'
@@ -52,6 +53,7 @@ export async function GET(request: Request): Promise<Response> {
       id: parcela.id,
       nombre: parcela.nombre,
       estado: parcela.estado as ParcelaEstado,
+      categoria: parcela.categoria,
       lat: parcela.ubicacion.coordinates[1],
       lng: parcela.ubicacion.coordinates[0],
     }))
@@ -67,6 +69,7 @@ export async function GET(request: Request): Promise<Response> {
         : null,
       resumen: resumirLevantamiento(parcelas, levantamiento?.totalEsperado),
       territorio: resumirTerritorio(parcelas),
+      categorias: distribucionCategorias(parcelas),
       distribucion: distribucionEstados(parcelas),
       cobertura: coberturaServicios(parcelas),
       equipamiento: equipamientoResumen(parcelas),
